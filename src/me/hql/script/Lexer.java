@@ -627,6 +627,40 @@ public class Lexer {
         KEYWORDS.put("taskResumeAll", "taskResumeAll");
         KEYWORDS.put("taskShutdown", "taskShutdown");
 
+        // --- THƯ VIỆN HQL.MAIL (gửi email) ---
+        KEYWORDS.put("mailConfig", "mailConfig");
+        KEYWORDS.put("mailConfigEnv", "mailConfigEnv");
+        KEYWORDS.put("mailWarmUp", "mailWarmUp");
+        KEYWORDS.put("mailSenderName", "mailSenderName");
+        KEYWORDS.put("mailIsConfigured", "mailIsConfigured");
+        KEYWORDS.put("mailError", "mailError");
+        KEYWORDS.put("mailAttach", "mailAttach");
+        KEYWORDS.put("mailClearAttach", "mailClearAttach");
+        KEYWORDS.put("mailOtp", "mailOtp");
+        KEYWORDS.put("mailPassword", "mailPassword");
+        KEYWORDS.put("mailIsValid", "mailIsValid");
+        KEYWORDS.put("mailSend", "mailSend");
+        KEYWORDS.put("mailSendText", "mailSendText");
+        KEYWORDS.put("mailSendAsync", "mailSendAsync");
+        KEYWORDS.put("mailSendAsyncText", "mailSendAsyncText");
+
+        // --- THƯ VIỆN HQL.ENV (tệp cấu hình .henv) ---
+        KEYWORDS.put("envLoad", "envLoad");
+        KEYWORDS.put("envGet", "envGet");
+        KEYWORDS.put("envHas", "envHas");
+        KEYWORDS.put("envSet", "envSet");
+        KEYWORDS.put("envInt", "envInt");
+        KEYWORDS.put("envBool", "envBool");
+        KEYWORDS.put("envAll", "envAll");
+        KEYWORDS.put("envFiles", "envFiles");
+        KEYWORDS.put("envRequire", "envRequire");
+
+        // --- HQL.DATABASE: bể kết nối + nối theo .henv + chèn hàng loạt ---
+        KEYWORDS.put("connectEnv", "connectEnv");
+        KEYWORDS.put("dbPoolSize", "dbPoolSize");
+        KEYWORDS.put("dbPoolStats", "dbPoolStats");
+        KEYWORDS.put("executeBatch", "executeBatch");
+
         // --- THƯ VIỆN WEB / HQLSP (HQL.WEB) ---
         KEYWORDS.put("printWeb", "printWeb");
         KEYWORDS.put("webStart", "webStart");

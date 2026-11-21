@@ -49,6 +49,7 @@ public final class HqlMailer {
     private volatile Session session;
     private Transport transport;                      // chỉ đụng vào khi đang giữ khoá LOCK
     private long transportLastUsed;
+    private long msConnect, msSend;                   // đo thời gian từng bước của lần gửi gần nhất (giữ LOCK khi đụng vào)
     private final Object LOCK = new Object();
 
     /** Sau chừng này mili-giây không gửi thì coi như kết nối đã nguội: nối lại trước khi gửi. */
@@ -152,7 +153,10 @@ public final class HqlMailer {
         long t0 = System.currentTimeMillis();
         synchronized (LOCK) {
             try {
+                msConnect = 0; msSend = 0;
+                long tb = System.currentTimeMillis();
                 MimeMessage msg = build(to, subject, content, html, attachments);
+                long msBuild = System.currentTimeMillis() - tb;
                 try {
                     sendOnce(msg);
                 } catch (SendFailedException bad) {
@@ -162,7 +166,8 @@ public final class HqlMailer {
                     msg = build(to, subject, content, html, attachments);
                     sendOnce(msg);
                 }
-                System.out.println("[HQL.MAIL] Đã gửi tới " + to + " (" + (System.currentTimeMillis() - t0) + " ms)");
+                System.out.println("[HQL.MAIL] Đã gửi tới " + to + " (" + (System.currentTimeMillis() - t0) + " ms"
+                        + " | dựng thư " + msBuild + " | nối SMTP " + msConnect + " | gửi " + msSend + ")");
                 return null;
             } catch (Exception e) {
                 String err = e.getMessage() == null ? e.toString() : e.getMessage();
@@ -173,9 +178,14 @@ public final class HqlMailer {
     }
 
     private void sendOnce(MimeMessage msg) throws MessagingException {
+        long t1 = System.currentTimeMillis();
         ensureConnected();
+        long t2 = System.currentTimeMillis();
         transport.sendMessage(msg, msg.getAllRecipients());
-        transportLastUsed = System.currentTimeMillis();
+        long t3 = System.currentTimeMillis();
+        msConnect += t2 - t1;
+        msSend += t3 - t2;
+        transportLastUsed = t3;
     }
 
     /** Phải gọi khi đang giữ LOCK. */
@@ -205,6 +215,9 @@ public final class HqlMailer {
         p.put("mail.smtp.port", String.valueOf(port));
         p.put("mail.smtp.auth", "true");
         p.put("mail.smtp.localhost", "localhost");              // tránh JavaMail phải dò tên máy (chậm trên Windows)
+        // saveChanges() tạo Message-ID bằng InternetAddress.getLocalAddress(): nếu không có "mail.from" nó gọi
+        // InetAddress.getLocalHost() -> dò DNS tên máy, trên Windows hay mất ~5 giây MỖI lá thư.
+        p.put("mail.from", fromEmail);
         if (port == 465) {
             p.put("mail.smtp.ssl.enable", "true");
         } else {

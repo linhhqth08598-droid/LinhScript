@@ -1169,10 +1169,10 @@ public class Interpreter {
             String nhan = Base64.getEncoder().encodeToString(bam);
 
             out.write(("HTTP/1.1 101 Switching Protocols\r\n"
-                     + "Upgrade: websocket\r\n"
-                     + "Connection: Upgrade\r\n"
-                     + "Sec-WebSocket-Accept: " + nhan + "\r\n\r\n")
-                     .getBytes(StandardCharsets.UTF_8));
+                    + "Upgrade: websocket\r\n"
+                    + "Connection: Upgrade\r\n"
+                    + "Sec-WebSocket-Accept: " + nhan + "\r\n\r\n")
+                    .getBytes(StandardCharsets.UTF_8));
             out.flush();
 
             wsClients.add(s);
@@ -1425,7 +1425,7 @@ public class Interpreter {
                 } else {
                     byte[] msg = webErrorPage("404 - Sai tên project",
                             "Website này chạy tại <code>" + htmlEscape(webAppContext) + "/</code>. "
-                          + "Hãy mở <a style=\"color:#38bdf8\" href=\"" + webAppContext + "/\">http://localhost:" + webServerPort + webAppContext + "/</a>")
+                                    + "Hãy mở <a style=\"color:#38bdf8\" href=\"" + webAppContext + "/\">http://localhost:" + webServerPort + webAppContext + "/</a>")
                             .getBytes(StandardCharsets.UTF_8);
                     ex.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
                     ex.sendResponseHeaders(404, msg.length);
@@ -2825,8 +2825,8 @@ public class Interpreter {
                         scope().put(varName, (double) i);
                         runAll(body);
                     } catch (BreakException e) { break; }
-                      catch (ContinueException e) { continue; }
-                      finally { datScope(gocFor); }
+                    catch (ContinueException e) { continue; }
+                    finally { datScope(gocFor); }
                 }
             }
             // TRƯỜNG HỢP 2: Lặp Foreach cho Mảng và Chuỗi (for member in team)
@@ -2843,8 +2843,8 @@ public class Interpreter {
                             scope().put(varName, item);
                             runAll(body);
                         } catch (BreakException e) { break; }
-                          catch (ContinueException e) { continue; }
-                          finally { datScope(gocDs); }
+                        catch (ContinueException e) { continue; }
+                        finally { datScope(gocDs); }
                     }
                 }
                 // Nếu duyệt qua chữ cái trong một Chuỗi (String)
@@ -2857,8 +2857,8 @@ public class Interpreter {
                             scope().put(varName, String.valueOf(c));
                             runAll(body);
                         } catch (BreakException e) { break; }
-                          catch (ContinueException e) { continue; }
-                          finally { datScope(gocChuoi); }
+                        catch (ContinueException e) { continue; }
+                        finally { datScope(gocChuoi); }
                     }
                 } else {
                     throw new RuntimeException("Lỗi: Không thể dùng 'in' cho kiểu dữ liệu này.");
@@ -3236,7 +3236,7 @@ public class Interpreter {
                         return str.substring(start);
                     } catch (Exception e) {
                         return str;
-                }
+                    }
                 case "toLowerCase": return str.toLowerCase();
                 case "toUpperCase": return str.toUpperCase();
                 case "indexOf": return (double) str.indexOf(stringify(resolveExpression(argGroups.get(0))));
@@ -3543,10 +3543,9 @@ public class Interpreter {
                 "taskRunParallel", "taskAcquireLock", "taskReleaseLock", "taskWaitFor", "taskBroadcastEvent",
                 "taskList", "taskDetails", "taskCount", "taskActiveCount", "taskPauseAll", "taskResumeAll", "taskShutdown",
                 // --- BỔ SUNG HÀM HQL.MAIL (GỬI EMAIL TỰ ĐỘNG) VÀO ĐÂY ---
-                "mailConfig", "mailSenderName", "mailBrand", "mailSupport", "mailIsConfigured", "mailError",
+                "mailConfig", "mailSenderName", "mailIsConfigured", "mailError",
                 "mailAttach", "mailClearAttach", "mailOtp", "mailPassword", "mailIsValid",
-                "mailSend", "mailSendText", "mailSendAsync",
-                "mailSendAccount", "mailSendOtp", "mailSendNotify", "mailConfigEnv", "mailWarmUp",
+                "mailSend", "mailSendText", "mailSendAsync", "mailSendAsyncText", "mailConfigEnv", "mailWarmUp",
                 // --- BỔ SUNG HQL.ENV (TỆP CẤU HÌNH .henv) VÀ BỂ KẾT NỐI DATABASE ---
                 "envLoad", "envGet", "envHas", "envSet", "envInt", "envBool", "envAll", "envFiles", "envRequire",
                 "connectEnv", "dbPoolSize", "dbPoolStats", "executeBatch",
@@ -3724,105 +3723,105 @@ public class Interpreter {
                 }
 
 
-    // ======================================================================
-    //  KHAY HỆ THỐNG CHO CỬA SỔ APP
-    //
-    //  appKhay(ma, anh, nhanMo, nhanThoat)
-    //
-    //  Gọi hàm này rồi thì BẤM DẤU X KHÔNG CÒN LÀ THOÁT — cửa sổ chỉ ẩn đi,
-    //  app nằm lại ở khay. Muốn mở lại thì bấm đúp icon khay hoặc chọn mục
-    //  "Mở ứng dụng"; muốn thoát hẳn thì chọn "Thoát".
-    //
-    //  VÌ SAO KHÔNG DÙNG trayInit() CÓ SẴN: hàm đó dựng sẵn ba mục Bật/Tắt/
-    //  Thoát cho việc bật tắt máy chủ, và nó gọi ngược lại hàm HQL theo tên.
-    //  Ở đây cần đúng hai mục, và việc phải làm là ẩn/hiện một JFrame ngay
-    //  trong Java — vòng qua HQL rồi vòng lại chỉ thêm chỗ hỏng.
-    //
-    //  KHÔNG PHẢI MÁY NÀO CŨNG CÓ KHAY: SystemTray.isSupported() sai thì
-    //  KHÔNG được im lặng bỏ qua. Im lặng thì dấu X vẫn ẩn cửa sổ như thường,
-    //  mà không có icon khay nào để mở lại — app biến mất khỏi màn hình trong
-    //  khi tiến trình vẫn chạy, người dùng không có đường nào chạm tới nó.
-    //  Nên máy không có khay thì GIỮ NGUYÊN nết cũ: đóng là thoát.
-    // ======================================================================
-    case "appKhay": {
-        CuaSoApp cs = cuaSoApp.get((int) toDouble(args.get(0)));
-        if (cs == null || cs.khung == null) { return false; }
+                // ======================================================================
+                //  KHAY HỆ THỐNG CHO CỬA SỔ APP
+                //
+                //  appKhay(ma, anh, nhanMo, nhanThoat)
+                //
+                //  Gọi hàm này rồi thì BẤM DẤU X KHÔNG CÒN LÀ THOÁT — cửa sổ chỉ ẩn đi,
+                //  app nằm lại ở khay. Muốn mở lại thì bấm đúp icon khay hoặc chọn mục
+                //  "Mở ứng dụng"; muốn thoát hẳn thì chọn "Thoát".
+                //
+                //  VÌ SAO KHÔNG DÙNG trayInit() CÓ SẴN: hàm đó dựng sẵn ba mục Bật/Tắt/
+                //  Thoát cho việc bật tắt máy chủ, và nó gọi ngược lại hàm HQL theo tên.
+                //  Ở đây cần đúng hai mục, và việc phải làm là ẩn/hiện một JFrame ngay
+                //  trong Java — vòng qua HQL rồi vòng lại chỉ thêm chỗ hỏng.
+                //
+                //  KHÔNG PHẢI MÁY NÀO CŨNG CÓ KHAY: SystemTray.isSupported() sai thì
+                //  KHÔNG được im lặng bỏ qua. Im lặng thì dấu X vẫn ẩn cửa sổ như thường,
+                //  mà không có icon khay nào để mở lại — app biến mất khỏi màn hình trong
+                //  khi tiến trình vẫn chạy, người dùng không có đường nào chạm tới nó.
+                //  Nên máy không có khay thì GIỮ NGUYÊN nết cũ: đóng là thoát.
+                // ======================================================================
+                case "appKhay": {
+                    CuaSoApp cs = cuaSoApp.get((int) toDouble(args.get(0)));
+                    if (cs == null || cs.khung == null) { return false; }
 
-        String anh       = args.size() > 1 ? stringify(args.get(1)) : "";
-        String nhanMo    = args.size() > 2 ? stringify(args.get(2)) : "Mo ung dung";
-        String nhanThoat = args.size() > 3 ? stringify(args.get(3)) : "Thoat";
+                    String anh       = args.size() > 1 ? stringify(args.get(1)) : "";
+                    String nhanMo    = args.size() > 2 ? stringify(args.get(2)) : "Mo ung dung";
+                    String nhanThoat = args.size() > 3 ? stringify(args.get(3)) : "Thoat";
 
-        if (!java.awt.SystemTray.isSupported()) {
-            System.out.println("[hql.app] May khong ho tro khay he thong - giu nguyen: dong cua so la thoat.");
-            return false;
-        }
+                    if (!java.awt.SystemTray.isSupported()) {
+                        System.out.println("[hql.app] May khong ho tro khay he thong - giu nguyen: dong cua so la thoat.");
+                        return false;
+                    }
 
-        java.awt.Image bt = null;
-        if (!anh.isEmpty() && new java.io.File(anh).isFile()) {
-            try { bt = javax.imageio.ImageIO.read(new java.io.File(anh)); } catch (java.io.IOException ignored) { }
-        }
-        if (bt == null) {
-            // TrayIcon KHÔNG nhận null: ném NullPointerException ngay. Thà vẽ
-            // một chấm vuông còn hơn làm chết app vì thiếu cái icon.
-            bt = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
-            java.awt.Graphics g = bt.getGraphics();
-            g.setColor(new java.awt.Color(255, 70, 85));
-            g.fillRect(0, 0, 16, 16);
-            g.dispose();
-        }
+                    java.awt.Image bt = null;
+                    if (!anh.isEmpty() && new java.io.File(anh).isFile()) {
+                        try { bt = javax.imageio.ImageIO.read(new java.io.File(anh)); } catch (java.io.IOException ignored) { }
+                    }
+                    if (bt == null) {
+                        // TrayIcon KHÔNG nhận null: ném NullPointerException ngay. Thà vẽ
+                        // một chấm vuông còn hơn làm chết app vì thiếu cái icon.
+                        bt = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+                        java.awt.Graphics g = bt.getGraphics();
+                        g.setColor(new java.awt.Color(255, 70, 85));
+                        g.fillRect(0, 0, 16, 16);
+                        g.dispose();
+                    }
 
-        final java.awt.Image icon = bt;
-        final javax.swing.JFrame khung = cs.khung;
-        final CuaSoApp csf = cs;
+                    final java.awt.Image icon = bt;
+                    final javax.swing.JFrame khung = cs.khung;
+                    final CuaSoApp csf = cs;
 
-        java.awt.PopupMenu menu = new java.awt.PopupMenu();
-        java.awt.MenuItem mMo = new java.awt.MenuItem(nhanMo);
-        java.awt.MenuItem mThoat = new java.awt.MenuItem(nhanThoat);
-        menu.add(mMo);
-        menu.addSeparator();
-        menu.add(mThoat);
+                    java.awt.PopupMenu menu = new java.awt.PopupMenu();
+                    java.awt.MenuItem mMo = new java.awt.MenuItem(nhanMo);
+                    java.awt.MenuItem mThoat = new java.awt.MenuItem(nhanThoat);
+                    menu.add(mMo);
+                    menu.addSeparator();
+                    menu.add(mThoat);
 
-        java.awt.TrayIcon ti = new java.awt.TrayIcon(icon, khung.getTitle(), menu);
-        ti.setImageAutoSize(true);
+                    java.awt.TrayIcon ti = new java.awt.TrayIcon(icon, khung.getTitle(), menu);
+                    ti.setImageAutoSize(true);
 
-        java.awt.event.ActionListener mo = (ev) -> javax.swing.SwingUtilities.invokeLater(() -> {
-            khung.setVisible(true);
-            // Bị thu nhỏ trước đó thì phải bỏ cờ ICONIFIED, không thì
-            // setVisible(true) chỉ trả nó về thanh tác vụ chứ không mở ra.
-            khung.setState(javax.swing.JFrame.NORMAL);
-            khung.toFront();
-            khung.requestFocus();
-        });
-        mMo.addActionListener(mo);
-        ti.addActionListener(mo);   // bấm đúp icon khay
+                    java.awt.event.ActionListener mo = (ev) -> javax.swing.SwingUtilities.invokeLater(() -> {
+                        khung.setVisible(true);
+                        // Bị thu nhỏ trước đó thì phải bỏ cờ ICONIFIED, không thì
+                        // setVisible(true) chỉ trả nó về thanh tác vụ chứ không mở ra.
+                        khung.setState(javax.swing.JFrame.NORMAL);
+                        khung.toFront();
+                        khung.requestFocus();
+                    });
+                    mMo.addActionListener(mo);
+                    ti.addActionListener(mo);   // bấm đúp icon khay
 
-        mThoat.addActionListener((ev) -> {
-            java.awt.SystemTray.getSystemTray().remove(ti);
-            javax.swing.SwingUtilities.invokeLater(khung::dispose);
-            csf.daDong.countDown();   // appCho() nhả ra, app.hql chạy tiếp phần dọn dẹp
-        });
+                    mThoat.addActionListener((ev) -> {
+                        java.awt.SystemTray.getSystemTray().remove(ti);
+                        javax.swing.SwingUtilities.invokeLater(khung::dispose);
+                        csf.daDong.countDown();   // appCho() nhả ra, app.hql chạy tiếp phần dọn dẹp
+                    });
 
-        try {
-            java.awt.SystemTray.getSystemTray().add(ti);
-        } catch (java.awt.AWTException ex) {
-            System.out.println("[hql.app] Khong them duoc icon khay: " + ex.getMessage());
-            return false;
-        }
+                    try {
+                        java.awt.SystemTray.getSystemTray().add(ti);
+                    } catch (java.awt.AWTException ex) {
+                        System.out.println("[hql.app] Khong them duoc icon khay: " + ex.getMessage());
+                        return false;
+                    }
 
-        // Dấu X giờ chỉ ẩn cửa sổ. Gỡ hết listener cũ trước, không thì cái
-        // listener dựng lúc mở cửa sổ vẫn countDown và app vẫn thoát như cũ.
-        for (java.awt.event.WindowListener wl : khung.getWindowListeners()) {
-            khung.removeWindowListener(wl);
-        }
-        khung.addWindowListener(new java.awt.event.WindowAdapter() {
-            @Override
-            public void windowClosing(java.awt.event.WindowEvent e) {
-                khung.setVisible(false);
-            }
-        });
-        csf.oKhay = true;
-        return true;
-    }
+                    // Dấu X giờ chỉ ẩn cửa sổ. Gỡ hết listener cũ trước, không thì cái
+                    // listener dựng lúc mở cửa sổ vẫn countDown và app vẫn thoát như cũ.
+                    for (java.awt.event.WindowListener wl : khung.getWindowListeners()) {
+                        khung.removeWindowListener(wl);
+                    }
+                    khung.addWindowListener(new java.awt.event.WindowAdapter() {
+                        @Override
+                        public void windowClosing(java.awt.event.WindowEvent e) {
+                            khung.setVisible(false);
+                        }
+                    });
+                    csf.oKhay = true;
+                    return true;
+                }
 
                 // ---------- THƯ MỤC GỐC CỦA APP ----------
                 //
@@ -3968,7 +3967,7 @@ public class Interpreter {
                             java.awt.image.BufferedImage bt = javax.imageio.ImageIO.read(fAnh);
                             if (bt != null) { khung.setIconImage(bt); }
                             else { System.out.println("[hql.app] Khong doc duoc anh icon: " + anh
-                                                    + " (ImageIO khong hieu dinh dang - phai la PNG/GIF/JPG)."); }
+                                    + " (ImageIO khong hieu dinh dang - phai la PNG/GIF/JPG)."); }
                         } catch (java.io.IOException ex) {
                             System.out.println("[hql.app] Loi doc anh icon " + anh + ": " + ex.getMessage());
                         }
@@ -4044,11 +4043,11 @@ public class Interpreter {
      */
     private String timTrinhDuyetApp() {
         String[] ung = {
-            System.getenv("ProgramFiles(x86)") + "\\Microsoft\\Edge\\Application\\msedge.exe",
-            System.getenv("ProgramFiles")      + "\\Microsoft\\Edge\\Application\\msedge.exe",
-            System.getenv("ProgramFiles")      + "\\Google\\Chrome\\Application\\chrome.exe",
-            System.getenv("ProgramFiles(x86)") + "\\Google\\Chrome\\Application\\chrome.exe",
-            System.getenv("LOCALAPPDATA")      + "\\Google\\Chrome\\Application\\chrome.exe",
+                System.getenv("ProgramFiles(x86)") + "\\Microsoft\\Edge\\Application\\msedge.exe",
+                System.getenv("ProgramFiles")      + "\\Microsoft\\Edge\\Application\\msedge.exe",
+                System.getenv("ProgramFiles")      + "\\Google\\Chrome\\Application\\chrome.exe",
+                System.getenv("ProgramFiles(x86)") + "\\Google\\Chrome\\Application\\chrome.exe",
+                System.getenv("LOCALAPPDATA")      + "\\Google\\Chrome\\Application\\chrome.exe",
         };
         for (String d : ung) {
             if (d == null || d.startsWith("null")) { continue; }
@@ -4059,901 +4058,901 @@ public class Interpreter {
 
     /** Thư viện hql.game (tách riêng khỏi executeBuiltin vì quá dài). */
     private Object thuVienGame(String name, List<Object> args) {
-            try {
-                switch (name) {
-                    // --- NHÓM 1: CỬA SỔ GAME ---
-                    case "gameWindow": {
-                        taoCuaSoGame(stringify(args.get(0)), (int) toDouble(args.get(1)), (int) toDouble(args.get(2)), false);
-                        return null;
-                    }
-                    case "gameWindowFull": {
-                        // Cửa sổ chiếm trọn màn hình, không viền (như bấm F11)
-                        Dimension mh = Toolkit.getDefaultToolkit().getScreenSize();
-                        taoCuaSoGame(stringify(args.get(0)), mh.width, mh.height, true);
-                        return null;
-                    }
-                    case "screenW": return (double) Toolkit.getDefaultToolkit().getScreenSize().width;
-                    case "screenH": return (double) Toolkit.getDefaultToolkit().getScreenSize().height;
+        try {
+            switch (name) {
+                // --- NHÓM 1: CỬA SỔ GAME ---
+                case "gameWindow": {
+                    taoCuaSoGame(stringify(args.get(0)), (int) toDouble(args.get(1)), (int) toDouble(args.get(2)), false);
+                    return null;
+                }
+                case "gameWindowFull": {
+                    // Cửa sổ chiếm trọn màn hình, không viền (như bấm F11)
+                    Dimension mh = Toolkit.getDefaultToolkit().getScreenSize();
+                    taoCuaSoGame(stringify(args.get(0)), mh.width, mh.height, true);
+                    return null;
+                }
+                case "screenW": return (double) Toolkit.getDefaultToolkit().getScreenSize().width;
+                case "screenH": return (double) Toolkit.getDefaultToolkit().getScreenSize().height;
 
-                    // ---- NHÓM BẢN ĐỒ LƯỚI & TẦM NHÌN (dùng cho game bắn súng góc nhìn từ trên xuống) ----
-                    case "mapNap": {
-                        // mapNap(danhSachHang, kichThuocO, kyTuChanNhin, kyTuChanDan)
-                        List<?> hang = (List<?>) args.get(0);
-                        banDoLuoi = new char[hang.size()][];
-                        for (int i = 0; i < hang.size(); i++) banDoLuoi[i] = stringify(hang.get(i)).toCharArray();
-                        banDoOKichThuoc = args.size() > 1 ? (int) toDouble(args.get(1)) : 32;
-                        if (args.size() > 2) banDoChanNhin = stringify(args.get(2));
-                        if (args.size() > 3) banDoChanDan = stringify(args.get(3));
-                        danhSachKhoi.clear();
-                        return (double) banDoLuoi.length;
+                // ---- NHÓM BẢN ĐỒ LƯỚI & TẦM NHÌN (dùng cho game bắn súng góc nhìn từ trên xuống) ----
+                case "mapNap": {
+                    // mapNap(danhSachHang, kichThuocO, kyTuChanNhin, kyTuChanDan)
+                    List<?> hang = (List<?>) args.get(0);
+                    banDoLuoi = new char[hang.size()][];
+                    for (int i = 0; i < hang.size(); i++) banDoLuoi[i] = stringify(hang.get(i)).toCharArray();
+                    banDoOKichThuoc = args.size() > 1 ? (int) toDouble(args.get(1)) : 32;
+                    if (args.size() > 2) banDoChanNhin = stringify(args.get(2));
+                    if (args.size() > 3) banDoChanDan = stringify(args.get(3));
+                    danhSachKhoi.clear();
+                    return (double) banDoLuoi.length;
+                }
+                case "mapO": {
+                    // mapO(cot, hang) -> ký tự
+                    int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
+                    if (banDoLuoi == null || h < 0 || h >= banDoLuoi.length || c < 0 || c >= banDoLuoi[h].length) return "#";
+                    return String.valueOf(banDoLuoi[h][c]);
+                }
+                case "mapOTai": return String.valueOf(oTaiDiem(toDouble(args.get(0)), toDouble(args.get(1))));
+                case "mapSoCot": return banDoLuoi == null ? 0.0 : (double) banDoLuoi[0].length;
+                case "mapSoHang": return banDoLuoi == null ? 0.0 : (double) banDoLuoi.length;
+                case "mapKichThuocO": return (double) banDoOKichThuoc;
+                case "mapDatO": {
+                    // mapDatO(cot, hang, kyTu) - dùng để mở/đóng cửa, phá tường...
+                    int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
+                    String k = stringify(args.get(2));
+                    if (banDoLuoi != null && h >= 0 && h < banDoLuoi.length && c >= 0 && c < banDoLuoi[h].length && !k.isEmpty()) {
+                        banDoLuoi[h][c] = k.charAt(0);
                     }
-                    case "mapO": {
-                        // mapO(cot, hang) -> ký tự
-                        int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
-                        if (banDoLuoi == null || h < 0 || h >= banDoLuoi.length || c < 0 || c >= banDoLuoi[h].length) return "#";
-                        return String.valueOf(banDoLuoi[h][c]);
-                    }
-                    case "mapOTai": return String.valueOf(oTaiDiem(toDouble(args.get(0)), toDouble(args.get(1))));
-                    case "mapSoCot": return banDoLuoi == null ? 0.0 : (double) banDoLuoi[0].length;
-                    case "mapSoHang": return banDoLuoi == null ? 0.0 : (double) banDoLuoi.length;
-                    case "mapKichThuocO": return (double) banDoOKichThuoc;
-                    case "mapDatO": {
-                        // mapDatO(cot, hang, kyTu) - dùng để mở/đóng cửa, phá tường...
-                        int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
-                        String k = stringify(args.get(2));
-                        if (banDoLuoi != null && h >= 0 && h < banDoLuoi.length && c >= 0 && c < banDoLuoi[h].length && !k.isEmpty()) {
-                            banDoLuoi[h][c] = k.charAt(0);
+                    return null;
+                }
+                case "mapThayDuoc": {
+                    // mapThayDuoc(x1,y1,x2,y2) -> hai điểm có nhìn thấy nhau không
+                    return doTiaNhin(toDouble(args.get(0)), toDouble(args.get(1)),
+                            toDouble(args.get(2)), toDouble(args.get(3))) < 0;
+                }
+                case "banTia": {
+                    // banTia(x, y, gocDo, tamXa) -> [xTrung, yTrung, kyTuTuong, khoangCach]
+                    // Dùng cho đường đạn: trả về điểm chạm tường CHẶN ĐẠN đầu tiên.
+                    double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
+                    double goc = Math.toRadians(toDouble(args.get(2)));
+                    double tam = toDouble(args.get(3));
+                    double cx = Math.cos(goc), cy = Math.sin(goc);
+                    double buoc = Math.max(2.0, banDoOKichThuoc / 10.0);
+                    double t = 0;
+                    while (t < tam) {
+                        t += buoc;
+                        double px = bx + cx * t, py = by + cy * t;
+                        char k = oTaiDiem(px, py);
+                        if (banDoChanDan.indexOf(k) >= 0) {
+                            return new ArrayList<>(Arrays.asList(px, py, String.valueOf(k), t));
                         }
-                        return null;
                     }
-                    case "mapThayDuoc": {
-                        // mapThayDuoc(x1,y1,x2,y2) -> hai điểm có nhìn thấy nhau không
-                        return doTiaNhin(toDouble(args.get(0)), toDouble(args.get(1)),
-                                toDouble(args.get(2)), toDouble(args.get(3))) < 0;
-                    }
-                    case "banTia": {
-                        // banTia(x, y, gocDo, tamXa) -> [xTrung, yTrung, kyTuTuong, khoangCach]
-                        // Dùng cho đường đạn: trả về điểm chạm tường CHẶN ĐẠN đầu tiên.
-                        double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
-                        double goc = Math.toRadians(toDouble(args.get(2)));
-                        double tam = toDouble(args.get(3));
-                        double cx = Math.cos(goc), cy = Math.sin(goc);
-                        double buoc = Math.max(2.0, banDoOKichThuoc / 10.0);
-                        double t = 0;
-                        while (t < tam) {
-                            t += buoc;
-                            double px = bx + cx * t, py = by + cy * t;
-                            char k = oTaiDiem(px, py);
-                            if (banDoChanDan.indexOf(k) >= 0) {
-                                return new ArrayList<>(Arrays.asList(px, py, String.valueOf(k), t));
+                    return new ArrayList<>(Arrays.asList(bx + cx * tam, by + cy * tam, " ", tam));
+                }
+                case "veBanDo": {
+                    // veBanDo(anhSan, anhTuong, anhGo, anhThung, anhSite)
+                    // Vẽ toàn bộ ô đang lọt vào khung nhìn - chạy trong Java nên nhanh gấp trăm lần
+                    // so với việc lặp từng ô bằng kịch bản HQL.
+                    if (gameGraphics == null || banDoLuoi == null) return null;
+                    Image aSan = loadGameImage(stringify(args.get(0)));
+                    Image aTuong = loadGameImage(stringify(args.get(1)));
+                    Image aGo = args.size() > 2 ? loadGameImage(stringify(args.get(2))) : aTuong;
+                    Image aThung = args.size() > 3 ? loadGameImage(stringify(args.get(3))) : aTuong;
+                    Image aSite = args.size() > 4 ? loadGameImage(stringify(args.get(4))) : null;
+
+                    int dx = camOffX(), dy = camOffY();
+                    int cotDau = Math.max(0, dx / banDoOKichThuoc - 1);
+                    int hangDau = Math.max(0, dy / banDoOKichThuoc - 1);
+                    int cotCuoi = (dx + gameBuffer.getWidth()) / banDoOKichThuoc + 1;
+                    int hangCuoi = (dy + gameBuffer.getHeight()) / banDoOKichThuoc + 1;
+
+                    for (int h = hangDau; h <= hangCuoi && h < banDoLuoi.length; h++) {
+                        for (int c = cotDau; c <= cotCuoi && c < banDoLuoi[h].length; c++) {
+                            char k = banDoLuoi[h][c];
+                            int px = c * banDoOKichThuoc - dx;
+                            int py = h * banDoOKichThuoc - dy;
+                            Image anh = aSan;
+                            if (k == '#') anh = aTuong;
+                            else if (k == 'W') anh = aGo;
+                            else if (k == 'B') anh = aThung;
+                            gameGraphics.drawImage(anh, px, py, banDoOKichThuoc, banDoOKichThuoc, null);
+                            if (aSite != null && (k == 'A' || k == 'b' || k == 'C')) {
+                                gameGraphics.drawImage(aSite, px, py, banDoOKichThuoc, banDoOKichThuoc, null);
                             }
                         }
-                        return new ArrayList<>(Arrays.asList(bx + cx * tam, by + cy * tam, " ", tam));
                     }
-                    case "veBanDo": {
-                        // veBanDo(anhSan, anhTuong, anhGo, anhThung, anhSite)
-                        // Vẽ toàn bộ ô đang lọt vào khung nhìn - chạy trong Java nên nhanh gấp trăm lần
-                        // so với việc lặp từng ô bằng kịch bản HQL.
-                        if (gameGraphics == null || banDoLuoi == null) return null;
-                        Image aSan = loadGameImage(stringify(args.get(0)));
-                        Image aTuong = loadGameImage(stringify(args.get(1)));
-                        Image aGo = args.size() > 2 ? loadGameImage(stringify(args.get(2))) : aTuong;
-                        Image aThung = args.size() > 3 ? loadGameImage(stringify(args.get(3))) : aTuong;
-                        Image aSite = args.size() > 4 ? loadGameImage(stringify(args.get(4))) : null;
+                    return null;
+                }
+                // ================= NHÓM 2.5D NHÌN CHÉO (ISOMETRIC) =================
+                case "isoCaiDat": {
+                    // isoCaiDat(rongO, caoO) - mặc định 64 x 32 (góc chéo 45 độ, tỉ lệ 2:1)
+                    isoRong = toDouble(args.get(0));
+                    isoCao = toDouble(args.get(1));
+                    return null;
+                }
+                case "isoX": return isoTruc_X(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoY": return isoTruc_Y(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoManHinhX": return (double) isoManHinhX(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoManHinhY": return (double) isoManHinhY(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoNguocVeTheGioi": {
+                    // isoNguocVeTheGioi(sxManHinh, syManHinh) -> [wx, wy]
+                    // Dùng để biết con trỏ chuột đang trỏ vào điểm nào trên mặt đất.
+                    double sx = toDouble(args.get(0)) + camOffX();
+                    double sy = toDouble(args.get(1)) + camOffY();
+                    double a = sx / (isoRong / 2.0);
+                    double b = sy / (isoCao / 2.0);
+                    double tx = (a + b) / 2.0;
+                    double ty = (b - a) / 2.0;
+                    return new ArrayList<>(Arrays.asList(tx * banDoOKichThuoc, ty * banDoOKichThuoc));
+                }
+                case "isoVeBanDo": {
+                    // isoVeBanDo(caoTuong, mauSan, mauSanToi, mauSite,
+                    //            mauTuongTren, mauTuongTrai, mauTuongPhai,
+                    //            mauGoTren, mauGoTrai, mauGoPhai,
+                    //            mauThungTren, mauThungTrai, mauThungPhai)
+                    if (gameGraphics == null || banDoLuoi == null) return null;
+                    double caoTuong = toDouble(args.get(0));
+                    Color mSan = parseColor(stringify(args.get(1)));
+                    Color mSanToi = parseColor(stringify(args.get(2)));
+                    Color mSite = parseColor(stringify(args.get(3)));
+                    Color tT = parseColor(stringify(args.get(4)));
+                    Color tL = parseColor(stringify(args.get(5)));
+                    Color tR = parseColor(stringify(args.get(6)));
+                    Color gT = parseColor(stringify(args.get(7)));
+                    Color gL = parseColor(stringify(args.get(8)));
+                    Color gR = parseColor(stringify(args.get(9)));
+                    Color thT = parseColor(stringify(args.get(10)));
+                    Color thL = parseColor(stringify(args.get(11)));
+                    Color thR = parseColor(stringify(args.get(12)));
 
-                        int dx = camOffX(), dy = camOffY();
-                        int cotDau = Math.max(0, dx / banDoOKichThuoc - 1);
-                        int hangDau = Math.max(0, dy / banDoOKichThuoc - 1);
-                        int cotCuoi = (dx + gameBuffer.getWidth()) / banDoOKichThuoc + 1;
-                        int hangCuoi = (dy + gameBuffer.getHeight()) / banDoOKichThuoc + 1;
+                    double nuaR = isoRong / 2.0, nuaC = isoCao / 2.0;
+                    int W = gameBuffer.getWidth(), H = gameBuffer.getHeight();
 
-                        for (int h = hangDau; h <= hangCuoi && h < banDoLuoi.length; h++) {
-                            for (int c = cotDau; c <= cotCuoi && c < banDoLuoi[h].length; c++) {
-                                char k = banDoLuoi[h][c];
-                                int px = c * banDoOKichThuoc - dx;
-                                int py = h * banDoOKichThuoc - dy;
-                                Image anh = aSan;
-                                if (k == '#') anh = aTuong;
-                                else if (k == 'W') anh = aGo;
-                                else if (k == 'B') anh = aThung;
-                                gameGraphics.drawImage(anh, px, py, banDoOKichThuoc, banDoOKichThuoc, null);
-                                if (aSite != null && (k == 'A' || k == 'b' || k == 'C')) {
-                                    gameGraphics.drawImage(aSite, px, py, banDoOKichThuoc, banDoOKichThuoc, null);
-                                }
-                            }
-                        }
-                        return null;
-                    }
-                    // ================= NHÓM 2.5D NHÌN CHÉO (ISOMETRIC) =================
-                    case "isoCaiDat": {
-                        // isoCaiDat(rongO, caoO) - mặc định 64 x 32 (góc chéo 45 độ, tỉ lệ 2:1)
-                        isoRong = toDouble(args.get(0));
-                        isoCao = toDouble(args.get(1));
-                        return null;
-                    }
-                    case "isoX": return isoTruc_X(toDouble(args.get(0)), toDouble(args.get(1)));
-                    case "isoY": return isoTruc_Y(toDouble(args.get(0)), toDouble(args.get(1)));
-                    case "isoManHinhX": return (double) isoManHinhX(toDouble(args.get(0)), toDouble(args.get(1)));
-                    case "isoManHinhY": return (double) isoManHinhY(toDouble(args.get(0)), toDouble(args.get(1)));
-                    case "isoNguocVeTheGioi": {
-                        // isoNguocVeTheGioi(sxManHinh, syManHinh) -> [wx, wy]
-                        // Dùng để biết con trỏ chuột đang trỏ vào điểm nào trên mặt đất.
-                        double sx = toDouble(args.get(0)) + camOffX();
-                        double sy = toDouble(args.get(1)) + camOffY();
-                        double a = sx / (isoRong / 2.0);
-                        double b = sy / (isoCao / 2.0);
-                        double tx = (a + b) / 2.0;
-                        double ty = (b - a) / 2.0;
-                        return new ArrayList<>(Arrays.asList(tx * banDoOKichThuoc, ty * banDoOKichThuoc));
-                    }
-                    case "isoVeBanDo": {
-                        // isoVeBanDo(caoTuong, mauSan, mauSanToi, mauSite,
-                        //            mauTuongTren, mauTuongTrai, mauTuongPhai,
-                        //            mauGoTren, mauGoTrai, mauGoPhai,
-                        //            mauThungTren, mauThungTrai, mauThungPhai)
-                        if (gameGraphics == null || banDoLuoi == null) return null;
-                        double caoTuong = toDouble(args.get(0));
-                        Color mSan = parseColor(stringify(args.get(1)));
-                        Color mSanToi = parseColor(stringify(args.get(2)));
-                        Color mSite = parseColor(stringify(args.get(3)));
-                        Color tT = parseColor(stringify(args.get(4)));
-                        Color tL = parseColor(stringify(args.get(5)));
-                        Color tR = parseColor(stringify(args.get(6)));
-                        Color gT = parseColor(stringify(args.get(7)));
-                        Color gL = parseColor(stringify(args.get(8)));
-                        Color gR = parseColor(stringify(args.get(9)));
-                        Color thT = parseColor(stringify(args.get(10)));
-                        Color thL = parseColor(stringify(args.get(11)));
-                        Color thR = parseColor(stringify(args.get(12)));
+                    // Vẽ từ xa tới gần (theo tổng hàng+cột) để khối che nhau đúng thứ tự
+                    int tongMax = banDoLuoi.length + banDoLuoi[0].length;
+                    for (int tong = 0; tong < tongMax; tong++) {
+                        for (int h = 0; h <= tong && h < banDoLuoi.length; h++) {
+                            int c = tong - h;
+                            if (c < 0 || c >= banDoLuoi[h].length) continue;
+                            double wx = c * banDoOKichThuoc, wy = h * banDoOKichThuoc;
+                            int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
+                            if (sx < -isoRong * 2 || sx > W + isoRong * 2) continue;
+                            if (sy < -isoCao * 6 || sy > H + isoCao * 6) continue;
 
-                        double nuaR = isoRong / 2.0, nuaC = isoCao / 2.0;
-                        int W = gameBuffer.getWidth(), H = gameBuffer.getHeight();
-
-                        // Vẽ từ xa tới gần (theo tổng hàng+cột) để khối che nhau đúng thứ tự
-                        int tongMax = banDoLuoi.length + banDoLuoi[0].length;
-                        for (int tong = 0; tong < tongMax; tong++) {
-                            for (int h = 0; h <= tong && h < banDoLuoi.length; h++) {
-                                int c = tong - h;
-                                if (c < 0 || c >= banDoLuoi[h].length) continue;
-                                double wx = c * banDoOKichThuoc, wy = h * banDoOKichThuoc;
-                                int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
-                                if (sx < -isoRong * 2 || sx > W + isoRong * 2) continue;
-                                if (sy < -isoCao * 6 || sy > H + isoCao * 6) continue;
-
-                                char k = banDoLuoi[h][c];
-                                if (k == '#') { veKhoiIso(wx, wy, caoTuong, tT, tL, tR); }
-                                else if (k == 'W') { veKhoiIso(wx, wy, caoTuong * 0.75, gT, gL, gR); }
-                                else if (k == 'B') { veKhoiIso(wx, wy, caoTuong * 0.5, thT, thL, thR); }
-                                else {
-                                    Color m = (((c + h) % 2) == 0) ? mSan : mSanToi;
-                                    if (k == 'A' || k == 'b' || k == 'C') m = mSite;
-                                    int[] px = { sx, (int) (sx + nuaR), sx, (int) (sx - nuaR) };
-                                    int[] py = { sy, (int) (sy + nuaC), (int) (sy + isoCao), (int) (sy + nuaC) };
-                                    gameGraphics.setColor(m);
-                                    gameGraphics.fillPolygon(px, py, 4);
-                                }
-                            }
-                        }
-                        return null;
-                    }
-                    case "isoVeAnhNen": {
-                        // isoVeAnhNen(duongDanAnhBanDo)
-                        // Vẽ NGUYÊN tấm ảnh bản đồ thật, chiếu chéo 45 độ cho khớp lưới va chạm.
-                        // Ảnh được coi là phủ đúng toàn bộ lưới đã nạp bằng mapNap().
-                        if (gameGraphics == null || banDoLuoi == null) return null;
-                        Image anh = loadGameImage(stringify(args.get(0)));
-                        int rongAnh = anh.getWidth(null);
-                        if (rongAnh <= 0) return null;
-                        double theGioiRong = banDoLuoi[0].length * (double) banDoOKichThuoc;
-                        double s = theGioiRong / rongAnh;            // 1 điểm ảnh = bao nhiêu đơn vị thế giới
-                        double a = s * isoRong / (2.0 * banDoOKichThuoc);
-                        double b = s * isoCao / (2.0 * banDoOKichThuoc);
-                        AffineTransform tx = new AffineTransform(a, b, -a, b, -camOffX(), -camOffY());
-                        Object cuNoiSuy = gameGraphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
-                        gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
-                                RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                        gameGraphics.drawImage(anh, tx, null);
-                        if (cuNoiSuy != null) gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, cuNoiSuy);
-                        return null;
-                    }
-                    case "isoVeAnh": {
-                        // isoVeAnh(duongDan, wx, wy, rong, cao, caoNhacLen)
-                        // Ảnh được neo ở CHÂN nhân vật đứng tại ô (wx, wy).
-                        Image img = loadGameImage(stringify(args.get(0)));
-                        double wx = toDouble(args.get(1)), wy = toDouble(args.get(2));
-                        double rw = toDouble(args.get(3)), rh = toDouble(args.get(4));
-                        double nhac = args.size() > 5 ? toDouble(args.get(5)) : 0;
-                        int sx = isoManHinhX(wx, wy);
-                        int sy = isoManHinhY(wx, wy);
-                        gameGraphics.drawImage(img, (int) (sx - rw / 2), (int) (sy + isoCao / 2 - rh - nhac),
-                                (int) rw, (int) rh, null);
-                        return null;
-                    }
-                    case "isoVeElip": {
-                        // isoVeElip(wx, wy, banKinh, mau) - vòng tròn dưới chân bị bẹt theo phối cảnh
-                        double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
-                        double bk = toDouble(args.get(2));
-                        gameGraphics.setColor(parseColor(stringify(args.get(3))));
-                        double rx = bk * (isoRong / banDoOKichThuoc);
-                        double ry = bk * (isoCao / banDoOKichThuoc);
-                        int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
-                        gameGraphics.fillOval((int) (sx - rx), (int) (sy + isoCao / 2 - ry), (int) (rx * 2), (int) (ry * 2));
-                        return null;
-                    }
-                    case "isoVeVienElip": {
-                        double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
-                        double bk = toDouble(args.get(2));
-                        gameGraphics.setColor(parseColor(stringify(args.get(3))));
-                        double rx = bk * (isoRong / banDoOKichThuoc);
-                        double ry = bk * (isoCao / banDoOKichThuoc);
-                        int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
-                        gameGraphics.drawOval((int) (sx - rx), (int) (sy + isoCao / 2 - ry), (int) (rx * 2), (int) (ry * 2));
-                        return null;
-                    }
-                    case "isoVeDuong": {
-                        // isoVeDuong(wx1, wy1, wx2, wy2, mau, nhacLen)
-                        double nhac = args.size() > 5 ? toDouble(args.get(5)) : 0;
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.drawLine(isoManHinhX(toDouble(args.get(0)), toDouble(args.get(1))),
-                                (int) (isoManHinhY(toDouble(args.get(0)), toDouble(args.get(1))) + isoCao / 2 - nhac),
-                                isoManHinhX(toDouble(args.get(2)), toDouble(args.get(3))),
-                                (int) (isoManHinhY(toDouble(args.get(2)), toDouble(args.get(3))) + isoCao / 2 - nhac));
-                        return null;
-                    }
-                    case "isoVeSuongMu": {
-                        // isoVeSuongMu(x, y, banKinh, soTia, mauToi, doToi)
-                        if (gameGraphics == null || gameBuffer == null) return null;
-                        double x = toDouble(args.get(0)), y = toDouble(args.get(1));
-                        double bk = toDouble(args.get(2));
-                        int soTia = args.size() > 3 ? (int) toDouble(args.get(3)) : 160;
-                        Color mauToi = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
-                        float doToi = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.8f;
-
-                        Polygon theGioi = dungDaGiacTamNhin(x, y, bk, soTia);
-                        Polygon manHinh = new Polygon();
-                        for (int i = 0; i < theGioi.npoints; i++) {
-                            manHinh.addPoint(isoManHinhX(theGioi.xpoints[i], theGioi.ypoints[i]),
-                                    (int) (isoManHinhY(theGioi.xpoints[i], theGioi.ypoints[i]) + isoCao / 2));
-                        }
-                        Area toi = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
-                        toi.subtract(new Area(manHinh));
-                        Composite cu = gameGraphics.getComposite();
-                        gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                                Math.max(0f, Math.min(1f, doToi))));
-                        gameGraphics.setColor(mauToi);
-                        gameGraphics.fill(toi);
-                        gameGraphics.setComposite(cu);
-                        return null;
-                    }
-
-                    // ================= CHUỘT & BÀN PHÍM NÂNG CAO =================
-                    case "anConTro": {
-                        // anConTro(true) - ẩn con trỏ chuột để dùng tâm bắn tự vẽ
-                        if (gameCanvas != null && gameWindow != null) {
-                            boolean an = args.isEmpty() || toBoolean(args.get(0));
-                            if (an) {
-                                Cursor troTrong = Toolkit.getDefaultToolkit().createCustomCursor(
-                                        new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB),
-                                        new Point(0, 0), "khongCoTro");
-                                gameCanvas.setCursor(troTrong);
-                                gameWindow.setCursor(troTrong);
-                            } else {
-                                gameCanvas.setCursor(Cursor.getDefaultCursor());
-                                gameWindow.setCursor(Cursor.getDefaultCursor());
-                            }
-                        }
-                        return null;
-                    }
-                    case "layChuVuaGo": {
-                        // Trả về các ký tự người chơi vừa gõ (dùng cho ô chat), rồi xoá đi.
-                        String s = chuDaGo.toString();
-                        chuDaGo.setLength(0);
-                        return s;
-                    }
-                    case "xoaChuVuaGo": chuDaGo.setLength(0); return null;
-
-                    case "veBanDoNho": {
-                        // veBanDoNho(x, y, tyLe, mauSan, mauTuong, mauSite) - vẽ minimap
-                        if (gameGraphics == null || banDoLuoi == null) return null;
-                        double mx = toDouble(args.get(0)), my = toDouble(args.get(1));
-                        double ty = toDouble(args.get(2));
-                        Color mSan = parseColor(stringify(args.get(3)));
-                        Color mTuong = parseColor(stringify(args.get(4)));
-                        Color mSite = args.size() > 5 ? parseColor(stringify(args.get(5))) : Color.YELLOW;
-                        int o = Math.max(1, (int) Math.round(banDoOKichThuoc * ty));
-                        for (int h = 0; h < banDoLuoi.length; h++) {
-                            for (int c = 0; c < banDoLuoi[h].length; c++) {
-                                char k = banDoLuoi[h][c];
-                                Color m = mSan;
-                                if (k == '#' || k == 'B' || k == 'W') m = mTuong;
-                                else if (k == 'A' || k == 'b' || k == 'C') m = mSite;
+                            char k = banDoLuoi[h][c];
+                            if (k == '#') { veKhoiIso(wx, wy, caoTuong, tT, tL, tR); }
+                            else if (k == 'W') { veKhoiIso(wx, wy, caoTuong * 0.75, gT, gL, gR); }
+                            else if (k == 'B') { veKhoiIso(wx, wy, caoTuong * 0.5, thT, thL, thR); }
+                            else {
+                                Color m = (((c + h) % 2) == 0) ? mSan : mSanToi;
+                                if (k == 'A' || k == 'b' || k == 'C') m = mSite;
+                                int[] px = { sx, (int) (sx + nuaR), sx, (int) (sx - nuaR) };
+                                int[] py = { sy, (int) (sy + nuaC), (int) (sy + isoCao), (int) (sy + nuaC) };
                                 gameGraphics.setColor(m);
-                                gameGraphics.fillRect((int) (mx + c * banDoOKichThuoc * ty),
-                                        (int) (my + h * banDoOKichThuoc * ty), o, o);
+                                gameGraphics.fillPolygon(px, py, 4);
                             }
                         }
-                        return null;
                     }
-                    case "themKhoi": {
-                        QuaKhoi q = new QuaKhoi();
-                        q.x = toDouble(args.get(0)); q.y = toDouble(args.get(1)); q.r = toDouble(args.get(2));
-                        danhSachKhoi.add(q);
-                        return null;
+                    return null;
+                }
+                case "isoVeAnhNen": {
+                    // isoVeAnhNen(duongDanAnhBanDo)
+                    // Vẽ NGUYÊN tấm ảnh bản đồ thật, chiếu chéo 45 độ cho khớp lưới va chạm.
+                    // Ảnh được coi là phủ đúng toàn bộ lưới đã nạp bằng mapNap().
+                    if (gameGraphics == null || banDoLuoi == null) return null;
+                    Image anh = loadGameImage(stringify(args.get(0)));
+                    int rongAnh = anh.getWidth(null);
+                    if (rongAnh <= 0) return null;
+                    double theGioiRong = banDoLuoi[0].length * (double) banDoOKichThuoc;
+                    double s = theGioiRong / rongAnh;            // 1 điểm ảnh = bao nhiêu đơn vị thế giới
+                    double a = s * isoRong / (2.0 * banDoOKichThuoc);
+                    double b = s * isoCao / (2.0 * banDoOKichThuoc);
+                    AffineTransform tx = new AffineTransform(a, b, -a, b, -camOffX(), -camOffY());
+                    Object cuNoiSuy = gameGraphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+                    gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                            RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    gameGraphics.drawImage(anh, tx, null);
+                    if (cuNoiSuy != null) gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, cuNoiSuy);
+                    return null;
+                }
+                case "isoVeAnh": {
+                    // isoVeAnh(duongDan, wx, wy, rong, cao, caoNhacLen)
+                    // Ảnh được neo ở CHÂN nhân vật đứng tại ô (wx, wy).
+                    Image img = loadGameImage(stringify(args.get(0)));
+                    double wx = toDouble(args.get(1)), wy = toDouble(args.get(2));
+                    double rw = toDouble(args.get(3)), rh = toDouble(args.get(4));
+                    double nhac = args.size() > 5 ? toDouble(args.get(5)) : 0;
+                    int sx = isoManHinhX(wx, wy);
+                    int sy = isoManHinhY(wx, wy);
+                    gameGraphics.drawImage(img, (int) (sx - rw / 2), (int) (sy + isoCao / 2 - rh - nhac),
+                            (int) rw, (int) rh, null);
+                    return null;
+                }
+                case "isoVeElip": {
+                    // isoVeElip(wx, wy, banKinh, mau) - vòng tròn dưới chân bị bẹt theo phối cảnh
+                    double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
+                    double bk = toDouble(args.get(2));
+                    gameGraphics.setColor(parseColor(stringify(args.get(3))));
+                    double rx = bk * (isoRong / banDoOKichThuoc);
+                    double ry = bk * (isoCao / banDoOKichThuoc);
+                    int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
+                    gameGraphics.fillOval((int) (sx - rx), (int) (sy + isoCao / 2 - ry), (int) (rx * 2), (int) (ry * 2));
+                    return null;
+                }
+                case "isoVeVienElip": {
+                    double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
+                    double bk = toDouble(args.get(2));
+                    gameGraphics.setColor(parseColor(stringify(args.get(3))));
+                    double rx = bk * (isoRong / banDoOKichThuoc);
+                    double ry = bk * (isoCao / banDoOKichThuoc);
+                    int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
+                    gameGraphics.drawOval((int) (sx - rx), (int) (sy + isoCao / 2 - ry), (int) (rx * 2), (int) (ry * 2));
+                    return null;
+                }
+                case "isoVeDuong": {
+                    // isoVeDuong(wx1, wy1, wx2, wy2, mau, nhacLen)
+                    double nhac = args.size() > 5 ? toDouble(args.get(5)) : 0;
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.drawLine(isoManHinhX(toDouble(args.get(0)), toDouble(args.get(1))),
+                            (int) (isoManHinhY(toDouble(args.get(0)), toDouble(args.get(1))) + isoCao / 2 - nhac),
+                            isoManHinhX(toDouble(args.get(2)), toDouble(args.get(3))),
+                            (int) (isoManHinhY(toDouble(args.get(2)), toDouble(args.get(3))) + isoCao / 2 - nhac));
+                    return null;
+                }
+                case "isoVeSuongMu": {
+                    // isoVeSuongMu(x, y, banKinh, soTia, mauToi, doToi)
+                    if (gameGraphics == null || gameBuffer == null) return null;
+                    double x = toDouble(args.get(0)), y = toDouble(args.get(1));
+                    double bk = toDouble(args.get(2));
+                    int soTia = args.size() > 3 ? (int) toDouble(args.get(3)) : 160;
+                    Color mauToi = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
+                    float doToi = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.8f;
+
+                    Polygon theGioi = dungDaGiacTamNhin(x, y, bk, soTia);
+                    Polygon manHinh = new Polygon();
+                    for (int i = 0; i < theGioi.npoints; i++) {
+                        manHinh.addPoint(isoManHinhX(theGioi.xpoints[i], theGioi.ypoints[i]),
+                                (int) (isoManHinhY(theGioi.xpoints[i], theGioi.ypoints[i]) + isoCao / 2));
                     }
-                    case "xoaKhoiHet": danhSachKhoi.clear(); return null;
-                    case "trongKhoi": {
-                        double px = toDouble(args.get(0)), py = toDouble(args.get(1));
-                        for (QuaKhoi q : danhSachKhoi) {
-                            if (Math.hypot(px - q.x, py - q.y) <= q.r) return true;
+                    Area toi = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
+                    toi.subtract(new Area(manHinh));
+                    Composite cu = gameGraphics.getComposite();
+                    gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                            Math.max(0f, Math.min(1f, doToi))));
+                    gameGraphics.setColor(mauToi);
+                    gameGraphics.fill(toi);
+                    gameGraphics.setComposite(cu);
+                    return null;
+                }
+
+                // ================= CHUỘT & BÀN PHÍM NÂNG CAO =================
+                case "anConTro": {
+                    // anConTro(true) - ẩn con trỏ chuột để dùng tâm bắn tự vẽ
+                    if (gameCanvas != null && gameWindow != null) {
+                        boolean an = args.isEmpty() || toBoolean(args.get(0));
+                        if (an) {
+                            Cursor troTrong = Toolkit.getDefaultToolkit().createCustomCursor(
+                                    new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB),
+                                    new Point(0, 0), "khongCoTro");
+                            gameCanvas.setCursor(troTrong);
+                            gameWindow.setCursor(troTrong);
+                        } else {
+                            gameCanvas.setCursor(Cursor.getDefaultCursor());
+                            gameWindow.setCursor(Cursor.getDefaultCursor());
                         }
-                        return false;
                     }
-                    case "veSuongMu": {
-                        // veSuongMu(x, y, banKinh, soTia, mauToi, doToi)
-                        // Phóng tia quanh (x,y), phần KHÔNG nhìn thấy bị phủ tối.
-                        if (gameGraphics == null || gameBuffer == null) return null;
-                        double x = toDouble(args.get(0)), y = toDouble(args.get(1));
-                        double bk = toDouble(args.get(2));
-                        int soTia = args.size() > 3 ? (int) toDouble(args.get(3)) : 180;
-                        Color mauToi = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
-                        float doToi = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.88f;
+                    return null;
+                }
+                case "layChuVuaGo": {
+                    // Trả về các ký tự người chơi vừa gõ (dùng cho ô chat), rồi xoá đi.
+                    String s = chuDaGo.toString();
+                    chuDaGo.setLength(0);
+                    return s;
+                }
+                case "xoaChuVuaGo": chuDaGo.setLength(0); return null;
 
-                        Polygon nhinThay = dungDaGiacTamNhin(x, y, bk, soTia);
-                        // Đổi sang toạ độ màn hình
-                        AffineTransform dich = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
-                        Shape vungSang = dich.createTransformedShape(nhinThay);
+                case "veBanDoNho": {
+                    // veBanDoNho(x, y, tyLe, mauSan, mauTuong, mauSite) - vẽ minimap
+                    if (gameGraphics == null || banDoLuoi == null) return null;
+                    double mx = toDouble(args.get(0)), my = toDouble(args.get(1));
+                    double ty = toDouble(args.get(2));
+                    Color mSan = parseColor(stringify(args.get(3)));
+                    Color mTuong = parseColor(stringify(args.get(4)));
+                    Color mSite = args.size() > 5 ? parseColor(stringify(args.get(5))) : Color.YELLOW;
+                    int o = Math.max(1, (int) Math.round(banDoOKichThuoc * ty));
+                    for (int h = 0; h < banDoLuoi.length; h++) {
+                        for (int c = 0; c < banDoLuoi[h].length; c++) {
+                            char k = banDoLuoi[h][c];
+                            Color m = mSan;
+                            if (k == '#' || k == 'B' || k == 'W') m = mTuong;
+                            else if (k == 'A' || k == 'b' || k == 'C') m = mSite;
+                            gameGraphics.setColor(m);
+                            gameGraphics.fillRect((int) (mx + c * banDoOKichThuoc * ty),
+                                    (int) (my + h * banDoOKichThuoc * ty), o, o);
+                        }
+                    }
+                    return null;
+                }
+                case "themKhoi": {
+                    QuaKhoi q = new QuaKhoi();
+                    q.x = toDouble(args.get(0)); q.y = toDouble(args.get(1)); q.r = toDouble(args.get(2));
+                    danhSachKhoi.add(q);
+                    return null;
+                }
+                case "xoaKhoiHet": danhSachKhoi.clear(); return null;
+                case "trongKhoi": {
+                    double px = toDouble(args.get(0)), py = toDouble(args.get(1));
+                    for (QuaKhoi q : danhSachKhoi) {
+                        if (Math.hypot(px - q.x, py - q.y) <= q.r) return true;
+                    }
+                    return false;
+                }
+                case "veSuongMu": {
+                    // veSuongMu(x, y, banKinh, soTia, mauToi, doToi)
+                    // Phóng tia quanh (x,y), phần KHÔNG nhìn thấy bị phủ tối.
+                    if (gameGraphics == null || gameBuffer == null) return null;
+                    double x = toDouble(args.get(0)), y = toDouble(args.get(1));
+                    double bk = toDouble(args.get(2));
+                    int soTia = args.size() > 3 ? (int) toDouble(args.get(3)) : 180;
+                    Color mauToi = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
+                    float doToi = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.88f;
 
-                        Area toi = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
-                        toi.subtract(new Area(vungSang));
+                    Polygon nhinThay = dungDaGiacTamNhin(x, y, bk, soTia);
+                    // Đổi sang toạ độ màn hình
+                    AffineTransform dich = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
+                    Shape vungSang = dich.createTransformedShape(nhinThay);
 
-                        Composite cu = gameGraphics.getComposite();
-                        gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                                Math.max(0f, Math.min(1f, doToi))));
-                        gameGraphics.setColor(mauToi);
-                        gameGraphics.fill(toi);
-                        gameGraphics.setComposite(cu);
-                        return null;
-                    }
-                    case "veVungNhin": {
-                        // veVungNhin(x, y, banKinh, soTia, mau, doMo) - tô sáng vùng nhìn thấy
-                        if (gameGraphics == null) return null;
-                        Polygon p = dungDaGiacTamNhin(toDouble(args.get(0)), toDouble(args.get(1)),
-                                toDouble(args.get(2)), args.size() > 3 ? (int) toDouble(args.get(3)) : 120);
-                        AffineTransform dich = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
-                        Shape hinh = dich.createTransformedShape(p);
-                        Composite cu = gameGraphics.getComposite();
-                        gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                                args.size() > 5 ? (float) toDouble(args.get(5)) : 0.15f));
-                        gameGraphics.setColor(parseColor(args.size() > 4 ? stringify(args.get(4)) : "white"));
-                        gameGraphics.fill(hinh);
-                        gameGraphics.setComposite(cu);
-                        return null;
-                    }
+                    Area toi = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
+                    toi.subtract(new Area(vungSang));
 
-                    case "setTitle": if (gameWindow != null) gameWindow.setTitle(stringify(args.get(0))); return null;
-                    case "closeGame": isGameRunning = false; if (gameWindow != null) gameWindow.dispose(); return null;
+                    Composite cu = gameGraphics.getComposite();
+                    gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                            Math.max(0f, Math.min(1f, doToi))));
+                    gameGraphics.setColor(mauToi);
+                    gameGraphics.fill(toi);
+                    gameGraphics.setComposite(cu);
+                    return null;
+                }
+                case "veVungNhin": {
+                    // veVungNhin(x, y, banKinh, soTia, mau, doMo) - tô sáng vùng nhìn thấy
+                    if (gameGraphics == null) return null;
+                    Polygon p = dungDaGiacTamNhin(toDouble(args.get(0)), toDouble(args.get(1)),
+                            toDouble(args.get(2)), args.size() > 3 ? (int) toDouble(args.get(3)) : 120);
+                    AffineTransform dich = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
+                    Shape hinh = dich.createTransformedShape(p);
+                    Composite cu = gameGraphics.getComposite();
+                    gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
+                            args.size() > 5 ? (float) toDouble(args.get(5)) : 0.15f));
+                    gameGraphics.setColor(parseColor(args.size() > 4 ? stringify(args.get(4)) : "white"));
+                    gameGraphics.fill(hinh);
+                    gameGraphics.setComposite(cu);
+                    return null;
+                }
 
-                    // --- NHÓM 2: VẼ HÌNH ---
-                    case "clear": {
-                        String colorName = args.isEmpty() ? "black" : stringify(args.get(0));
-                        // Reset trạng thái vẽ mỗi khung hình để alpha/độ dày nét của khung trước không dính sang
-                        gameGraphics.setComposite(AlphaComposite.SrcOver);
-                        gameGraphics.setStroke(new BasicStroke(1f));
-                        gameGraphics.setColor(parseColor(colorName));
-                        gameGraphics.fillRect(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight());
-                        return null;
-                    }
-                    // --- CẬP NHẬT TRONG case "drawRect" ---
-                    case "drawRect": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.drawRect(
-                                (int)toDouble(args.get(0)) - camOffX(), // Trừ Camera X (+ rung màn hình)
-                                (int)toDouble(args.get(1)) - camOffY(), // Trừ Camera Y
-                                (int)toDouble(args.get(2)),
-                                (int)toDouble(args.get(3))
-                        );
-                        return null;
-                    }
+                case "setTitle": if (gameWindow != null) gameWindow.setTitle(stringify(args.get(0))); return null;
+                case "closeGame": isGameRunning = false; if (gameWindow != null) gameWindow.dispose(); return null;
 
-                    // --- CẬP NHẬT TRONG case "fillRect" ---
-                    case "fillRect": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.fillRect(
-                                (int)toDouble(args.get(0)) - camOffX(),
-                                (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)),
-                                (int)toDouble(args.get(3))
-                        );
-                        return null;
-                    }
-                    case "drawCircle": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(3))));
-                        int r = (int)toDouble(args.get(2));
-                        gameGraphics.drawOval((int)toDouble(args.get(0)) - r - camOffX(), (int)toDouble(args.get(1)) - r - camOffY(), r * 2, r * 2);
-                        return null;
-                    }
-                    case "fillCircle": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(3))));
-                        int r = (int)toDouble(args.get(2));
-                        gameGraphics.fillOval((int)toDouble(args.get(0)) - r - camOffX(), (int)toDouble(args.get(1)) - r - camOffY(), r * 2, r * 2);
-                        return null;
-                    }
-                    case "drawLine": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.drawLine(
-                                (int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)) - camOffX(), (int)toDouble(args.get(3)) - camOffY());
-                        return null;
-                    }
-                    case "drawText": {
-                        // Chữ luôn nằm ở toạ độ màn hình (không bị camera kéo) -> tiện làm HUD
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.setFont(new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(3))));
-                        gameGraphics.drawString(stringify(args.get(0)), (int)toDouble(args.get(1)), (int)toDouble(args.get(2)));
-                        return null;
-                    }
-                    case "drawImage": {
-                        Image img = loadGameImage(stringify(args.get(0)));
-                        gameGraphics.drawImage(img, (int)toDouble(args.get(1)) - camOffX(), (int)toDouble(args.get(2)) - camOffY(),
-                                (int)toDouble(args.get(3)), (int)toDouble(args.get(4)), null);
-                        return null;
-                    }
+                // --- NHÓM 2: VẼ HÌNH ---
+                case "clear": {
+                    String colorName = args.isEmpty() ? "black" : stringify(args.get(0));
+                    // Reset trạng thái vẽ mỗi khung hình để alpha/độ dày nét của khung trước không dính sang
+                    gameGraphics.setComposite(AlphaComposite.SrcOver);
+                    gameGraphics.setStroke(new BasicStroke(1f));
+                    gameGraphics.setColor(parseColor(colorName));
+                    gameGraphics.fillRect(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight());
+                    return null;
+                }
+                // --- CẬP NHẬT TRONG case "drawRect" ---
+                case "drawRect": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.drawRect(
+                            (int)toDouble(args.get(0)) - camOffX(), // Trừ Camera X (+ rung màn hình)
+                            (int)toDouble(args.get(1)) - camOffY(), // Trừ Camera Y
+                            (int)toDouble(args.get(2)),
+                            (int)toDouble(args.get(3))
+                    );
+                    return null;
+                }
 
-                    case "drawImageEx": {
-                        // drawImageEx(duongDan, x, y, rong, cao, latNgang, gocXoay)
-                        // x,y là GÓC TRÊN-TRÁI; ảnh xoay quanh tâm của chính nó.
-                        Image img = loadGameImage(stringify(args.get(0)));
-                        double ix = toDouble(args.get(1)) - camOffX();
-                        double iy = toDouble(args.get(2)) - camOffY();
-                        double iw = toDouble(args.get(3));
-                        double ih = toDouble(args.get(4));
-                        boolean lat = args.size() > 5 && toBoolean(args.get(5));
-                        double goc = args.size() > 6 ? toDouble(args.get(6)) : 0;
+                // --- CẬP NHẬT TRONG case "fillRect" ---
+                case "fillRect": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.fillRect(
+                            (int)toDouble(args.get(0)) - camOffX(),
+                            (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)),
+                            (int)toDouble(args.get(3))
+                    );
+                    return null;
+                }
+                case "drawCircle": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(3))));
+                    int r = (int)toDouble(args.get(2));
+                    gameGraphics.drawOval((int)toDouble(args.get(0)) - r - camOffX(), (int)toDouble(args.get(1)) - r - camOffY(), r * 2, r * 2);
+                    return null;
+                }
+                case "fillCircle": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(3))));
+                    int r = (int)toDouble(args.get(2));
+                    gameGraphics.fillOval((int)toDouble(args.get(0)) - r - camOffX(), (int)toDouble(args.get(1)) - r - camOffY(), r * 2, r * 2);
+                    return null;
+                }
+                case "drawLine": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.drawLine(
+                            (int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)) - camOffX(), (int)toDouble(args.get(3)) - camOffY());
+                    return null;
+                }
+                case "drawText": {
+                    // Chữ luôn nằm ở toạ độ màn hình (không bị camera kéo) -> tiện làm HUD
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.setFont(new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(3))));
+                    gameGraphics.drawString(stringify(args.get(0)), (int)toDouble(args.get(1)), (int)toDouble(args.get(2)));
+                    return null;
+                }
+                case "drawImage": {
+                    Image img = loadGameImage(stringify(args.get(0)));
+                    gameGraphics.drawImage(img, (int)toDouble(args.get(1)) - camOffX(), (int)toDouble(args.get(2)) - camOffY(),
+                            (int)toDouble(args.get(3)), (int)toDouble(args.get(4)), null);
+                    return null;
+                }
 
-                        AffineTransform oldTx = gameGraphics.getTransform();
-                        gameGraphics.translate(ix + iw / 2.0, iy + ih / 2.0);
-                        if (goc != 0) gameGraphics.rotate(Math.toRadians(goc));
-                        if (lat) gameGraphics.scale(-1, 1);
-                        gameGraphics.drawImage(img, (int) (-iw / 2), (int) (-ih / 2), (int) iw, (int) ih, null);
-                        gameGraphics.setTransform(oldTx);
-                        return null;
-                    }
-                    case "imageReady": {
-                        // Kiểm tra ảnh có nạp được không (tránh vẽ ra ô trống mà không biết vì sao)
-                        Image img = loadGameImage(stringify(args.get(0)));
-                        return img != null && img.getWidth(null) > 0;
-                    }
+                case "drawImageEx": {
+                    // drawImageEx(duongDan, x, y, rong, cao, latNgang, gocXoay)
+                    // x,y là GÓC TRÊN-TRÁI; ảnh xoay quanh tâm của chính nó.
+                    Image img = loadGameImage(stringify(args.get(0)));
+                    double ix = toDouble(args.get(1)) - camOffX();
+                    double iy = toDouble(args.get(2)) - camOffY();
+                    double iw = toDouble(args.get(3));
+                    double ih = toDouble(args.get(4));
+                    boolean lat = args.size() > 5 && toBoolean(args.get(5));
+                    double goc = args.size() > 6 ? toDouble(args.get(6)) : 0;
 
-                    // --- NHÓM 2B: BỘ VẼ NÂNG CAO (GAME ENGINE V2) ---
-                    case "fillOval": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.fillOval((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)), (int)toDouble(args.get(3)));
-                        return null;
-                    }
-                    case "drawOval": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.drawOval((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)), (int)toDouble(args.get(3)));
-                        return null;
-                    }
-                    case "fillRoundRect": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(5))));
-                        int bo = (int)toDouble(args.get(4));
-                        gameGraphics.fillRoundRect((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), bo, bo);
-                        return null;
-                    }
-                    case "drawRoundRect": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(5))));
-                        int bo = (int)toDouble(args.get(4));
-                        gameGraphics.drawRoundRect((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), bo, bo);
-                        return null;
-                    }
-                    case "fillArc": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(6))));
-                        gameGraphics.fillArc((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)), (int)toDouble(args.get(3)),
-                                (int)toDouble(args.get(4)), (int)toDouble(args.get(5)));
-                        return null;
-                    }
-                    case "drawArc": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(6))));
-                        gameGraphics.drawArc((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                                (int)toDouble(args.get(2)), (int)toDouble(args.get(3)),
-                                (int)toDouble(args.get(4)), (int)toDouble(args.get(5)));
-                        return null;
-                    }
-                    case "fillTriangle": {
-                        gameGraphics.setColor(parseColor(stringify(args.get(6))));
-                        int[] tx = { (int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(2)) - camOffX(), (int)toDouble(args.get(4)) - camOffX() };
-                        int[] ty = { (int)toDouble(args.get(1)) - camOffY(), (int)toDouble(args.get(3)) - camOffY(), (int)toDouble(args.get(5)) - camOffY() };
-                        gameGraphics.fillPolygon(tx, ty, 3);
-                        return null;
-                    }
-                    case "fillPolygon": {
-                        int[] px = toIntArray(args.get(0), camOffX());
-                        int[] py = toIntArray(args.get(1), camOffY());
-                        gameGraphics.setColor(parseColor(stringify(args.get(2))));
-                        gameGraphics.fillPolygon(px, py, Math.min(px.length, py.length));
-                        return null;
-                    }
-                    case "drawPolygon": {
-                        int[] px = toIntArray(args.get(0), camOffX());
-                        int[] py = toIntArray(args.get(1), camOffY());
-                        gameGraphics.setColor(parseColor(stringify(args.get(2))));
-                        gameGraphics.drawPolygon(px, py, Math.min(px.length, py.length));
-                        return null;
-                    }
-                    case "gradientRect": {
-                        // gradientRect(x, y, w, h, mauTren, mauDuoi)
-                        int gx = (int)toDouble(args.get(0)) - camOffX();
-                        int gy = (int)toDouble(args.get(1)) - camOffY();
-                        int gw = (int)toDouble(args.get(2));
-                        int gh = (int)toDouble(args.get(3));
-                        Paint oldPaint = gameGraphics.getPaint();
-                        gameGraphics.setPaint(new GradientPaint(gx, gy, parseColor(stringify(args.get(4))),
-                                gx, gy + gh, parseColor(stringify(args.get(5)))));
-                        gameGraphics.fillRect(gx, gy, gw, gh);
-                        gameGraphics.setPaint(oldPaint);
-                        return null;
-                    }
-                    case "drawTextCenter": {
-                        // drawTextCenter(chu, tamX, y, coChu, mau)
-                        gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                        gameGraphics.setFont(new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(3))));
-                        String chu = stringify(args.get(0));
-                        int rong = gameGraphics.getFontMetrics().stringWidth(chu);
-                        gameGraphics.drawString(chu, (int)toDouble(args.get(1)) - rong / 2, (int)toDouble(args.get(2)));
-                        return null;
-                    }
-                    case "textWidth": {
-                        // textWidth(chu, coChu) -> bề rộng pixel, dùng để canh giữa/căn phải
-                        Font f = new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(1)));
-                        return (double) gameGraphics.getFontMetrics(f).stringWidth(stringify(args.get(0)));
-                    }
-                    case "setFont": {
-                        // setFont(tenPhong, inDam)
-                        gameFontName = stringify(args.get(0));
-                        if (args.size() > 1) gameFontBold = toBoolean(args.get(1));
-                        return null;
-                    }
-                    case "setAlpha": {
-                        // setAlpha(0..1): độ trong suốt cho MỌI nét vẽ phía sau
-                        float a = (float) Math.max(0, Math.min(1, toDouble(args.get(0))));
-                        gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
-                        return null;
-                    }
-                    case "setStroke": {
-                        gameGraphics.setStroke(new BasicStroke((float) toDouble(args.get(0)),
-                                BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                        return null;
-                    }
+                    AffineTransform oldTx = gameGraphics.getTransform();
+                    gameGraphics.translate(ix + iw / 2.0, iy + ih / 2.0);
+                    if (goc != 0) gameGraphics.rotate(Math.toRadians(goc));
+                    if (lat) gameGraphics.scale(-1, 1);
+                    gameGraphics.drawImage(img, (int) (-iw / 2), (int) (-ih / 2), (int) iw, (int) ih, null);
+                    gameGraphics.setTransform(oldTx);
+                    return null;
+                }
+                case "imageReady": {
+                    // Kiểm tra ảnh có nạp được không (tránh vẽ ra ô trống mà không biết vì sao)
+                    Image img = loadGameImage(stringify(args.get(0)));
+                    return img != null && img.getWidth(null) > 0;
+                }
 
-                    // --- NHÓM 3: ĐỐI TƯỢNG GAME (SPRITE) ---
-                    case "sprite": {
-                        String id = stringify(args.get(0));
-                        Image img = new ImageIcon(stringify(args.get(5))).getImage();
-                        sprites.put(id, new Sprite(id, toDouble(args.get(1)), toDouble(args.get(2)), toDouble(args.get(3)), toDouble(args.get(4)), img));
-                        return id;
-                    }
-                    case "moveTo": { Sprite s = sprites.get(stringify(args.get(0))); if (s != null) { s.x = toDouble(args.get(1)); s.y = toDouble(args.get(2)); } return null; }
-                    case "moveBy": { Sprite s = sprites.get(stringify(args.get(0))); if (s != null) { s.x += toDouble(args.get(1)); s.y += toDouble(args.get(2)); } return null; }
-                    case "collide": {
-                        Sprite s1 = sprites.get(stringify(args.get(0))); Sprite s2 = sprites.get(stringify(args.get(1)));
-                        if (s1 == null || s2 == null) return false;
-                        return new Rectangle((int)s1.x, (int)s1.y, (int)s1.w, (int)s1.h).intersects(new Rectangle((int)s2.x, (int)s2.y, (int)s2.w, (int)s2.h));
-                    }
-                    case "removeSprite": sprites.remove(stringify(args.get(0))); return null;
-                    case "spritePos": {
-                        Sprite s = sprites.get(stringify(args.get(0)));
-                        return s != null ? new ArrayList<>(Arrays.asList(s.x, s.y)) : new ArrayList<>();
-                    }
+                // --- NHÓM 2B: BỘ VẼ NÂNG CAO (GAME ENGINE V2) ---
+                case "fillOval": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.fillOval((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)));
+                    return null;
+                }
+                case "drawOval": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.drawOval((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)));
+                    return null;
+                }
+                case "fillRoundRect": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(5))));
+                    int bo = (int)toDouble(args.get(4));
+                    gameGraphics.fillRoundRect((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), bo, bo);
+                    return null;
+                }
+                case "drawRoundRect": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(5))));
+                    int bo = (int)toDouble(args.get(4));
+                    gameGraphics.drawRoundRect((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), bo, bo);
+                    return null;
+                }
+                case "fillArc": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(6))));
+                    gameGraphics.fillArc((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)),
+                            (int)toDouble(args.get(4)), (int)toDouble(args.get(5)));
+                    return null;
+                }
+                case "drawArc": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(6))));
+                    gameGraphics.drawArc((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)),
+                            (int)toDouble(args.get(4)), (int)toDouble(args.get(5)));
+                    return null;
+                }
+                case "fillTriangle": {
+                    gameGraphics.setColor(parseColor(stringify(args.get(6))));
+                    int[] tx = { (int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(2)) - camOffX(), (int)toDouble(args.get(4)) - camOffX() };
+                    int[] ty = { (int)toDouble(args.get(1)) - camOffY(), (int)toDouble(args.get(3)) - camOffY(), (int)toDouble(args.get(5)) - camOffY() };
+                    gameGraphics.fillPolygon(tx, ty, 3);
+                    return null;
+                }
+                case "fillPolygon": {
+                    int[] px = toIntArray(args.get(0), camOffX());
+                    int[] py = toIntArray(args.get(1), camOffY());
+                    gameGraphics.setColor(parseColor(stringify(args.get(2))));
+                    gameGraphics.fillPolygon(px, py, Math.min(px.length, py.length));
+                    return null;
+                }
+                case "drawPolygon": {
+                    int[] px = toIntArray(args.get(0), camOffX());
+                    int[] py = toIntArray(args.get(1), camOffY());
+                    gameGraphics.setColor(parseColor(stringify(args.get(2))));
+                    gameGraphics.drawPolygon(px, py, Math.min(px.length, py.length));
+                    return null;
+                }
+                case "gradientRect": {
+                    // gradientRect(x, y, w, h, mauTren, mauDuoi)
+                    int gx = (int)toDouble(args.get(0)) - camOffX();
+                    int gy = (int)toDouble(args.get(1)) - camOffY();
+                    int gw = (int)toDouble(args.get(2));
+                    int gh = (int)toDouble(args.get(3));
+                    Paint oldPaint = gameGraphics.getPaint();
+                    gameGraphics.setPaint(new GradientPaint(gx, gy, parseColor(stringify(args.get(4))),
+                            gx, gy + gh, parseColor(stringify(args.get(5)))));
+                    gameGraphics.fillRect(gx, gy, gw, gh);
+                    gameGraphics.setPaint(oldPaint);
+                    return null;
+                }
+                case "drawTextCenter": {
+                    // drawTextCenter(chu, tamX, y, coChu, mau)
+                    gameGraphics.setColor(parseColor(stringify(args.get(4))));
+                    gameGraphics.setFont(new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(3))));
+                    String chu = stringify(args.get(0));
+                    int rong = gameGraphics.getFontMetrics().stringWidth(chu);
+                    gameGraphics.drawString(chu, (int)toDouble(args.get(1)) - rong / 2, (int)toDouble(args.get(2)));
+                    return null;
+                }
+                case "textWidth": {
+                    // textWidth(chu, coChu) -> bề rộng pixel, dùng để canh giữa/căn phải
+                    Font f = new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(1)));
+                    return (double) gameGraphics.getFontMetrics(f).stringWidth(stringify(args.get(0)));
+                }
+                case "setFont": {
+                    // setFont(tenPhong, inDam)
+                    gameFontName = stringify(args.get(0));
+                    if (args.size() > 1) gameFontBold = toBoolean(args.get(1));
+                    return null;
+                }
+                case "setAlpha": {
+                    // setAlpha(0..1): độ trong suốt cho MỌI nét vẽ phía sau
+                    float a = (float) Math.max(0, Math.min(1, toDouble(args.get(0))));
+                    gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, a));
+                    return null;
+                }
+                case "setStroke": {
+                    gameGraphics.setStroke(new BasicStroke((float) toDouble(args.get(0)),
+                            BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    return null;
+                }
 
-                    // --- NHÓM 4: ĐIỀU KHIỂN ---
-                    case "isKeyDown": return keysDown.contains(chuanHoaTenPhim(stringify(args.get(0))));
-                    case "isKeyPressed": return keysPressed.contains(chuanHoaTenPhim(stringify(args.get(0))));
-                    // Giả lập bấm/nhả phím bằng mã lệnh: tiện làm màn hình demo tự chạy hoặc kiểm thử game
-                    case "pressKey": {
-                        String p = chuanHoaTenPhim(stringify(args.get(0)));
-                        if (!keysDown.contains(p)) keysPressed.add(p);
-                        keysDown.add(p);
-                        return null;
-                    }
-                    case "releaseKey": {
-                        keysDown.remove(chuanHoaTenPhim(stringify(args.get(0))));
-                        return null;
-                    }
-                    case "mouseX": return (double) mouseX;
-                    case "mouseY": return (double) mouseY;
-                    case "isMousePressed": {
-                        // Chỉ đúng ở khung hình vừa bấm xuống (dùng cho bắn phát một, bấm nút...)
-                        String btn2 = stringify(args.get(0)).toUpperCase();
-                        return btn2.equals("LEFT") ? mouseLeftPressed : (btn2.equals("RIGHT") ? mouseRightPressed : false);
-                    }
-                    case "isMouseDown": {
-                        String btn = stringify(args.get(0)).toUpperCase();
-                        return btn.equals("LEFT") ? mouseLeftDown : (btn.equals("RIGHT") ? mouseRightDown : false);
-                    }
+                // --- NHÓM 3: ĐỐI TƯỢNG GAME (SPRITE) ---
+                case "sprite": {
+                    String id = stringify(args.get(0));
+                    Image img = new ImageIcon(stringify(args.get(5))).getImage();
+                    sprites.put(id, new Sprite(id, toDouble(args.get(1)), toDouble(args.get(2)), toDouble(args.get(3)), toDouble(args.get(4)), img));
+                    return id;
+                }
+                case "moveTo": { Sprite s = sprites.get(stringify(args.get(0))); if (s != null) { s.x = toDouble(args.get(1)); s.y = toDouble(args.get(2)); } return null; }
+                case "moveBy": { Sprite s = sprites.get(stringify(args.get(0))); if (s != null) { s.x += toDouble(args.get(1)); s.y += toDouble(args.get(2)); } return null; }
+                case "collide": {
+                    Sprite s1 = sprites.get(stringify(args.get(0))); Sprite s2 = sprites.get(stringify(args.get(1)));
+                    if (s1 == null || s2 == null) return false;
+                    return new Rectangle((int)s1.x, (int)s1.y, (int)s1.w, (int)s1.h).intersects(new Rectangle((int)s2.x, (int)s2.y, (int)s2.w, (int)s2.h));
+                }
+                case "removeSprite": sprites.remove(stringify(args.get(0))); return null;
+                case "spritePos": {
+                    Sprite s = sprites.get(stringify(args.get(0)));
+                    return s != null ? new ArrayList<>(Arrays.asList(s.x, s.y)) : new ArrayList<>();
+                }
 
-                    // --- NHÓM 5: VÒNG LẶP & ÂM THANH ---
-                    case "gameLoop": {
-                        String updateFunc = stringify(args.get(0));
-                        String drawFunc = args.size() > 1 ? stringify(args.get(1)) : null;
+                // --- NHÓM 4: ĐIỀU KHIỂN ---
+                case "isKeyDown": return keysDown.contains(chuanHoaTenPhim(stringify(args.get(0))));
+                case "isKeyPressed": return keysPressed.contains(chuanHoaTenPhim(stringify(args.get(0))));
+                // Giả lập bấm/nhả phím bằng mã lệnh: tiện làm màn hình demo tự chạy hoặc kiểm thử game
+                case "pressKey": {
+                    String p = chuanHoaTenPhim(stringify(args.get(0)));
+                    if (!keysDown.contains(p)) keysPressed.add(p);
+                    keysDown.add(p);
+                    return null;
+                }
+                case "releaseKey": {
+                    keysDown.remove(chuanHoaTenPhim(stringify(args.get(0))));
+                    return null;
+                }
+                case "mouseX": return (double) mouseX;
+                case "mouseY": return (double) mouseY;
+                case "isMousePressed": {
+                    // Chỉ đúng ở khung hình vừa bấm xuống (dùng cho bắn phát một, bấm nút...)
+                    String btn2 = stringify(args.get(0)).toUpperCase();
+                    return btn2.equals("LEFT") ? mouseLeftPressed : (btn2.equals("RIGHT") ? mouseRightPressed : false);
+                }
+                case "isMouseDown": {
+                    String btn = stringify(args.get(0)).toUpperCase();
+                    return btn.equals("LEFT") ? mouseLeftDown : (btn.equals("RIGHT") ? mouseRightDown : false);
+                }
 
-                        isGameRunning = true;
-                        long lastTimeNano = System.nanoTime();
-                        long fpsMocThoiGian = System.nanoTime();
-                        int fpsDem = 0;
-                        double delta = 0;
+                // --- NHÓM 5: VÒNG LẶP & ÂM THANH ---
+                case "gameLoop": {
+                    String updateFunc = stringify(args.get(0));
+                    String drawFunc = args.size() > 1 ? stringify(args.get(1)) : null;
 
-                        while (isGameRunning) {
-                            double nsPerFrame = 1000000000.0 / Math.max(1, targetFPS);
-                            long now = System.nanoTime();
-                            delta += (now - lastTimeNano) / nsPerFrame;
-                            lastTimeNano = now;
+                    isGameRunning = true;
+                    long lastTimeNano = System.nanoTime();
+                    long fpsMocThoiGian = System.nanoTime();
+                    int fpsDem = 0;
+                    double delta = 0;
 
-                            // Máy yếu / cửa sổ bị kéo đi: chặn delta dồn vô hạn gây "tua nhanh"
-                            if (delta > 5) delta = 5;
+                    while (isGameRunning) {
+                        double nsPerFrame = 1000000000.0 / Math.max(1, targetFPS);
+                        long now = System.nanoTime();
+                        delta += (now - lastTimeNano) / nsPerFrame;
+                        lastTimeNano = now;
 
-                            if (delta >= 1) {
-                                lastDeltaSec = 1.0 / Math.max(1, targetFPS);
+                        // Máy yếu / cửa sổ bị kéo đi: chặn delta dồn vô hạn gây "tua nhanh"
+                        if (delta > 5) delta = 5;
 
-                                // 1. Cập nhật Logic
-                                executeFunctionCall(updateFunc, new ArrayList<>());
+                        if (delta >= 1) {
+                            lastDeltaSec = 1.0 / Math.max(1, targetFPS);
 
-                                // 2. Cập nhật Đồ họa
-                                if (drawFunc != null) {
-                                    executeFunctionCall(drawFunc, new ArrayList<>());
-                                }
+                            // 1. Cập nhật Logic
+                            executeFunctionCall(updateFunc, new ArrayList<>());
 
-                                // 3. Vẽ Sprite tự động hỗ trợ Camera và Xoay
-                                AffineTransform oldTx = gameGraphics.getTransform();
-                                for (Sprite s : sprites.values()) {
-                                    gameGraphics.translate(s.x - camOffX() + s.w/2, s.y - camOffY() + s.h/2);
-                                    gameGraphics.rotate(Math.toRadians(s.angle));
-                                    gameGraphics.drawImage(s.img, (int)(-s.w/2), (int)(-s.h/2), (int)s.w, (int)s.h, null);
-                                    gameGraphics.setTransform(oldTx);
-                                }
-
-                                // 4. Engine tự lo hạt hiệu ứng, chữ bay và rung màn hình
-                                updateAndDrawEffects();
-
-                                // 5. Xoá trạng thái "vừa bấm" SAU khi cả update lẫn draw đã chạy xong
-                                keysPressed.clear();
-                                mouseLeftPressed = false;
-                                mouseRightPressed = false;
-
-                                if (gameCanvas != null) gameCanvas.repaint();
-                                frameCount++;
-                                fpsDem++;
-                                delta--;
-
-                                // Đo FPS thực tế mỗi giây
-                                if (now - fpsMocThoiGian >= 1000000000L) {
-                                    measuredFPS = fpsDem;
-                                    fpsDem = 0;
-                                    fpsMocThoiGian = now;
-                                }
+                            // 2. Cập nhật Đồ họa
+                            if (drawFunc != null) {
+                                executeFunctionCall(drawFunc, new ArrayList<>());
                             }
-                            Thread.sleep(1); // Giảm tải CPU
+
+                            // 3. Vẽ Sprite tự động hỗ trợ Camera và Xoay
+                            AffineTransform oldTx = gameGraphics.getTransform();
+                            for (Sprite s : sprites.values()) {
+                                gameGraphics.translate(s.x - camOffX() + s.w/2, s.y - camOffY() + s.h/2);
+                                gameGraphics.rotate(Math.toRadians(s.angle));
+                                gameGraphics.drawImage(s.img, (int)(-s.w/2), (int)(-s.h/2), (int)s.w, (int)s.h, null);
+                                gameGraphics.setTransform(oldTx);
+                            }
+
+                            // 4. Engine tự lo hạt hiệu ứng, chữ bay và rung màn hình
+                            updateAndDrawEffects();
+
+                            // 5. Xoá trạng thái "vừa bấm" SAU khi cả update lẫn draw đã chạy xong
+                            keysPressed.clear();
+                            mouseLeftPressed = false;
+                            mouseRightPressed = false;
+
+                            if (gameCanvas != null) gameCanvas.repaint();
+                            frameCount++;
+                            fpsDem++;
+                            delta--;
+
+                            // Đo FPS thực tế mỗi giây
+                            if (now - fpsMocThoiGian >= 1000000000L) {
+                                measuredFPS = fpsDem;
+                                fpsDem = 0;
+                                fpsMocThoiGian = now;
+                            }
                         }
-                        return null;
+                        Thread.sleep(1); // Giảm tải CPU
                     }
-                    case "setFPS": { targetFPS = (int) Math.max(1, toDouble(args.get(0))); return null; }
-                    case "getFPS": return measuredFPS;
-                    case "deltaTime": return lastDeltaSec;
-                    case "playSound": {
+                    return null;
+                }
+                case "setFPS": { targetFPS = (int) Math.max(1, toDouble(args.get(0))); return null; }
+                case "getFPS": return measuredFPS;
+                case "deltaTime": return lastDeltaSec;
+                case "playSound": {
+                    try {
+                        File f = new File(stringify(args.get(0)));
+                        AudioInputStream ais = AudioSystem.getAudioInputStream(f);
+                        Clip clip = AudioSystem.getClip();
+                        clip.open(ais);
+                        if (args.size() > 1 && toBoolean(args.get(1))) clip.loop(Clip.LOOP_CONTINUOUSLY);
+                        else clip.start();
+
+                        // Gán vào biến toàn cục để stopSound và setVolume có thể điều khiển được
+                        currentGameClip = clip;
+                    } catch (Exception ex) { System.out.println("Lỗi phát âm thanh: " + ex.getMessage()); }
+                    return null;
+                }
+
+                case "stopSound": {
+                    if (currentGameClip != null && currentGameClip.isRunning()) {
+                        currentGameClip.stop();
+                        currentGameClip.close();
+                    }
+                    return null;
+                }
+
+                case "setVolume": {
+                    if (currentGameClip != null && currentGameClip.isOpen()) {
                         try {
+                            // Lấy bộ điều khiển âm lượng của Java Sound
+                            FloatControl gainControl = (FloatControl) currentGameClip.getControl(FloatControl.Type.MASTER_GAIN);
+                            double vol = toDouble(args.get(0));
+
+                            if (vol <= 0) {
+                                gainControl.setValue(gainControl.getMinimum()); // Tắt hẳn tiếng (Mute)
+                            } else {
+                                if (vol > 100) vol = 100;
+                                // Thuật toán chuẩn: Chuyển đổi % (0-100) sang Decibel (dB)
+                                float dB = (float) (Math.log10(vol / 100.0) * 20.0);
+                                gainControl.setValue(dB);
+                            }
+                        } catch (Exception ex) {
+                            System.out.println("Lỗi chỉnh âm lượng: " + ex.getMessage());
+                        }
+                    }
+                    return null;
+                }
+
+                // --- NHÓM 6: TIỆN ÍCH GAME ---
+                case "randomInt": {
+                    int min = (int)toDouble(args.get(0));
+                    int max = (int)toDouble(args.get(1));
+                    return (double) (min + (int)(Math.random() * ((max - min) + 1)));
+                }
+                case "distance": return Math.hypot(toDouble(args.get(0)) - toDouble(args.get(2)), toDouble(args.get(1)) - toDouble(args.get(3)));
+                case "frameCount": return (double) frameCount;
+                case "setCamera": {
+                    cameraX = toDouble(args.get(0));
+                    cameraY = toDouble(args.get(1));
+                    return null;
+                }
+                case "getTextWidth": {
+                    return (double) gameGraphics.getFontMetrics().stringWidth(stringify(args.get(0)));
+                }
+                case "rotateSprite": {
+                    Sprite s = sprites.get(stringify(args.get(0)));
+                    if (s != null) s.angle = toDouble(args.get(1));
+                    return null;
+                }
+                case "scaleSprite": {
+                    Sprite s = sprites.get(stringify(args.get(0)));
+                    if (s != null) { s.w = toDouble(args.get(1)); s.h = toDouble(args.get(2)); }
+                    return null;
+                }
+                case "camX": return cameraX;
+                case "camY": return cameraY;
+                // Bật/tắt chế độ vẽ giao diện: giữa beginUI() và endUI() thì camera bị bỏ qua
+                case "beginUI": cheDoGiaoDien = true; return null;
+                case "endUI": cheDoGiaoDien = false; return null;
+                case "saveScreenshot": {
+                    // Chụp đúng khung hình đang hiện ra file PNG (tiện làm ảnh bìa / kiểm thử)
+                    try {
+                        if (gameBuffer != null) {
                             File f = new File(stringify(args.get(0)));
-                            AudioInputStream ais = AudioSystem.getAudioInputStream(f);
-                            Clip clip = AudioSystem.getClip();
-                            clip.open(ais);
-                            if (args.size() > 1 && toBoolean(args.get(1))) clip.loop(Clip.LOOP_CONTINUOUSLY);
-                            else clip.start();
-
-                            // Gán vào biến toàn cục để stopSound và setVolume có thể điều khiển được
-                            currentGameClip = clip;
-                        } catch (Exception ex) { System.out.println("Lỗi phát âm thanh: " + ex.getMessage()); }
-                        return null;
-                    }
-
-                    case "stopSound": {
-                        if (currentGameClip != null && currentGameClip.isRunning()) {
-                            currentGameClip.stop();
-                            currentGameClip.close();
+                            if (f.getParentFile() != null) f.getParentFile().mkdirs();
+                            ImageIO.write(gameBuffer, "png", f);
                         }
-                        return null;
-                    }
+                    } catch (Exception ex) { System.out.println("Lỗi chụp màn hình: " + ex.getMessage()); }
+                    return null;
+                }
 
-                    case "setVolume": {
-                        if (currentGameClip != null && currentGameClip.isOpen()) {
-                            try {
-                                // Lấy bộ điều khiển âm lượng của Java Sound
-                                FloatControl gainControl = (FloatControl) currentGameClip.getControl(FloatControl.Type.MASTER_GAIN);
-                                double vol = toDouble(args.get(0));
-
-                                if (vol <= 0) {
-                                    gainControl.setValue(gainControl.getMinimum()); // Tắt hẳn tiếng (Mute)
-                                } else {
-                                    if (vol > 100) vol = 100;
-                                    // Thuật toán chuẩn: Chuyển đổi % (0-100) sang Decibel (dB)
-                                    float dB = (float) (Math.log10(vol / 100.0) * 20.0);
-                                    gainControl.setValue(dB);
-                                }
-                            } catch (Exception ex) {
-                                System.out.println("Lỗi chỉnh âm lượng: " + ex.getMessage());
-                            }
-                        }
-                        return null;
-                    }
-
-                    // --- NHÓM 6: TIỆN ÍCH GAME ---
-                    case "randomInt": {
-                        int min = (int)toDouble(args.get(0));
-                        int max = (int)toDouble(args.get(1));
-                        return (double) (min + (int)(Math.random() * ((max - min) + 1)));
-                    }
-                    case "distance": return Math.hypot(toDouble(args.get(0)) - toDouble(args.get(2)), toDouble(args.get(1)) - toDouble(args.get(3)));
-                    case "frameCount": return (double) frameCount;
-                    case "setCamera": {
-                        cameraX = toDouble(args.get(0));
-                        cameraY = toDouble(args.get(1));
-                        return null;
-                    }
-                    case "getTextWidth": {
-                        return (double) gameGraphics.getFontMetrics().stringWidth(stringify(args.get(0)));
-                    }
-                    case "rotateSprite": {
-                        Sprite s = sprites.get(stringify(args.get(0)));
-                        if (s != null) s.angle = toDouble(args.get(1));
-                        return null;
-                    }
-                    case "scaleSprite": {
-                        Sprite s = sprites.get(stringify(args.get(0)));
-                        if (s != null) { s.w = toDouble(args.get(1)); s.h = toDouble(args.get(2)); }
-                        return null;
-                    }
-                    case "camX": return cameraX;
-                    case "camY": return cameraY;
-                    // Bật/tắt chế độ vẽ giao diện: giữa beginUI() và endUI() thì camera bị bỏ qua
-                    case "beginUI": cheDoGiaoDien = true; return null;
-                    case "endUI": cheDoGiaoDien = false; return null;
-                    case "saveScreenshot": {
-                        // Chụp đúng khung hình đang hiện ra file PNG (tiện làm ảnh bìa / kiểm thử)
-                        try {
-                            if (gameBuffer != null) {
-                                File f = new File(stringify(args.get(0)));
-                                if (f.getParentFile() != null) f.getParentFile().mkdirs();
-                                ImageIO.write(gameBuffer, "png", f);
-                            }
-                        } catch (Exception ex) { System.out.println("Lỗi chụp màn hình: " + ex.getMessage()); }
-                        return null;
-                    }
-
-                    // --- NHÓM 7: HIỆU ỨNG ĐIỆN ẢNH (ENGINE TỰ CẬP NHẬT + TỰ VẼ) ---
-                    case "screenShake": {
-                        // screenShake(doManh, soKhungHinh)
-                        shakePower = toDouble(args.get(0));
-                        shakeFrames = (int) toDouble(args.get(1));
-                        return null;
-                    }
-                    case "spawnParticle": {
-                        // spawnParticle(x, y, vx, vy, kichThuoc, tuoiTho, mau, trongLuc)
+                // --- NHÓM 7: HIỆU ỨNG ĐIỆN ẢNH (ENGINE TỰ CẬP NHẬT + TỰ VẼ) ---
+                case "screenShake": {
+                    // screenShake(doManh, soKhungHinh)
+                    shakePower = toDouble(args.get(0));
+                    shakeFrames = (int) toDouble(args.get(1));
+                    return null;
+                }
+                case "spawnParticle": {
+                    // spawnParticle(x, y, vx, vy, kichThuoc, tuoiTho, mau, trongLuc)
+                    GameParticle p = new GameParticle();
+                    p.x = toDouble(args.get(0)); p.y = toDouble(args.get(1));
+                    p.vx = toDouble(args.get(2)); p.vy = toDouble(args.get(3));
+                    p.size = toDouble(args.get(4));
+                    p.life = toDouble(args.get(5)); p.maxLife = p.life;
+                    p.color = parseColor(stringify(args.get(6)));
+                    p.gravity = args.size() > 7 ? toDouble(args.get(7)) : 0;
+                    if (gameParticles.size() < 1200) gameParticles.add(p);
+                    return null;
+                }
+                case "burst": {
+                    // burst(x, y, soHat, mau, tocDo, kichThuoc, tuoiTho, trongLuc)
+                    double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
+                    int soHat = (int) toDouble(args.get(2));
+                    Color mau = parseColor(stringify(args.get(3)));
+                    double tocDo = args.size() > 4 ? toDouble(args.get(4)) : 4;
+                    double kt = args.size() > 5 ? toDouble(args.get(5)) : 4;
+                    double tho = args.size() > 6 ? toDouble(args.get(6)) : 25;
+                    double tl = args.size() > 7 ? toDouble(args.get(7)) : 0.12;
+                    for (int i = 0; i < soHat; i++) {
+                        if (gameParticles.size() >= 1200) break;
                         GameParticle p = new GameParticle();
-                        p.x = toDouble(args.get(0)); p.y = toDouble(args.get(1));
-                        p.vx = toDouble(args.get(2)); p.vy = toDouble(args.get(3));
-                        p.size = toDouble(args.get(4));
-                        p.life = toDouble(args.get(5)); p.maxLife = p.life;
-                        p.color = parseColor(stringify(args.get(6)));
-                        p.gravity = args.size() > 7 ? toDouble(args.get(7)) : 0;
-                        if (gameParticles.size() < 1200) gameParticles.add(p);
-                        return null;
+                        double goc = Math.random() * Math.PI * 2;
+                        double v = tocDo * (0.35 + Math.random() * 0.85);
+                        p.x = bx; p.y = by;
+                        p.vx = Math.cos(goc) * v; p.vy = Math.sin(goc) * v;
+                        p.size = kt * (0.5 + Math.random());
+                        p.life = tho * (0.6 + Math.random() * 0.7); p.maxLife = p.life;
+                        p.color = mau; p.gravity = tl;
+                        gameParticles.add(p);
                     }
-                    case "burst": {
-                        // burst(x, y, soHat, mau, tocDo, kichThuoc, tuoiTho, trongLuc)
-                        double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
-                        int soHat = (int) toDouble(args.get(2));
-                        Color mau = parseColor(stringify(args.get(3)));
-                        double tocDo = args.size() > 4 ? toDouble(args.get(4)) : 4;
-                        double kt = args.size() > 5 ? toDouble(args.get(5)) : 4;
-                        double tho = args.size() > 6 ? toDouble(args.get(6)) : 25;
-                        double tl = args.size() > 7 ? toDouble(args.get(7)) : 0.12;
-                        for (int i = 0; i < soHat; i++) {
-                            if (gameParticles.size() >= 1200) break;
-                            GameParticle p = new GameParticle();
-                            double goc = Math.random() * Math.PI * 2;
-                            double v = tocDo * (0.35 + Math.random() * 0.85);
-                            p.x = bx; p.y = by;
-                            p.vx = Math.cos(goc) * v; p.vy = Math.sin(goc) * v;
-                            p.size = kt * (0.5 + Math.random());
-                            p.life = tho * (0.6 + Math.random() * 0.7); p.maxLife = p.life;
-                            p.color = mau; p.gravity = tl;
-                            gameParticles.add(p);
+                    return null;
+                }
+                case "floatText": {
+                    // floatText(chu, x, y, coChu, mau, tuoiTho)
+                    GameFloatText f = new GameFloatText();
+                    f.text = stringify(args.get(0));
+                    f.x = toDouble(args.get(1)); f.y = toDouble(args.get(2));
+                    f.size = toDouble(args.get(3));
+                    f.color = parseColor(stringify(args.get(4)));
+                    f.life = args.size() > 5 ? toDouble(args.get(5)) : 45; f.maxLife = f.life;
+                    f.vy = args.size() > 6 ? toDouble(args.get(6)) : -1.1;
+                    if (gameFloatTexts.size() < 200) gameFloatTexts.add(f);
+                    return null;
+                }
+                case "clearEffects": {
+                    gameParticles.clear();
+                    gameFloatTexts.clear();
+                    shakeFrames = 0; shakeOffX = 0; shakeOffY = 0; shakePower = 0;
+                    return null;
+                }
+
+                // --- NHÓM 8: ÂM THANH V2 (NHẠC NỀN + HIỆU ỨNG + TIẾNG TỔNG HỢP) ---
+                case "tone": {
+                    // tone(tanSo, thoiGianMs, amLuong 0..1) - không cần file âm thanh nào cả
+                    playTone(toDouble(args.get(0)), (int) toDouble(args.get(1)),
+                            args.size() > 2 ? toDouble(args.get(2)) : 0.5);
+                    return null;
+                }
+                case "playMusic": {
+                    try {
+                        if (gameMusicClip != null) { gameMusicClip.stop(); gameMusicClip.close(); }
+                        AudioInputStream ais = AudioSystem.getAudioInputStream(new File(stringify(args.get(0))));
+                        gameMusicClip = AudioSystem.getClip();
+                        gameMusicClip.open(ais);
+                        if (args.size() > 1 && toBoolean(args.get(1))) gameMusicClip.loop(Clip.LOOP_CONTINUOUSLY);
+                        else gameMusicClip.start();
+                        if (args.size() > 2) setClipVolume(gameMusicClip, toDouble(args.get(2)));
+                    } catch (Exception ex) { System.out.println("Lỗi nhạc nền: " + ex.getMessage()); }
+                    return null;
+                }
+                case "stopMusic": {
+                    if (gameMusicClip != null) { gameMusicClip.stop(); gameMusicClip.close(); gameMusicClip = null; }
+                    return null;
+                }
+                case "setMusicVolume": {
+                    if (gameMusicClip != null) setClipVolume(gameMusicClip, toDouble(args.get(0)));
+                    return null;
+                }
+                case "playSfx": {
+                    // playSfx(duongDan, amLuong): có cache nên bắn liên tục không giật
+                    try {
+                        String duongDan = stringify(args.get(0));
+                        Clip c = gameSfxCache.get(duongDan);
+                        if (c == null) {
+                            AudioInputStream ais = AudioSystem.getAudioInputStream(new File(duongDan));
+                            c = AudioSystem.getClip();
+                            c.open(ais);
+                            gameSfxCache.put(duongDan, c);
                         }
-                        return null;
-                    }
-                    case "floatText": {
-                        // floatText(chu, x, y, coChu, mau, tuoiTho)
-                        GameFloatText f = new GameFloatText();
-                        f.text = stringify(args.get(0));
-                        f.x = toDouble(args.get(1)); f.y = toDouble(args.get(2));
-                        f.size = toDouble(args.get(3));
-                        f.color = parseColor(stringify(args.get(4)));
-                        f.life = args.size() > 5 ? toDouble(args.get(5)) : 45; f.maxLife = f.life;
-                        f.vy = args.size() > 6 ? toDouble(args.get(6)) : -1.1;
-                        if (gameFloatTexts.size() < 200) gameFloatTexts.add(f);
-                        return null;
-                    }
-                    case "clearEffects": {
-                        gameParticles.clear();
-                        gameFloatTexts.clear();
-                        shakeFrames = 0; shakeOffX = 0; shakeOffY = 0; shakePower = 0;
-                        return null;
-                    }
+                        c.stop();
+                        c.setFramePosition(0);
+                        if (args.size() > 1) setClipVolume(c, toDouble(args.get(1)));
+                        c.start();
+                    } catch (Exception ex) { System.out.println("Lỗi hiệu ứng âm thanh: " + ex.getMessage()); }
+                    return null;
+                }
 
-                    // --- NHÓM 8: ÂM THANH V2 (NHẠC NỀN + HIỆU ỨNG + TIẾNG TỔNG HỢP) ---
-                    case "tone": {
-                        // tone(tanSo, thoiGianMs, amLuong 0..1) - không cần file âm thanh nào cả
-                        playTone(toDouble(args.get(0)), (int) toDouble(args.get(1)),
-                                args.size() > 2 ? toDouble(args.get(2)) : 0.5);
-                        return null;
-                    }
-                    case "playMusic": {
-                        try {
-                            if (gameMusicClip != null) { gameMusicClip.stop(); gameMusicClip.close(); }
-                            AudioInputStream ais = AudioSystem.getAudioInputStream(new File(stringify(args.get(0))));
-                            gameMusicClip = AudioSystem.getClip();
-                            gameMusicClip.open(ais);
-                            if (args.size() > 1 && toBoolean(args.get(1))) gameMusicClip.loop(Clip.LOOP_CONTINUOUSLY);
-                            else gameMusicClip.start();
-                            if (args.size() > 2) setClipVolume(gameMusicClip, toDouble(args.get(2)));
-                        } catch (Exception ex) { System.out.println("Lỗi nhạc nền: " + ex.getMessage()); }
-                        return null;
-                    }
-                    case "stopMusic": {
-                        if (gameMusicClip != null) { gameMusicClip.stop(); gameMusicClip.close(); gameMusicClip = null; }
-                        return null;
-                    }
-                    case "setMusicVolume": {
-                        if (gameMusicClip != null) setClipVolume(gameMusicClip, toDouble(args.get(0)));
-                        return null;
-                    }
-                    case "playSfx": {
-                        // playSfx(duongDan, amLuong): có cache nên bắn liên tục không giật
-                        try {
-                            String duongDan = stringify(args.get(0));
-                            Clip c = gameSfxCache.get(duongDan);
-                            if (c == null) {
-                                AudioInputStream ais = AudioSystem.getAudioInputStream(new File(duongDan));
-                                c = AudioSystem.getClip();
-                                c.open(ais);
-                                gameSfxCache.put(duongDan, c);
-                            }
-                            c.stop();
-                            c.setFramePosition(0);
-                            if (args.size() > 1) setClipVolume(c, toDouble(args.get(1)));
-                            c.start();
-                        } catch (Exception ex) { System.out.println("Lỗi hiệu ứng âm thanh: " + ex.getMessage()); }
-                        return null;
-                    }
-
-                    // --- NHÓM 9: TOÁN HỌC TIỆN DỤNG CHO GAME ---
-                    case "randomFloat": {
-                        double lo = toDouble(args.get(0)), hi = toDouble(args.get(1));
-                        return lo + Math.random() * (hi - lo);
-                    }
-                    case "lerp": {
-                        double a = toDouble(args.get(0)), b = toDouble(args.get(1)), t = toDouble(args.get(2));
-                        return a + (b - a) * t;
-                    }
-                    case "angleTo": {
-                        // angleTo(x1,y1,x2,y2) -> góc bằng ĐỘ từ điểm 1 tới điểm 2
-                        return Math.toDegrees(Math.atan2(toDouble(args.get(3)) - toDouble(args.get(1)),
-                                toDouble(args.get(2)) - toDouble(args.get(0))));
-                    }
-                    // Chỉnh sửa phần "Vẽ Sprite tự động" trong gameLoop để hỗ trợ Camera và Xoay:
+                // --- NHÓM 9: TOÁN HỌC TIỆN DỤNG CHO GAME ---
+                case "randomFloat": {
+                    double lo = toDouble(args.get(0)), hi = toDouble(args.get(1));
+                    return lo + Math.random() * (hi - lo);
+                }
+                case "lerp": {
+                    double a = toDouble(args.get(0)), b = toDouble(args.get(1)), t = toDouble(args.get(2));
+                    return a + (b - a) * t;
+                }
+                case "angleTo": {
+                    // angleTo(x1,y1,x2,y2) -> góc bằng ĐỘ từ điểm 1 tới điểm 2
+                    return Math.toDegrees(Math.atan2(toDouble(args.get(3)) - toDouble(args.get(1)),
+                            toDouble(args.get(2)) - toDouble(args.get(0))));
+                }
+                // Chỉnh sửa phần "Vẽ Sprite tự động" trong gameLoop để hỗ trợ Camera và Xoay:
                     /*
                     AffineTransform oldTx = gameGraphics.getTransform();
                     for (Sprite s : sprites.values()) {
@@ -4963,137 +4962,137 @@ public class Interpreter {
                         gameGraphics.setTransform(oldTx);
                     }
                     */
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("Lỗi HQL.Game: " + e.getMessage());
             }
-        
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi HQL.Game: " + e.getMessage());
+        }
+
         return CHUA_XU_LY;
     }
 
     /** Thư viện hql.mang - mạng cho game nhiều người chơi (tách riêng cho nhẹ executeBuiltin). */
     private Object thuVienMang(String name, List<Object> args) {
-            try {
-                switch (name) {
-                    // ---------------- PHÍA MÁY CHỦ ----------------
-                    case "mangMoServer": {
-                        int cong = (int) toDouble(args.get(0));
-                        if (mangServerSocket != null) { try { mangServerSocket.close(); } catch (Exception ignored) {} }
-                        mangServerSocket = new ServerSocket(cong);
-                        mangServerDangChay = true;
-                        Thread t = new Thread(() -> {
-                            while (mangServerDangChay) {
-                                try {
-                                    Socket kh = mangServerSocket.accept();
-                                    kh.setTcpNoDelay(true);
-                                    String id = "K" + (++mangDemId);
-                                    mangKhach.put(id, kh);
-                                    mangGhiKhach.put(id, new BufferedWriter(
-                                            new OutputStreamWriter(kh.getOutputStream(), StandardCharsets.UTF_8)));
-                                    mangHopThu.offer(new String[]{id, "@VAO"});
-                                    moLuongDoc(kh, id, true);
-                                } catch (Exception e) {
-                                    if (!mangServerDangChay) break;
-                                }
+        try {
+            switch (name) {
+                // ---------------- PHÍA MÁY CHỦ ----------------
+                case "mangMoServer": {
+                    int cong = (int) toDouble(args.get(0));
+                    if (mangServerSocket != null) { try { mangServerSocket.close(); } catch (Exception ignored) {} }
+                    mangServerSocket = new ServerSocket(cong);
+                    mangServerDangChay = true;
+                    Thread t = new Thread(() -> {
+                        while (mangServerDangChay) {
+                            try {
+                                Socket kh = mangServerSocket.accept();
+                                kh.setTcpNoDelay(true);
+                                String id = "K" + (++mangDemId);
+                                mangKhach.put(id, kh);
+                                mangGhiKhach.put(id, new BufferedWriter(
+                                        new OutputStreamWriter(kh.getOutputStream(), StandardCharsets.UTF_8)));
+                                mangHopThu.offer(new String[]{id, "@VAO"});
+                                moLuongDoc(kh, id, true);
+                            } catch (Exception e) {
+                                if (!mangServerDangChay) break;
                             }
-                        });
-                        t.setDaemon(true);
-                        t.start();
-                        return true;
-                    }
-                    case "mangNhan": {
-                        // Trả về [idKhach, noiDung] hoặc mảng rỗng nếu chưa có tin nào.
-                        String[] tin = mangHopThu.poll();
-                        if (tin == null) return new ArrayList<>();
-                        return new ArrayList<>(Arrays.asList(tin[0], tin[1]));
-                    }
-                    case "mangGui": {
-                        mangGuiChoKhach(stringify(args.get(0)), stringify(args.get(1)));
-                        return null;
-                    }
-                    case "mangPhat": {
-                        String noiDung = stringify(args.get(0));
-                        for (String id : mangGhiKhach.keySet()) mangGuiChoKhach(id, noiDung);
-                        return null;
-                    }
-                    case "mangDanhSachKhach": {
-                        ArrayList<Object> ds = new ArrayList<>(mangKhach.keySet());
-                        return ds;
-                    }
-                    case "mangSoKhach": return (double) mangKhach.size();
-                    case "mangDuoiKhach": {
-                        String id = stringify(args.get(0));
-                        Socket s2 = mangKhach.remove(id);
-                        mangGhiKhach.remove(id);
-                        if (s2 != null) try { s2.close(); } catch (Exception ignored) {}
-                        return null;
-                    }
-                    case "mangDongServer": {
-                        mangServerDangChay = false;
-                        for (Socket s2 : mangKhach.values()) try { s2.close(); } catch (Exception ignored) {}
-                        mangKhach.clear();
-                        mangGhiKhach.clear();
-                        if (mangServerSocket != null) try { mangServerSocket.close(); } catch (Exception ignored) {}
-                        mangServerSocket = null;
-                        return null;
-                    }
+                        }
+                    });
+                    t.setDaemon(true);
+                    t.start();
+                    return true;
+                }
+                case "mangNhan": {
+                    // Trả về [idKhach, noiDung] hoặc mảng rỗng nếu chưa có tin nào.
+                    String[] tin = mangHopThu.poll();
+                    if (tin == null) return new ArrayList<>();
+                    return new ArrayList<>(Arrays.asList(tin[0], tin[1]));
+                }
+                case "mangGui": {
+                    mangGuiChoKhach(stringify(args.get(0)), stringify(args.get(1)));
+                    return null;
+                }
+                case "mangPhat": {
+                    String noiDung = stringify(args.get(0));
+                    for (String id : mangGhiKhach.keySet()) mangGuiChoKhach(id, noiDung);
+                    return null;
+                }
+                case "mangDanhSachKhach": {
+                    ArrayList<Object> ds = new ArrayList<>(mangKhach.keySet());
+                    return ds;
+                }
+                case "mangSoKhach": return (double) mangKhach.size();
+                case "mangDuoiKhach": {
+                    String id = stringify(args.get(0));
+                    Socket s2 = mangKhach.remove(id);
+                    mangGhiKhach.remove(id);
+                    if (s2 != null) try { s2.close(); } catch (Exception ignored) {}
+                    return null;
+                }
+                case "mangDongServer": {
+                    mangServerDangChay = false;
+                    for (Socket s2 : mangKhach.values()) try { s2.close(); } catch (Exception ignored) {}
+                    mangKhach.clear();
+                    mangGhiKhach.clear();
+                    if (mangServerSocket != null) try { mangServerSocket.close(); } catch (Exception ignored) {}
+                    mangServerSocket = null;
+                    return null;
+                }
 
-                    // ---------------- PHÍA NGƯỜI CHƠI ----------------
-                    case "mangKetNoi": {
-                        String host = stringify(args.get(0));
-                        int cong = (int) toDouble(args.get(1));
-                        int cho = args.size() > 2 ? (int) toDouble(args.get(2)) : 4000;
-                        try {
-                            Socket s2 = new Socket();
-                            s2.connect(new InetSocketAddress(host, cong), cho);
-                            s2.setTcpNoDelay(true);
-                            mangSocketToiServer = s2;
-                            mangGhiToiServer = new BufferedWriter(
-                                    new OutputStreamWriter(s2.getOutputStream(), StandardCharsets.UTF_8));
-                            mangDaNoiToiServer = true;
-                            mangHopThuKhach.clear();
-                            moLuongDoc(s2, "SERVER", false);
-                            return true;
-                        } catch (Exception e) {
-                            mangDaNoiToiServer = false;
-                            return false;
-                        }
-                    }
-                    case "mangGuiServer": {
-                        if (mangGhiToiServer == null) return false;
-                        try {
-                            synchronized (mangGhiToiServer) {
-                                mangGhiToiServer.write(stringify(args.get(0)));
-                                mangGhiToiServer.write("\n");
-                                mangGhiToiServer.flush();
-                            }
-                            return true;
-                        } catch (Exception e) {
-                            mangDaNoiToiServer = false;
-                            return false;
-                        }
-                    }
-                    case "mangNhanServer": {
-                        String tin = mangHopThuKhach.poll();
-                        return tin == null ? "" : tin;
-                    }
-                    case "mangDaNoi": return mangDaNoiToiServer;
-                    case "mangNgatKetNoi": {
+                // ---------------- PHÍA NGƯỜI CHƠI ----------------
+                case "mangKetNoi": {
+                    String host = stringify(args.get(0));
+                    int cong = (int) toDouble(args.get(1));
+                    int cho = args.size() > 2 ? (int) toDouble(args.get(2)) : 4000;
+                    try {
+                        Socket s2 = new Socket();
+                        s2.connect(new InetSocketAddress(host, cong), cho);
+                        s2.setTcpNoDelay(true);
+                        mangSocketToiServer = s2;
+                        mangGhiToiServer = new BufferedWriter(
+                                new OutputStreamWriter(s2.getOutputStream(), StandardCharsets.UTF_8));
+                        mangDaNoiToiServer = true;
+                        mangHopThuKhach.clear();
+                        moLuongDoc(s2, "SERVER", false);
+                        return true;
+                    } catch (Exception e) {
                         mangDaNoiToiServer = false;
-                        if (mangSocketToiServer != null) try { mangSocketToiServer.close(); } catch (Exception ignored) {}
-                        mangSocketToiServer = null;
-                        mangGhiToiServer = null;
-                        return null;
-                    }
-                    case "mangIpMay": {
-                        try { return InetAddress.getLocalHost().getHostAddress(); }
-                        catch (Exception e) { return "127.0.0.1"; }
+                        return false;
                     }
                 }
-            } catch (Exception e) {
-                throw new RuntimeException("Lỗi HQL.Mang: " + e.getMessage());
+                case "mangGuiServer": {
+                    if (mangGhiToiServer == null) return false;
+                    try {
+                        synchronized (mangGhiToiServer) {
+                            mangGhiToiServer.write(stringify(args.get(0)));
+                            mangGhiToiServer.write("\n");
+                            mangGhiToiServer.flush();
+                        }
+                        return true;
+                    } catch (Exception e) {
+                        mangDaNoiToiServer = false;
+                        return false;
+                    }
+                }
+                case "mangNhanServer": {
+                    String tin = mangHopThuKhach.poll();
+                    return tin == null ? "" : tin;
+                }
+                case "mangDaNoi": return mangDaNoiToiServer;
+                case "mangNgatKetNoi": {
+                    mangDaNoiToiServer = false;
+                    if (mangSocketToiServer != null) try { mangSocketToiServer.close(); } catch (Exception ignored) {}
+                    mangSocketToiServer = null;
+                    mangGhiToiServer = null;
+                    return null;
+                }
+                case "mangIpMay": {
+                    try { return InetAddress.getLocalHost().getHostAddress(); }
+                    catch (Exception e) { return "127.0.0.1"; }
+                }
             }
-        
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi HQL.Mang: " + e.getMessage());
+        }
+
         return CHUA_XU_LY;
     }
 
@@ -5581,7 +5580,7 @@ public class Interpreter {
                             s.connect(new InetSocketAddress(stringify(args.get(0)), 80), netTimeoutMs);
                             return (double) (System.currentTimeMillis() - start);
 
-                    } catch (Exception e) { return -1.0; } // Trả về -1 nếu Ping xịt
+                        } catch (Exception e) { return -1.0; } // Trả về -1 nếu Ping xịt
                     case "createServer": {
                         try {
                             int port = (int) toDouble(args.get(0));
@@ -8973,7 +8972,7 @@ public class Interpreter {
                     return true;
                 }
                 case "mailConfigEnv": {
-                    // Cấu hình theo tệp .henv: MAIL_EMAIL, MAIL_PASSWORD, MAIL_HOST, MAIL_PORT, MAIL_NAME, MAIL_BRAND...
+                    // Cấu hình theo tệp .henv: MAIL_EMAIL, MAIL_PASSWORD, MAIL_HOST, MAIL_PORT, MAIL_NAME
                     return mailApDungHenv();
                 }
                 case "mailWarmUp": {
@@ -8983,18 +8982,6 @@ public class Interpreter {
                     return null;
                 }
                 case "mailSenderName": mailSenderName = stringify(args.get(0)); mailer.setSenderName(mailSenderName); return null;
-                // mailBrand("SMART FARM", "Hệ thống quản lý trang trại") — chữ in trên đầu mọi lá thư
-                case "mailBrand": {
-                    mailBrandName = stringify(args.get(0));
-                    if (args.size() > 1) mailBrandSlogan = stringify(args.get(1));
-                    return true;
-                }
-                // mailSupport("a@x.com" [, "b@x.com"]) — email hỗ trợ in ở cuối thư
-                case "mailSupport": {
-                    mailSupport1 = stringify(args.get(0)).trim();
-                    mailSupport2 = args.size() > 1 ? stringify(args.get(1)).trim() : "";
-                    return true;
-                }
                 case "mailIsConfigured": mailTuHenvNeuChuaCoCauHinh(); return mailer.isConfigured();
                 case "mailError": return mailer.lastError();
 
@@ -9029,41 +9016,20 @@ public class Interpreter {
                         .matches("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
                 // --- 4. GỬI THƯ ---
+                // Thư viện KHÔNG tự thêm bất cứ thứ gì: tiêu đề, nội dung, HTML đều do người viết script quyết định.
+                // Tiêu đề và nội dung có thể bỏ trống (để trống thì thư gửi đi đúng là trống).
+                //   mailSend(den, tieuDe, htmlTuViet)      → nội dung được gửi NGUYÊN VĂN dạng HTML
+                //   mailSendText(den, tieuDe, chuThuan)    → nội dung gửi dạng chữ thuần
                 case "mailSend":
-                    return sendHqlMail(stringify(args.get(0)), stringify(args.get(1)), stringify(args.get(2)), true);
+                    return sendHqlMail(mailArg(args, 0), mailArg(args, 1), mailArg(args, 2), true);
                 case "mailSendText":
-                    return sendHqlMail(stringify(args.get(0)), stringify(args.get(1)), stringify(args.get(2)), false);
+                    return sendHqlMail(mailArg(args, 0), mailArg(args, 1), mailArg(args, 2), false);
                 case "mailSendAsync": {
                     // Xếp vào hàng đợi, một luồng nền gửi lần lượt trên kết nối SMTP dùng lại → trang web không đứng chờ Gmail
-                    return sendHqlMailAsync(stringify(args.get(0)), stringify(args.get(1)), stringify(args.get(2)), true);
+                    return sendHqlMailAsync(mailArg(args, 0), mailArg(args, 1), mailArg(args, 2), true);
                 }
-
-                // --- 5. MẪU THƯ DỰNG SẴN ---
-                case "mailSendAccount": {
-                    // mailSendAccount(email, hoTen, tenDangNhap, matKhau)
-                    String to = stringify(args.get(0));
-                    String hoTen = args.size() > 1 ? stringify(args.get(1)) : "";
-                    String username = args.size() > 2 ? stringify(args.get(2)) : "";
-                    String password = args.size() > 3 ? stringify(args.get(3)) : "";
-                    return sendHqlMail(to, "THÔNG TIN TÀI KHOẢN SMART FARM",
-                            mailTemplateAccount(hoTen, username, password), true);
-                }
-                case "mailSendOtp": {
-                    // mailSendOtp(email, hoTen, ma, soPhutHieuLuc)
-                    String to = stringify(args.get(0));
-                    String hoTen = args.size() > 1 ? stringify(args.get(1)) : "";
-                    String ma = args.size() > 2 ? stringify(args.get(2)) : "";
-                    int phut = args.size() > 3 ? (int) toDouble(args.get(3)) : 10;
-                    return sendHqlMail(to, "MÃ XÁC THỰC ĐẶT LẠI MẬT KHẨU - SMART FARM",
-                            mailTemplateOtp(hoTen, ma, phut), true);
-                }
-                case "mailSendNotify": {
-                    // mailSendNotify(email, tieuDe, noiDung) — khung thư thông báo chung
-                    String to = stringify(args.get(0));
-                    String tieuDe = stringify(args.get(1));
-                    String noiDung = args.size() > 2 ? stringify(args.get(2)) : "";
-                    return sendHqlMail(to, tieuDe, mailTemplateNotify(tieuDe, noiDung), true);
-                }
+                case "mailSendAsyncText":
+                    return sendHqlMailAsync(mailArg(args, 0), mailArg(args, 1), mailArg(args, 2), false);
             }
         }
         throw new RuntimeException("Lỗi: Hàm không có sẵn hoặc thư viện chưa được 'use'.");
@@ -9105,7 +9071,7 @@ public class Interpreter {
         if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return "image/jpeg";
         if (b.length >= 6 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F') return "image/gif";
         if (b.length >= 12 && b[0] == 'R' && b[1] == 'I' && b[2] == 'F' && b[3] == 'F'
-                           && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return "image/webp";
+                && b[8] == 'W' && b[9] == 'E' && b[10] == 'B' && b[11] == 'P') return "image/webp";
         if (b.length >= 2 && b[0] == 'B' && b[1] == 'M') return "image/bmp";
         if (b.length >= 5 && b[0] == '<' && (b[1] == 's' || b[1] == '?')) return "image/svg+xml";
         return "image/png";
@@ -9147,7 +9113,7 @@ public class Interpreter {
 
     /** Bộ gửi thư dùng chung: giữ sẵn 1 kết nối SMTP, gửi nền bằng hàng đợi (xem HqlMailer). */
     private final HqlMailer mailer = new HqlMailer();
-    private String mailSenderName = "Smart Farm";
+    private String mailSenderName = "";   // trống = hiện địa chỉ email; người dùng tự đặt bằng mailSenderName()
     { mailer.setSenderName(mailSenderName); }
     private final ArrayList<String> mailAttachments = new ArrayList<>();
 
@@ -9179,14 +9145,6 @@ public class Interpreter {
 
         String ten = HqlEnv.first(null, "MAIL_NAME", "mail.sender.name");
         if (ten != null) { mailSenderName = ten; mailer.setSenderName(ten); }
-        String brand = HqlEnv.first(null, "MAIL_BRAND");
-        if (brand != null) mailBrandName = brand;
-        String slogan = HqlEnv.first(null, "MAIL_SLOGAN");
-        if (slogan != null) mailBrandSlogan = slogan;
-        String sp1 = HqlEnv.first(null, "MAIL_SUPPORT", "MAIL_SUPPORT1");
-        if (sp1 != null) mailSupport1 = sp1;
-        String sp2 = HqlEnv.first(null, "MAIL_SUPPORT2");
-        if (sp2 != null) mailSupport2 = sp2;
         return true;
     }
 
@@ -9202,153 +9160,9 @@ public class Interpreter {
         return mailer.sendAsync(toEmail, subject, content, isHtml, mailLayTepDinhKem());
     }
 
-    // --- Thông tin thương hiệu in trên đầu mỗi lá thư (đổi được bằng mailBrand/mailSupport) ---
-    private String mailBrandName   = "SMART FARM";
-    private String mailBrandSlogan = "Hệ thống quản lý trang trại sầu riêng";
-    private String mailSupport1    = "linhhqth08598@gmail.com";
-    private String mailSupport2    = "";
-
-    /**
-     * Khung thư dùng chung cho mọi mẫu email của hệ thống.
-     * Viết bằng &lt;table&gt; + style nội tuyến vì Gmail/Outlook cắt bỏ thẻ &lt;style&gt; và flexbox.
-     *
-     * @param nhanNho  dòng chữ nhỏ trong huy hiệu trên đầu, ví dụ "TÀI KHOẢN MỚI"
-     * @param mauChinh mã màu chủ đạo của lá thư
-     */
-    private String mailTemplateShell(String nhanNho, String tieuDe, String moTa, String phanThan, String mauChinh, String mauNhat) {
-        StringBuilder s = new StringBuilder(4096);
-        s.append("<div style=\"margin:0;padding:0;background:#eef2f7;\">")
-         .append("<div style=\"display:none;max-height:0;overflow:hidden;opacity:0;\">")
-         .append(htmlEscape(moTa)).append("</div>")
-         .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" ")
-         .append("style=\"background:#eef2f7;padding:28px 12px;font-family:'Segoe UI',Roboto,Arial,Helvetica,sans-serif;\"><tr><td align=\"center\">")
-
-         // ---------- Thân thư ----------
-         .append("<table role=\"presentation\" width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" ")
-         .append("style=\"width:600px;max-width:100%;background:#ffffff;border-radius:18px;overflow:hidden;")
-         .append("box-shadow:0 10px 32px rgba(16,42,67,.12);\">")
-
-         // ---------- Đầu thư ----------
-         .append("<tr><td style=\"background:").append(mauChinh).append(";")
-         .append("background-image:linear-gradient(120deg,#1e8449 0%,").append(mauChinh).append(" 60%,#6fcf97 100%);")
-         .append("padding:30px 34px 26px;\">")
-         .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>")
-         .append("<td style=\"font-size:30px;line-height:1;width:46px;\">🌱</td>")
-         .append("<td style=\"padding-left:10px;\">")
-         .append("<div style=\"color:#ffffff;font-size:18px;font-weight:700;letter-spacing:1.4px;\">")
-         .append(htmlEscape(mailBrandName)).append("</div>")
-         .append("<div style=\"color:rgba(255,255,255,.86);font-size:12.5px;margin-top:2px;\">")
-         .append(htmlEscape(mailBrandSlogan)).append("</div>")
-         .append("</td></tr></table>")
-         .append("<div style=\"margin-top:22px;\">")
-         .append("<span style=\"display:inline-block;background:rgba(255,255,255,.2);color:#ffffff;")
-         .append("font-size:11px;font-weight:600;letter-spacing:1.2px;padding:5px 12px;border-radius:20px;\">")
-         .append(htmlEscape(nhanNho)).append("</span>")
-         .append("<h1 style=\"margin:12px 0 0;color:#ffffff;font-size:23px;font-weight:600;line-height:1.35;\">")
-         .append(htmlEscape(tieuDe)).append("</h1></div>")
-         .append("</td></tr>")
-
-         // ---------- Nội dung ----------
-         .append("<tr><td style=\"padding:30px 34px 8px;color:#31405a;font-size:14.5px;line-height:1.72;\">")
-         .append(phanThan)
-         .append("</td></tr>")
-
-         // ---------- Hỗ trợ ----------
-         .append("<tr><td style=\"padding:6px 34px 26px;\">")
-         .append("<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" ")
-         .append("style=\"background:").append(mauNhat).append(";border-radius:12px;\"><tr>")
-         .append("<td style=\"padding:15px 18px;font-size:13px;color:#4a5b6e;line-height:1.65;\">")
-         .append("<b style=\"color:#1e2a3a;\">Cần hỗ trợ?</b><br>Liên hệ bộ phận Kỹ thuật qua email ")
-         .append("<a href=\"mailto:").append(mailSupport1).append("\" style=\"color:").append(mauChinh).append(";text-decoration:none;font-weight:600;\">")
-         .append(mailSupport1).append("</a>")
-         .append(mailSupport2 == null || mailSupport2.isEmpty() ? "" :
-                 " hoặc <a href=\"mailto:" + mailSupport2 + "\" style=\"color:" + mauChinh + ";text-decoration:none;font-weight:600;\">" + mailSupport2 + "</a>")
-         .append(".</td></tr></table></td></tr>")
-
-         // ---------- Chân thư ----------
-         .append("<tr><td style=\"background:#f7f9fc;border-top:1px solid #e6ecf5;padding:18px 34px;")
-         .append("text-align:center;color:#8aa3c0;font-size:11.5px;line-height:1.7;\">")
-         .append("Đây là thư tự động, vui lòng không phản hồi lại thư này.<br>")
-         .append("Trân trọng, <b style=\"color:#4a5b6e;\">Ban Quản trị ").append(htmlEscape(mailBrandName)).append("</b><br>")
-         .append("<span style=\"color:#aebdd0;\">&copy; 2026 ").append(htmlEscape(mailBrandName))
-         .append(" &middot; Xây dựng bằng ngôn ngữ lập trình HQL</span>")
-         .append("</td></tr>")
-
-         .append("</table></td></tr></table></div>");
-        return s.toString();
-    }
-
-    /** Khung thư mặc định (màu xanh lá) — giữ lại để mã cũ gọi mailTemplateWrap vẫn chạy. */
-    private String mailTemplateWrap(String tieuDe, String phanThan) {
-        return mailTemplateShell("THÔNG BÁO", tieuDe, tieuDe, phanThan, "#27ae60", "#eaf7ef");
-    }
-
-    /** Ô thông tin nổi bật kiểu "nhãn : giá trị" dùng trong thư. */
-    private String mailDongThongTin(String nhan, String giaTri, String mau) {
-        return "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" "
-             + "style=\"margin-bottom:10px;\"><tr>"
-             + "<td width=\"130\" style=\"padding:11px 14px;background:#f4f7fb;border-radius:10px 0 0 10px;"
-             + "font-size:12.5px;color:#6f8fb0;font-weight:600;text-transform:uppercase;letter-spacing:.4px;\">"
-             + htmlEscape(nhan) + "</td>"
-             + "<td style=\"padding:11px 16px;background:#f4f7fb;border-radius:0 10px 10px 0;"
-             + "font-size:17px;font-weight:700;color:" + mau + ";font-family:Consolas,'Courier New',monospace;\">"
-             + htmlEscape(giaTri) + "</td></tr></table>";
-    }
-
-    /** Khung cảnh báo bảo mật màu đỏ nhạt. */
-    private String mailKhungLuuY(String noiDung) {
-        return "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" "
-             + "style=\"margin:18px 0 4px;background:#fdf1f0;border-left:4px solid #e74c3c;border-radius:0 10px 10px 0;\">"
-             + "<tr><td style=\"padding:13px 16px;font-size:13px;color:#8d3a34;line-height:1.65;\">"
-             + "<b>⚠️ Lưu ý bảo mật</b><br>" + noiDung + "</td></tr></table>";
-    }
-
-    private String mailTemplateAccount(String hoTen, String username, String password) {
-        String than =
-              "<p style=\"margin:0 0 6px;\">Xin chào <b style=\"color:#1e2a3a;\">" + htmlEscape(hoTen) + "</b>,</p>"
-            + "<p style=\"margin:0 0 20px;\">Tài khoản làm việc của bạn trên hệ thống đã được khởi tạo thành công. "
-            + "Dưới đây là thông tin đăng nhập, vui lòng giữ kín và không chia sẻ với bất kỳ ai.</p>"
-            + mailDongThongTin("Tên đăng nhập", username, "#1e8449")
-            + mailDongThongTin("Mật khẩu", password, "#d35400")
-            + "<p style=\"margin:18px 0 0;\">Ở lần đăng nhập đầu tiên, hệ thống sẽ yêu cầu bạn "
-            + "<b>đổi sang mật khẩu của riêng mình</b> (tối thiểu 6 ký tự).</p>"
-            + mailKhungLuuY("Nhân viên Smart Farm không bao giờ hỏi mật khẩu của bạn qua điện thoại hay email. "
-                          + "Nếu nhận được yêu cầu như vậy, hãy bỏ qua và báo ngay cho quản trị viên.");
-        return mailTemplateShell("TÀI KHOẢN MỚI", "Chào mừng bạn gia nhập Smart Farm!",
-                "Thông tin đăng nhập hệ thống Smart Farm của bạn", than, "#27ae60", "#eaf7ef");
-    }
-
-    private String mailTemplateOtp(String hoTen, String ma, int phut) {
-        StringBuilder oSo = new StringBuilder();
-        for (int i = 0; i < ma.length(); i++) {
-            oSo.append("<td style=\"padding:0 4px;\">")
-               .append("<div style=\"width:46px;height:58px;line-height:58px;text-align:center;background:#ffffff;")
-               .append("border:2px solid #f5c6a5;border-radius:12px;font-size:27px;font-weight:700;color:#d35400;")
-               .append("font-family:Consolas,'Courier New',monospace;\">")
-               .append(htmlEscape(String.valueOf(ma.charAt(i)))).append("</div></td>");
-        }
-        String than =
-              "<p style=\"margin:0 0 6px;\">Xin chào <b style=\"color:#1e2a3a;\">" + htmlEscape(hoTen) + "</b>,</p>"
-            + "<p style=\"margin:0 0 18px;\">Hệ thống vừa nhận được yêu cầu <b>đặt lại mật khẩu</b> cho tài khoản của bạn. "
-            + "Nhập mã xác thực dưới đây để tiếp tục:</p>"
-            + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" "
-            + "style=\"background:#fff8f1;border-radius:14px;\"><tr><td align=\"center\" style=\"padding:22px 10px 10px;\">"
-            + "<table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\"><tr>" + oSo + "</tr></table>"
-            + "<div style=\"margin-top:14px;padding-bottom:8px;font-size:12.5px;color:#a3703f;\">"
-            + "Mã có hiệu lực trong <b>" + phut + " phút</b> và chỉ dùng được <b>một lần duy nhất</b>.</div>"
-            + "</td></tr></table>"
-            + mailKhungLuuY("Nếu bạn <b>không</b> yêu cầu đặt lại mật khẩu, hãy bỏ qua thư này. "
-                          + "Tài khoản của bạn vẫn an toàn cho tới khi mã trên được sử dụng.");
-        return mailTemplateShell("XÁC THỰC", "Mã xác thực đặt lại mật khẩu",
-                "Mã OTP của bạn có hiệu lực trong " + phut + " phút", than, "#e67e22", "#fdf3e8");
-    }
-
-    private String mailTemplateNotify(String tieuDe, String noiDung) {
-        String than = "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" "
-                    + "style=\"background:#f4f8fd;border-left:4px solid #4d90fe;border-radius:0 12px 12px 0;\">"
-                    + "<tr><td style=\"padding:16px 18px;font-size:14px;color:#31405a;line-height:1.72;\">"
-                    + noiDung + "</td></tr></table>";
-        return mailTemplateShell("THÔNG BÁO", tieuDe, tieuDe, than, "#2d7ff9", "#eef4ff");
+    /** Lấy tham số thứ i dạng chữ; thiếu tham số thì coi như chuỗi rỗng (cho phép thư không tiêu đề / không nội dung). */
+    private String mailArg(List<Object> args, int i) {
+        return (i < args.size() && args.get(i) != null) ? stringify(args.get(i)) : "";
     }
 
     private boolean evaluateBooleanExpression(List<Token> tokens) {
