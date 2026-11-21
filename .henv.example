@@ -20,11 +20,11 @@ DB_POOL_MIN=2               # số kết nối giữ sẵn
 DB_TIMEOUT_MS=15000         # chờ mượn kết nối tối đa
 
 # ---- Email (Gmail cần "Mật khẩu ứng dụng" 16 ký tự) ----
-MAIL_EMAIL=gearzonepc@gmail.com
-MAIL_PASSWORD=tgxnrmbhnlncsgva
+MAIL_EMAIL=ten-hop-thu@gmail.com
+MAIL_PASSWORD=xxxx xxxx xxxx xxxx
 MAIL_NAME="GearZone Support"
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=465
 MAIL_BRAND=GEARZONE
 MAIL_SLOGAN="Chuyên linh kiện PC & Phụ kiện Gaming"
-MAIL_SUPPORT=ho-tro@gmail.com # không có
+MAIL_SUPPORT=ho-tro@gmail.com
