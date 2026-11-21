@@ -1,21 +1,20 @@
 package me.hql.script;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 public class LinhScriptRunner {
 
     /**
-     * Dò ngược lên từ vị trí file chạy (jpackage.app-path) để tìm một file
+     * Dò ngược lên từ vị trí file chạy (jpackage.app-path hoặc Native Image) để tìm một file
      * theo đường dẫn tương đối. Trả về null nếu không thấy.
-     *
-     * Chỉ dùng làm ĐƯỜNG LÙI khi đường dẫn thường đã trượt — chạy từ mã nguồn
-     * thì không bao giờ đi tới đây.
      */
     private static String timCanhFileChay(String duongDanTuongDoi) {
         String duAn = System.getProperty("jpackage.app-path");
+        if (duAn == null) {
+            duAn = ProcessHandle.current().info().command().orElse(null);
+        }
         if (duAn == null) { return null; }
         java.io.File thuMuc = new java.io.File(duAn).getAbsoluteFile().getParentFile();
         for (int i = 0; thuMuc != null && i < 12; i++) {
@@ -30,6 +29,18 @@ public class LinhScriptRunner {
     public static final String ANSI_RESET = "\u001B[0m";
 
     public static void main(String[] args) {
+        // --- ÉP HIỂN THỊ TIẾNG VIỆT CHUẨN UTF-8 TRÊN TERMINAL WINDOWS ---
+        if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
+            try {
+                // Chuyển code page sang 65001 (UTF-8) và ẩn dòng thông báo "Active code page: 65001"
+                new ProcessBuilder("cmd", "/c", "chcp 65001 > nul").inheritIO().start().waitFor();
+            } catch (Exception ignored) {}
+        }
+        try {
+            System.setOut(new java.io.PrintStream(System.out, true, StandardCharsets.UTF_8));
+            System.setErr(new java.io.PrintStream(System.err, true, StandardCharsets.UTF_8));
+        } catch (Exception ignored) {}
+
         if (args.length == 0) {
             System.err.println(ANSI_RED + "Lỗi: Sếp chưa đưa file .hql cho hệ thống!" + ANSI_RESET);
             return;
@@ -41,10 +52,6 @@ public class LinhScriptRunner {
 
             // --- BẪY LỖI SAI ĐƯỜNG DẪN FILE ---
             if (!Files.exists(Paths.get(entryPoint))) {
-                // Bản đóng gói bằng jpackage: thư mục hiện hành là chỗ người
-                // dùng bấm chuột, không phải chỗ đặt app — nên đường dẫn tương
-                // đối kiểu "VNChecker/app.hql" không tìm thấy gì. Thử lại một
-                // lần nữa, lần này tính từ chính vị trí file .exe.
                 String lai = timCanhFileChay(entryPoint);
                 if (lai == null) {
                     System.err.println(ANSI_RED + "Lỗi hệ thống: Không tìm thấy file '" + entryPoint + "'" + ANSI_RESET);
@@ -54,17 +61,11 @@ public class LinhScriptRunner {
             }
             interpreter.runFile(entryPoint);
         } catch (Exception e) {
-            // ------------------------------------------------------------------
-            //  BÁO CÁO LỖI ĐẦY ĐỦ — cùng một khuôn với trang lỗi trên trình duyệt
-            //  (loại lỗi · câu báo · file:dòng · trích đoạn mã · ngăn xếp · gợi ý)
-            // ------------------------------------------------------------------
             Throwable rootCause = BaoLoi.goc(e);
             Token errToken = interpreter.getLastExecutedToken();
 
             System.err.println(BaoLoi.banChu(rootCause, errToken, interpreter.getNganXepGoi(), true));
 
-            // Lexer báo lỗi trước cả khi chạy dòng nào, lúc ấy errToken còn null —
-            // móc số dòng ra từ chính câu báo lỗi để IDE vẫn bấm được.
             if (errToken == null) {
                 inViTriTuCauBao(rootCause.getMessage(), args[0]);
             }
@@ -72,7 +73,7 @@ public class LinhScriptRunner {
         }
     }
 
-    /** Dựng dòng "at &lt;đường dẫn&gt;:&lt;số dòng&gt;" từ câu báo lỗi của Lexer. */
+    /** Dựng dòng "at <đường dẫn>:<số dòng>" từ câu báo lỗi của Lexer. */
     private static void inViTriTuCauBao(String errorMessage, String entryPoint) {
         try {
             String absolutePath = Paths.get(entryPoint).toAbsolutePath().normalize().toString();
@@ -113,7 +114,6 @@ public class LinhScriptRunner {
             ctx.query = req.getQueryString() == null ? "" : req.getQueryString();
 
             String clientIp = req.getRemoteAddr() == null ? "" : req.getRemoteAddr();
-            // Truy cập từ chính máy chủ thì hiện IP thật của máy cho dễ đọc
             if (clientIp.isEmpty() || clientIp.startsWith("127.") || clientIp.equals("0:0:0:0:0:0:0:1") || clientIp.equals("::1")) {
                 try {
                     clientIp = java.net.InetAddress.getLocalHost().getHostAddress();
@@ -123,7 +123,6 @@ public class LinhScriptRunner {
             }
             ctx.ip = clientIp;
 
-            // Tên project (context path) do Tomcat quyết định theo tên thư mục trong webapps/
             String ctxPath = req.getContextPath() == null ? "" : req.getContextPath();
             ctx.contextPath = ctxPath;
             String path = req.getRequestURI();
@@ -138,7 +137,6 @@ public class LinhScriptRunner {
             if (req.getCookies() != null) {
                 for (jakarta.servlet.http.Cookie c : req.getCookies()) ctx.cookies.put(c.getName(), c.getValue());
             }
-            // Tomcat đã tự tách sẵn tham số của cả query string lẫn form POST
             for (java.util.Map.Entry<String, String[]> e : req.getParameterMap().entrySet()) {
                 if (e.getValue().length > 0) ctx.params.put(e.getKey(), e.getValue()[0]);
             }
@@ -148,10 +146,9 @@ public class LinhScriptRunner {
                     String line;
                     while ((line = r.readLine()) != null) sb.append(line).append('\n');
                     ctx.body = sb.toString();
-                } catch (Exception ignore) { /* Body đã bị đọc hết khi phân tích form */ }
+                } catch (Exception ignore) {}
             }
 
-            // Dùng luôn session của Tomcat: đọc vào trước, ghi ngược lại sau khi chạy xong
             jakarta.servlet.http.HttpSession session = req.getSession(false);
             if (session != null) {
                 ctx.sessionId = session.getId();
@@ -183,7 +180,7 @@ public class LinhScriptRunner {
             resp.setContentType(ctx.contentType);
             byte[] payload = ctx.rawOut != null
                     ? ctx.rawOut
-                    : ctx.out.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                    : ctx.out.toString().getBytes(StandardCharsets.UTF_8);
             resp.setContentLength(payload.length);
             resp.getOutputStream().write(payload);
         }
