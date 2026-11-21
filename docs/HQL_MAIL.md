@@ -24,11 +24,41 @@ use hql.mail;
 > không dùng được mật khẩu đăng nhập thường.
 
 ```java
-mailConfig("smartfarmmanage@gmail.com", "grxhduafxftczxjm");
+mailConfig("ten-hop-thu@gmail.com", "xxxxxxxxxxxxxxxx");   // KHÔNG ghi mật khẩu thật vào mã nguồn — xem mục 1b
 mailSenderName("Smart Farm - Hệ thống quản lý trang trại");
 mailBrand("SMART FARM", "Hệ thống quản lý trang trại sầu riêng");
 mailSupport("linhhqth08598@gmail.com");
 ```
+
+### 1b. Cấu hình bằng tệp `.henv` (khuyên dùng — không cần gọi `mailConfig` trong mã)
+
+Đặt mật khẩu ứng dụng vào tệp `.henv` (đã nằm trong `.gitignore`), thư viện tự đọc ở lần gửi đầu tiên:
+
+```
+MAIL_EMAIL=ten-hop-thu@gmail.com
+MAIL_PASSWORD=xxxx xxxx xxxx xxxx
+MAIL_NAME=GearZone Support
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_BRAND=GEARZONE
+MAIL_SLOGAN=Chuyên linh kiện PC & Phụ kiện Gaming
+MAIL_SUPPORT=ho-tro@gmail.com
+```
+
+Cũng nhận khoá kiểu `.properties` cũ: `mail.sender.email`, `mail.sender.password`, `mail.sender.name`, `mail.smtp.host`, `mail.smtp.port`.
+
+| Hàm | Công dụng |
+|---|---|
+| `mailConfigEnv()` | Nạp cấu hình từ `.henv` ngay (trả `true` nếu có đủ email và mật khẩu) |
+| `mailWarmUp()` | Mở sẵn kết nối SMTP ở luồng nền khi khởi động → thư đầu tiên gửi ngay |
+
+### 1c. Cách gửi đã tối ưu
+
+* Giữ **một kết nối SMTP mở sẵn** và dùng lại cho mọi thư (không còn bắt tay TLS + đăng nhập lại mỗi lần).
+* `mailSendAsync` xếp thư vào **hàng đợi** (tối đa 500), một luồng nền gửi lần lượt — không còn đẻ một `Thread` cho mỗi thư.
+* Kết nối bị Gmail cắt vì để lâu → tự nối lại và gửi lại **một lần**.
+* Thư HTML tự kèm **bản chữ thuần** (`multipart/alternative`) → ít bị vào Spam hơn.
+* `mailError()` được lưu **theo từng luồng**, request này không đọc nhầm lỗi của request khác.
 
 ---
 

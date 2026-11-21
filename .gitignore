@@ -4,3 +4,6 @@ hql/*
 VNChecker/*
 .idea/*
 lib/
+.henv
+.henv.local
+.henv.*.local

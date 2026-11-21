@@ -1,0 +1,30 @@
+# ==========================================================================
+#  TỆP CẤU HÌNH MÔI TRƯỜNG LINHSCRIPT (.henv)
+#  (tiếng Anh: HQL Environment Configuration File)
+#
+#  Cách dùng: sao chép tệp này thành ".henv" cạnh file main.hql rồi điền giá trị thật.
+#  ".henv" đã được .gitignore chặn — KHÔNG đưa lên git.
+# ==========================================================================
+
+# ---- Database (SQL Server mặc định) ----
+DB_TYPE=sqlserver           # sqlserver | mysql | postgres | sqlite
+DB_HOST=127.0.0.1
+DB_PORT=1433
+DB_NAME=GearZone
+DB_USER=sa
+DB_PASSWORD=dien-mat-khau-o-day
+# DB_URL=jdbc:sqlserver://127.0.0.1:1433;databaseName=GearZone;encrypt=false   # có DB_URL thì bỏ qua các dòng trên
+# DB_ENCRYPT=false          # SQL Server cũ/không có chứng chỉ
+DB_POOL_MAX=10              # số kết nối tối đa trong bể
+DB_POOL_MIN=2               # số kết nối giữ sẵn
+DB_TIMEOUT_MS=15000         # chờ mượn kết nối tối đa
+
+# ---- Email (Gmail cần "Mật khẩu ứng dụng" 16 ký tự) ----
+MAIL_EMAIL=gearzonepc@gmail.com
+MAIL_PASSWORD=tgxnrmbhnlncsgva
+MAIL_NAME="GearZone Support"
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=465
+MAIL_BRAND=GEARZONE
+MAIL_SLOGAN="Chuyên linh kiện PC & Phụ kiện Gaming"
+MAIL_SUPPORT=ho-tro@gmail.com # không có

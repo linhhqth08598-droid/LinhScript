@@ -301,16 +301,141 @@ public class Interpreter {
     private JFrame hqlWindow = null;
     private JPanel hqlPanel = null;
     // --- BỘ NHỚ DATABASE HQL.DATABASE ---
-    private Connection dbConn = null;
-    private String lastDbError = "";
+    /** Bể kết nối (xem HqlDbPool). null = chưa connect(). */
+    private volatile HqlDbPool dbPool = null;
+    private volatile String lastDbError = "";
+    /** Cỡ bể cho lần connect() kế tiếp (dbPoolSize(...) hoặc DB_POOL_MAX / DB_POOL_MIN trong .henv). */
+    private int dbPoolMax = -1, dbPoolMin = -1;
+    /** Giao dịch đang mở của TỪNG LUỒNG: beginTransaction() giữ 1 kết nối riêng tới khi commit/rollback. */
+    private final ThreadLocal<Connection> dbTx = new ThreadLocal<>();
+    /** Khoá tự tăng do INSERT gần nhất của luồng này sinh ra (cho identity()). */
+    private final ThreadLocal<Double> dbLastIdentity = new ThreadLocal<>();
 
-    /** Bắt buộc phải có kết nối trước khi chạy lệnh SQL. */
+    private interface SqlWork<T> { T run(Connection con) throws SQLException; }
+
+    private static final class DbTarget { String url, user, pass; boolean sqlite; }
+
+    /** Bắt buộc phải có kết nối trước khi chạy lệnh SQL (nếu .henv có cấu hình DB thì tự kết nối). */
     private void requireDb() {
-        if (dbConn == null) throw new RuntimeException("Chưa kết nối Database! Hãy gọi connect(...) trước.");
+        if (dbPool == null && !dbTuKetNoiTuHenv()) {
+            throw new RuntimeException("Chưa kết nối Database! Hãy gọi connect(...) hoặc connectEnv() trước, "
+                    + "hoặc khai báo DB_HOST / DB_NAME / DB_USER / DB_PASSWORD trong tệp .henv.");
+        }
+    }
+
+    /** Có thể chạy SQL được không (đang trong giao dịch, đã có bể, hoặc tự nối được từ .henv). */
+    private boolean dbSanSang() {
+        return dbTx.get() != null || dbPool != null || dbTuKetNoiTuHenv();
     }
 
     /**
-     * Mở kết nối cho mọi kiểu gọi connect(...) mà sếp hay dùng:
+     * Chạy một đoạn việc với 1 kết nối: đang trong giao dịch thì dùng đúng kết nối của giao dịch,
+     * không thì mượn từ bể rồi TRẢ LẠI ngay khi xong (dù thành công hay lỗi).
+     */
+    private <T> T dbRun(SqlWork<T> work) throws SQLException {
+        Connection tx = dbTx.get();
+        if (tx != null) return work.run(tx);
+        requireDb();
+        HqlDbPool p = dbPool;
+        if (p == null) throw new SQLException("Kết nối Database vừa bị đóng.");
+        try (Connection con = p.borrow()) {
+            return work.run(con);
+        }
+    }
+
+    private boolean dbCoCauHinhTrongHenv() {
+        return HqlEnv.first(null, "DB_URL", "db.url") != null
+                || HqlEnv.first(null, "DB_NAME", "db.dbname", "DB_DATABASE") != null;
+    }
+
+    /** Tự kết nối theo .henv (chỉ chạy khi script chưa gọi connect). Kiểu "lười": lần dùng đầu tiên mới nối. */
+    private synchronized boolean dbTuKetNoiTuHenv() {
+        if (dbPool != null) return true;
+        if (!dbCoCauHinhTrongHenv()) return false;
+        try {
+            dbMoBe(dbTargetTuHenv());
+            return true;
+        } catch (Exception e) {
+            lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
+            System.err.println("[HQL.DATABASE] Tự kết nối theo .henv thất bại: " + lastDbError);
+            return false;
+        }
+    }
+
+    /** Đọc DB_URL hoặc (DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD); nhận cả khoá kiểu db.hostname. */
+    private DbTarget dbTargetTuHenv() throws SQLException {
+        String url  = HqlEnv.first(null, "DB_URL", "db.url");
+        String user = HqlEnv.first(null, "DB_USER", "DB_USERNAME", "db.username");
+        String pass = HqlEnv.first(null, "DB_PASSWORD", "DB_PASS", "db.password");
+        if (url != null) {
+            DbTarget t = new DbTarget();
+            t.url = url; t.user = user; t.pass = pass;
+            t.sqlite = url.toLowerCase().startsWith("jdbc:sqlite:");
+            return t;
+        }
+        String name = HqlEnv.first(null, "DB_NAME", "db.dbname", "DB_DATABASE");
+        if (name == null) throw new SQLException("Không thấy DB_NAME (hoặc DB_URL) trong tệp .henv.");
+        String kind = HqlEnv.first("sqlserver", "DB_TYPE", "db.type").toLowerCase();
+        if (kind.equals("sqlite")) {
+            DbTarget t = new DbTarget();
+            t.url = "jdbc:sqlite:" + name; t.sqlite = true;
+            return t;
+        }
+        List<Object> a = new ArrayList<>();
+        a.add(HqlEnv.first("127.0.0.1", "DB_HOST", "db.hostname"));
+        String port = HqlEnv.first(null, "DB_PORT", "db.port");
+        if (port != null) a.add(port.trim());
+        a.add(name);
+        a.add(user == null ? "sa" : user);
+        a.add(pass == null ? "" : pass);
+        return buildJdbcTarget(kind, a);
+    }
+
+    /** Mở bể mới rồi đổi sang dùng nó (bể cũ, nếu có, đóng sau). Ném SQLException nếu sai thông tin đăng nhập. */
+    private void dbMoBe(DbTarget t) throws SQLException {
+        HqlDbPool.Config c = new HqlDbPool.Config();
+        c.url = t.url; c.user = t.user; c.pass = t.pass;
+        int max = dbPoolMax > 0 ? dbPoolMax : HqlEnv.getInt("DB_POOL_MAX", 10);
+        int min = dbPoolMin >= 0 ? dbPoolMin : HqlEnv.getInt("DB_POOL_MIN", 2);
+        if (t.sqlite) { max = 1; min = 0; }          // SQLite chỉ cho một người ghi tại một thời điểm
+        c.maxSize = max;
+        c.minIdle = min;
+        c.connectionTimeoutMs = HqlEnv.getInt("DB_TIMEOUT_MS", 15000);
+        HqlDbPool moi = new HqlDbPool(c);
+        HqlDbPool cu = dbPool;
+        dbPool = moi;
+        if (cu != null) cu.close();
+    }
+
+    /** Đóng bể hiện tại (kết nối đang cho mượn sẽ tự đóng khi được trả). */
+    private void dbDongBe() {
+        HqlDbPool p = dbPool;
+        dbPool = null;
+        if (p != null) p.close();
+    }
+
+    /** Request/luồng kết thúc mà còn giao dịch bỏ dở → hủy, kẻo luồng web này (dùng lại cho request sau) kẹt trong giao dịch cũ. */
+    private void dbHuyGiaoDichBoQuen() {
+        Connection tx = dbTx.get();
+        if (tx == null) return;
+        dbTx.remove();
+        try { tx.rollback(); } catch (Exception ignore) { }
+        try { tx.close(); } catch (Exception ignore) { }     // bể tự bật lại autoCommit và nhận kết nối về
+        System.err.println("[HQL.DATABASE] Cảnh báo: giao dịch chưa commit/rollback khi kết thúc request — đã tự rollback.");
+    }
+
+    private void dbGhiNhoKhoaVuaSinh(PreparedStatement ps) {
+        try (ResultSet k = ps.getGeneratedKeys()) {
+            if (k != null && k.next()) {
+                Object v = k.getObject(1);
+                if (v instanceof Number) { dbLastIdentity.set(((Number) v).doubleValue()); return; }
+            }
+        } catch (SQLException ignore) { }
+        dbLastIdentity.remove();
+    }
+
+    /**
+     * Xác định nơi cần nối cho mọi kiểu gọi connect(...) mà sếp hay dùng:
      *   connect("jdbc:sqlserver://...")                          -> URL đầy đủ
      *   connect("localhost", 1433, "DemoDB", "sa", "123")        -> host, port, db, user, pass
      *   connect("localhost", "DemoDB", "sa", "123")              -> mặc định cổng 1433
@@ -318,15 +443,18 @@ public class Interpreter {
      *   connect("sqlserver"|"mysql"|"postgres", host, [port,] db, user, pass)
      *   connect("sqlite", "duong/dan/file.db")
      */
-    private Connection openDbConnection(List<Object> args) throws SQLException {
+    private DbTarget resolveDbTarget(List<Object> args) throws SQLException {
         if (args.isEmpty()) throw new SQLException("connect() thiếu tham số.");
 
         String first = stringify(args.get(0));
+        DbTarget t = new DbTarget();
 
         // 1. Truyền thẳng chuỗi JDBC URL
         if (first.toLowerCase().startsWith("jdbc:")) {
-            if (args.size() >= 3) return DriverManager.getConnection(first, stringify(args.get(1)), stringify(args.get(2)));
-            return DriverManager.getConnection(first);
+            t.url = first;
+            if (args.size() >= 3) { t.user = stringify(args.get(1)); t.pass = stringify(args.get(2)); }
+            t.sqlite = first.toLowerCase().startsWith("jdbc:sqlite:");
+            return t;
         }
 
         // 2. Có chỉ định rõ loại CSDL ở tham số đầu
@@ -334,22 +462,25 @@ public class Interpreter {
         List<Object> rest = args.subList(1, args.size());
         switch (kind) {
             case "sqlite":
-                return DriverManager.getConnection("jdbc:sqlite:" + stringify(rest.get(0)));
+                if (rest.isEmpty()) throw new SQLException("connect(\"sqlite\", duongDanFile) thiếu đường dẫn file.");
+                t.url = "jdbc:sqlite:" + stringify(rest.get(0));
+                t.sqlite = true;
+                return t;
             case "mysql":
             case "mariadb":
             case "postgres":
             case "postgresql":
             case "sqlserver":
             case "mssql":
-                return buildJdbcConnection(kind, rest);
+                return buildJdbcTarget(kind, rest);
             default:
                 // 3. Không ghi loại -> mặc định SQL Server (đúng thói quen của dự án)
-                return buildJdbcConnection("sqlserver", args);
+                return buildJdbcTarget("sqlserver", args);
         }
     }
 
     /** Ghép URL JDBC từ danh sách (host [, port], database, user, password). */
-    private Connection buildJdbcConnection(String kind, List<Object> a) throws SQLException {
+    private DbTarget buildJdbcTarget(String kind, List<Object> a) throws SQLException {
         if (a.size() < 2) throw new SQLException("connect() thiếu tham số (cần ít nhất host và tên database).");
 
         String host = stringify(a.get(0));
@@ -389,11 +520,13 @@ public class Interpreter {
                 // host có thể là "MAYTINH\\SQLEXPRESS" (named instance) -> khi đó không gắn cổng
                 boolean namedInstance = host.contains("\\");
                 url = "jdbc:sqlserver://" + host + (namedInstance || port == -1 ? "" : ":" + port)
-                        + ";databaseName=" + database + ";encrypt=true;trustServerCertificate=true";
+                        + ";databaseName=" + database
+                        + ";encrypt=" + HqlEnv.getBool("DB_ENCRYPT", true) + ";trustServerCertificate=true";
         }
 
-        if (user == null) return DriverManager.getConnection(url);
-        return DriverManager.getConnection(url, user, pass);
+        DbTarget t = new DbTarget();
+        t.url = url; t.user = user; t.pass = pass;
+        return t;
     }
 
     /** Gắn tham số cho câu lệnh có dấu ? — tự đổi số nguyên kiểu Double (21.0) về 21. */
@@ -555,6 +688,7 @@ public class Interpreter {
                         ? BaoLoi.banHtml(goc, vet().cuoi, vet().nganXep, ctx.path)
                         : BaoLoi.banHtmlGon(goc));
             } finally {
+                dbHuyGiaoDichBoQuen();      // request xong mà quên commit/rollback -> hủy, đừng để kẹt sang request sau
                 webCtx = saved;
                 vet().nganXep.clear();
             }
@@ -2148,6 +2282,11 @@ public class Interpreter {
     public void runFile(String filePath) throws IOException {
         if (entryScriptPath == null) entryScriptPath = filePath;   // Ghi nhớ file main để đóng gói Tomcat
         executedFiles.add(filePath); // Đánh dấu file chính đã chạy
+        // Tự nạp tệp cấu hình .henv (thư mục của file main trước, rồi tới thư mục đang chạy)
+        try {
+            HqlEnv.autoLoad(new File(filePath).getAbsoluteFile().getParentFile());
+            HqlEnv.autoLoad(new File(System.getProperty("user.dir", ".")));
+        } catch (Exception ignore) { }
         parseFileForDeclarations(filePath);
         String content = Files.readString(Paths.get(filePath), StandardCharsets.UTF_8);
         List<Token> tokens = Lexer.tokenize(content, filePath);
@@ -3407,7 +3546,10 @@ public class Interpreter {
                 "mailConfig", "mailSenderName", "mailBrand", "mailSupport", "mailIsConfigured", "mailError",
                 "mailAttach", "mailClearAttach", "mailOtp", "mailPassword", "mailIsValid",
                 "mailSend", "mailSendText", "mailSendAsync",
-                "mailSendAccount", "mailSendOtp", "mailSendNotify",
+                "mailSendAccount", "mailSendOtp", "mailSendNotify", "mailConfigEnv", "mailWarmUp",
+                // --- BỔ SUNG HQL.ENV (TỆP CẤU HÌNH .henv) VÀ BỂ KẾT NỐI DATABASE ---
+                "envLoad", "envGet", "envHas", "envSet", "envInt", "envBool", "envAll", "envFiles", "envRequire",
+                "connectEnv", "dbPoolSize", "dbPoolStats", "executeBatch",
                 // --- THU VIEN hql.app: DUNG APP MAY TINH TU MOT TRANG WEB HQL ---
                 //  DANH SACH NAY LA CUA KHAU: viet xong than ham trong
                 //  thuVienApp() ma quen khai ten o day thi HQL bao "Khong tim
@@ -5552,7 +5694,7 @@ public class Interpreter {
 
                     // 6. NHÓM THỰC THI CONTROL
                     case "exit": System.exit((int) toDouble(args.get(0))); return null;
-                    case "env": return System.getenv(stringify(args.get(0)));
+                    case "env": return HqlEnv.get(stringify(args.get(0)), args.size() > 1 ? stringify(args.get(1)) : null);
                     case "gc": System.gc(); return null;
                     case "exec":
                         Runtime.getRuntime().exec(stringify(args.get(0)).split(" "));
@@ -6058,165 +6200,268 @@ public class Interpreter {
         if (usedLibraries.contains("hql.database")) {
             try {
                 switch (name) {
-                    // --- 1. QUẢN LÝ KẾT NỐI ---
+                    // --- 1. QUẢN LÝ KẾT NỐI (bể kết nối, an toàn khi nhiều luồng) ---
                     case "connect": {
-                        // Đóng kết nối cũ trước khi mở cái mới (tránh rò rỉ kết nối)
-                        if (dbConn != null) { try { dbConn.close(); } catch (Exception ignore) {} dbConn = null; }
+                        dbDongBe();                      // đóng bể cũ trước khi mở bể mới (tránh rò rỉ kết nối)
                         lastDbError = "";
                         try {
-                            dbConn = openDbConnection(args);
-                            return dbConn != null && !dbConn.isClosed();
+                            dbMoBe(resolveDbTarget(args));
+                            return true;
                         } catch (Exception e) {
                             lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
-                            dbConn = null;
                             // Không văng lỗi: trả về false để script tự xử lý bằng if/else,
                             // muốn xem chi tiết lỗi thì gọi dbError().
                             System.err.println("[HQL.DATABASE] Kết nối thất bại: " + lastDbError);
                             return false;
                         }
                     }
+                    case "connectEnv": {
+                        // Nối theo tệp .henv: DB_URL, hoặc DB_TYPE / DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD
+                        dbDongBe();
+                        lastDbError = "";
+                        try {
+                            dbMoBe(dbTargetTuHenv());
+                            return true;
+                        } catch (Exception e) {
+                            lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
+                            System.err.println("[HQL.DATABASE] Kết nối theo .henv thất bại: " + lastDbError);
+                            return false;
+                        }
+                    }
+                    case "dbPoolSize": {
+                        // dbPoolSize(toiDa [, giuSan]) — gọi TRƯỚC connect(); mặc định 10 / 2
+                        dbPoolMax = (int) toDouble(args.get(0));
+                        if (args.size() > 1) dbPoolMin = (int) toDouble(args.get(1));
+                        return true;
+                    }
+                    case "dbPoolStats": {
+                        HqlDbPool p = dbPool;
+                        return p == null ? "Chưa kết nối" : p.stats();
+                    }
                     case "dbError": return lastDbError;
-                    case "closeDB": { if (dbConn != null) dbConn.close(); dbConn = null; return null; }
-                    case "isOpen": return dbConn != null && !dbConn.isClosed();
+                    case "closeDB": { dbHuyGiaoDichBoQuen(); dbDongBe(); return null; }
+                    case "isOpen": { HqlDbPool p = dbPool; return p != null && !p.isClosed(); }
 
                     // --- 2. TRUY VẤN DỮ LIỆU ---
                     case "query":
                     case "querySafe": {
-                        requireDb();
-                        try (PreparedStatement pstmt = dbConn.prepareStatement(stringify(args.get(0)))) {
-                            bindSqlParams(pstmt, args.size() > 1 ? args.get(1) : null);
-                            try (ResultSet rs = pstmt.executeQuery()) {
-                                ArrayList<Object> rows = new ArrayList<>();
-                                while (rs.next()) rows.add(readSqlRow(rs));
-                                return rows;
+                        final String dbSql = stringify(args.get(0));
+                        final Object dbPrm = args.size() > 1 ? args.get(1) : null;
+                        return this.<Object>dbRun(dbCon -> {
+                            try (PreparedStatement pstmt = dbCon.prepareStatement(dbSql)) {
+                                bindSqlParams(pstmt, dbPrm);
+                                try (ResultSet rs = pstmt.executeQuery()) {
+                                    ArrayList<Object> rows = new ArrayList<>();
+                                    while (rs.next()) rows.add(readSqlRow(rs));
+                                    return rows;
+                                }
                             }
-                        }
+                        });
                     }
                     case "queryValue": {
                         // Lấy nhanh 1 ô dữ liệu: queryValue("SELECT COUNT(*) FROM Customers")
-                        requireDb();
-                        try (PreparedStatement pstmt = dbConn.prepareStatement(stringify(args.get(0)))) {
-                            bindSqlParams(pstmt, args.size() > 1 ? args.get(1) : null);
-                            try (ResultSet rs = pstmt.executeQuery()) {
-                                return rs.next() ? sqlToHql(rs.getObject(1)) : null;
+                        final String dbSql = stringify(args.get(0));
+                        final Object dbPrm = args.size() > 1 ? args.get(1) : null;
+                        return this.<Object>dbRun(dbCon -> {
+                            try (PreparedStatement pstmt = dbCon.prepareStatement(dbSql)) {
+                                bindSqlParams(pstmt, dbPrm);
+                                try (ResultSet rs = pstmt.executeQuery()) {
+                                    return rs.next() ? sqlToHql(rs.getObject(1)) : null;
+                                }
                             }
-                        }
+                        });
+                    }
+                    case "fetchOne": {
+                        final String dbSql = stringify(args.get(0));
+                        final Object dbPrm = args.size() > 1 ? args.get(1) : null;
+                        return this.<Object>dbRun(dbCon -> {
+                            try (PreparedStatement pstmt = dbCon.prepareStatement(dbSql)) {
+                                bindSqlParams(pstmt, dbPrm);
+                                try (ResultSet rs = pstmt.executeQuery()) {
+                                    return rs.next() ? readSqlRow(rs) : new LinkedHashMap<String, Object>();
+                                }
+                            }
+                        });
                     }
 
                     // --- 3. THAO TÁC DỮ LIỆU ---
                     case "execute":
                     case "executeSafe": {
-                        requireDb();
-                        try (PreparedStatement pstmt = dbConn.prepareStatement(stringify(args.get(0)))) {
-                            bindSqlParams(pstmt, args.size() > 1 ? args.get(1) : null);
-                            return (double) pstmt.executeUpdate();
+                        final String dbSql = stringify(args.get(0));
+                        final Object dbPrm = args.size() > 1 ? args.get(1) : null;
+                        final boolean laInsert = dbSql.stripLeading().regionMatches(true, 0, "insert", 0, 6);
+                        return this.<Object>dbRun(dbCon -> {
+                            // INSERT: xin luôn khoá tự tăng để identity() đúng dù mỗi lệnh chạy trên một kết nối khác nhau của bể
+                            try (PreparedStatement pstmt = laInsert
+                                    ? dbCon.prepareStatement(dbSql, Statement.RETURN_GENERATED_KEYS)
+                                    : dbCon.prepareStatement(dbSql)) {
+                                bindSqlParams(pstmt, dbPrm);
+                                int soDong = pstmt.executeUpdate();
+                                if (laInsert) dbGhiNhoKhoaVuaSinh(pstmt);
+                                return (double) soDong;
+                            }
+                        });
+                    }
+                    case "executeBatch": {
+                        // executeBatch("INSERT ... VALUES (?, ?)", [[1,"a"],[2,"b"],[3,"c"]]) — cả lô trong 1 giao dịch, nhanh gấp nhiều lần
+                        final String dbSql = stringify(args.get(0));
+                        if (args.size() < 2 || !(args.get(1) instanceof List)) {
+                            throw new SQLException("executeBatch(sql, [[tham so dong 1], [tham so dong 2], ...]) cần danh sách các dòng tham số.");
                         }
+                        final List<?> dbRows = (List<?>) args.get(1);
+                        return this.<Object>dbRun(dbCon -> {
+                            boolean tuQuanLy = dbCon.getAutoCommit();      // đang trong beginTransaction thì để nguyên
+                            if (tuQuanLy) dbCon.setAutoCommit(false);
+                            try (PreparedStatement pstmt = dbCon.prepareStatement(dbSql)) {
+                                for (Object dong : dbRows) { bindSqlParams(pstmt, dong); pstmt.addBatch(); }
+                                int[] kq = pstmt.executeBatch();
+                                if (tuQuanLy) dbCon.commit();
+                                double tong = 0;
+                                for (int x : kq) if (x > 0) tong += x;     // SUCCESS_NO_INFO (-2) không đếm được
+                                return tong;
+                            } catch (SQLException ex) {
+                                if (tuQuanLy) { try { dbCon.rollback(); } catch (SQLException ignore) { } }
+                                throw ex;
+                            }
+                        });
                     }
                     case "identity": {
-                        if (dbConn == null) return 0.0;
-                        // SCOPE_IDENTITY() chuẩn hơn @@IDENTITY (không bị Trigger làm sai lệch)
-                        for (String sqlId : new String[]{"SELECT SCOPE_IDENTITY()", "SELECT @@IDENTITY", "SELECT LAST_INSERT_ID()"}) {
-                            try (Statement st = dbConn.createStatement(); ResultSet rs = st.executeQuery(sqlId)) {
-                                if (rs.next()) {
-                                    Object v = rs.getObject(1);
-                                    if (v != null) return toDouble(sqlToHql(v));
-                                }
-                            } catch (SQLException ignore) { /* Thử tiếp cú pháp của hệ CSDL khác */ }
-                        }
-                        return 0.0;
+                        Double ghiNho = dbLastIdentity.get();
+                        if (ghiNho != null) return ghiNho;
+                        if (!dbSanSang()) return 0.0;
+                        return this.<Object>dbRun(dbCon -> {
+                            // Dự phòng khi đang trong giao dịch mà lệnh INSERT không trả khoá (SCOPE_IDENTITY chuẩn hơn @@IDENTITY)
+                            for (String sqlId : new String[]{"SELECT SCOPE_IDENTITY()", "SELECT @@IDENTITY", "SELECT LAST_INSERT_ID()"}) {
+                                try (Statement st = dbCon.createStatement(); ResultSet rs = st.executeQuery(sqlId)) {
+                                    if (rs.next()) {
+                                        Object v = rs.getObject(1);
+                                        if (v != null) return toDouble(sqlToHql(v));
+                                    }
+                                } catch (SQLException ignore) { /* Thử tiếp cú pháp của hệ CSDL khác */ }
+                            }
+                            return 0.0;
+                        });
                     }
 
                     // --- 4. THỦ TỤC (STORED PROCEDURE) ---
                     case "procedure": {
-                        requireDb();
-                        String procName = stringify(args.get(0));
-                        List<?> params = (args.size() > 1 && args.get(1) instanceof List) ? (List<?>) args.get(1) : new ArrayList<>();
-                        StringBuilder sqlProc = new StringBuilder("{call " + procName + "(");
+                        final String procName = stringify(args.get(0));
+                        final List<?> params = (args.size() > 1 && args.get(1) instanceof List) ? (List<?>) args.get(1) : new ArrayList<>();
+                        final StringBuilder sqlProc = new StringBuilder("{call " + procName + "(");
                         for (int i = 0; i < params.size(); i++) sqlProc.append(i == 0 ? "?" : ",?");
                         sqlProc.append(")}");
-                        try (CallableStatement cstmt = dbConn.prepareCall(sqlProc.toString())) {
-                            bindSqlParams(cstmt, params);
-                            if (!cstmt.execute()) return true;
-                            // Thủ tục trả về bảng thì trả luôn danh sách dòng cho tiện dùng
-                            try (ResultSet rs = cstmt.getResultSet()) {
-                                ArrayList<Object> rows = new ArrayList<>();
-                                while (rs.next()) rows.add(readSqlRow(rs));
-                                return rows;
+                        return this.<Object>dbRun(dbCon -> {
+                            try (CallableStatement cstmt = dbCon.prepareCall(sqlProc.toString())) {
+                                bindSqlParams(cstmt, params);
+                                if (!cstmt.execute()) return true;
+                                // Thủ tục trả về bảng thì trả luôn danh sách dòng cho tiện dùng
+                                try (ResultSet rs = cstmt.getResultSet()) {
+                                    ArrayList<Object> rows = new ArrayList<>();
+                                    while (rs.next()) rows.add(readSqlRow(rs));
+                                    return rows;
+                                }
                             }
-                        }
+                        });
                     }
 
-                    // --- 5. GIAO DỊCH (TRANSACTION) ---
-                    case "beginTransaction": if (dbConn != null) dbConn.setAutoCommit(false); return null;
-                    case "commit": if (dbConn != null) { dbConn.commit(); dbConn.setAutoCommit(true); } return null;
-                    case "rollback": if (dbConn != null) { dbConn.rollback(); dbConn.setAutoCommit(true); } return null;
+                    // --- 5. GIAO DỊCH (mỗi luồng một giao dịch riêng, giữ 1 kết nối riêng) ---
+                    case "beginTransaction": {
+                        if (dbTx.get() != null) return null;          // đã trong giao dịch rồi
+                        requireDb();
+                        HqlDbPool p = dbPool;
+                        if (p == null) throw new SQLException("Kết nối Database vừa bị đóng.");
+                        Connection txCon = p.borrow();
+                        try {
+                            txCon.setAutoCommit(false);
+                        } catch (SQLException ex) {
+                            try { txCon.close(); } catch (Exception ignore) { }
+                            throw ex;
+                        }
+                        dbTx.set(txCon);
+                        return null;
+                    }
+                    case "commit": {
+                        Connection txCon = dbTx.get();
+                        if (txCon == null) return null;
+                        dbTx.remove();
+                        try { txCon.commit(); txCon.setAutoCommit(true); } finally { txCon.close(); }    // close = trả kết nối về bể
+                        return null;
+                    }
+                    case "rollback": {
+                        Connection txCon = dbTx.get();
+                        if (txCon == null) return null;
+                        dbTx.remove();
+                        try { txCon.rollback(); txCon.setAutoCommit(true); } finally { txCon.close(); }
+                        return null;
+                    }
 
                     // --- 6. KHÁM PHÁ HỆ THỐNG & XUẤT CSV ---
                     case "tables": {
-                        if (dbConn == null) return new ArrayList<>();
-                        ArrayList<String> tableList = new ArrayList<>();
-                        // Chỉ lấy bảng của ĐÚNG database đang kết nối, bỏ qua bảng hệ thống
-                        try (ResultSet rs = dbConn.getMetaData().getTables(dbConn.getCatalog(), null, "%", new String[]{"TABLE"})) {
-                            while (rs.next()) {
-                                String schema = rs.getString("TABLE_SCHEM");
-                                if (schema != null && (schema.equalsIgnoreCase("sys") || schema.equalsIgnoreCase("INFORMATION_SCHEMA"))) continue;
-                                tableList.add(rs.getString("TABLE_NAME"));
+                        if (!dbSanSang()) return new ArrayList<>();
+                        return this.<Object>dbRun(dbCon -> {
+                            ArrayList<String> tableList = new ArrayList<>();
+                            // Chỉ lấy bảng của ĐÚNG database đang kết nối, bỏ qua bảng hệ thống
+                            try (ResultSet rs = dbCon.getMetaData().getTables(dbCon.getCatalog(), null, "%", new String[]{"TABLE"})) {
+                                while (rs.next()) {
+                                    String schema = rs.getString("TABLE_SCHEM");
+                                    if (schema != null && (schema.equalsIgnoreCase("sys") || schema.equalsIgnoreCase("INFORMATION_SCHEMA"))) continue;
+                                    tableList.add(rs.getString("TABLE_NAME"));
+                                }
                             }
-                        }
-                        return tableList;
+                            return tableList;
+                        });
                     }
                     case "columns": {
-                        if (dbConn == null) return new ArrayList<>();
-                        String tableName = stringify(args.get(0));
-                        DatabaseMetaData md = dbConn.getMetaData();
-                        // Thử lần lượt: đúng chữ, viết HOA, viết thường (mỗi hệ CSDL lưu tên bảng một kiểu)
-                        for (String probe : new String[]{tableName, tableName.toUpperCase(), tableName.toLowerCase()}) {
-                            ArrayList<String> colList = new ArrayList<>();
-                            try (ResultSet rs = md.getColumns(dbConn.getCatalog(), null, probe, null)) {
-                                while (rs.next()) {
-                                    colList.add(rs.getString("COLUMN_NAME") + " (" + rs.getString("TYPE_NAME") + ")");
+                        if (!dbSanSang()) return new ArrayList<>();
+                        final String tableName = stringify(args.get(0));
+                        return this.<Object>dbRun(dbCon -> {
+                            DatabaseMetaData md = dbCon.getMetaData();
+                            // Thử lần lượt: đúng chữ, viết HOA, viết thường (mỗi hệ CSDL lưu tên bảng một kiểu)
+                            for (String probe : new String[]{tableName, tableName.toUpperCase(), tableName.toLowerCase()}) {
+                                ArrayList<String> colList = new ArrayList<>();
+                                try (ResultSet rs = md.getColumns(dbCon.getCatalog(), null, probe, null)) {
+                                    while (rs.next()) {
+                                        colList.add(rs.getString("COLUMN_NAME") + " (" + rs.getString("TYPE_NAME") + ")");
+                                    }
                                 }
+                                if (!colList.isEmpty()) return colList;
                             }
-                            if (!colList.isEmpty()) return colList;
-                        }
-                        return new ArrayList<String>();
+                            return new ArrayList<String>();
+                        });
                     }
                     case "exportCSV": {
-                        requireDb();
-                        String sql = stringify(args.get(0));
-                        String path = stringify(args.get(1));
-                        try (Statement st = dbConn.createStatement();
-                             ResultSet rs = st.executeQuery(sql);
-                             PrintWriter writer = new PrintWriter(new File(path), "UTF-8")) {
-                            writer.write('\ufeff'); // BOM cho Excel
-                            ResultSetMetaData meta = rs.getMetaData();
-                            int colCount = meta.getColumnCount();
-                            for (int i = 1; i <= colCount; i++) {
-                                writer.print(csvQuote(meta.getColumnLabel(i)) + (i < colCount ? "," : ""));
-                            }
-                            writer.print("\r\n");
-                            while (rs.next()) {
-                                for (int i = 1; i <= colCount; i++) {
-                                    Object val = rs.getObject(i);
-                                    // Bọc nháy đúng chuẩn RFC 4180 thay vì xóa dấu phẩy làm hỏng dữ liệu
-                                    writer.print(csvQuote(val == null ? "" : stringify(sqlToHql(val))) + (i < colCount ? "," : ""));
+                        final String sql = stringify(args.get(0));
+                        final String path = stringify(args.get(1));
+                        return this.<Object>dbRun(dbCon -> {
+                            try (Statement st = dbCon.createStatement()) {
+                                st.setFetchSize(1000);                      // đọc từng lô, bảng lớn không phình bộ nhớ
+                                try (ResultSet rs = st.executeQuery(sql);
+                                     PrintWriter writer = new PrintWriter(new BufferedWriter(
+                                             new OutputStreamWriter(new FileOutputStream(path), StandardCharsets.UTF_8), 65536))) {
+                                    writer.write('\ufeff'); // BOM cho Excel
+                                    ResultSetMetaData meta = rs.getMetaData();
+                                    int colCount = meta.getColumnCount();
+                                    for (int i = 1; i <= colCount; i++) {
+                                        writer.print(csvQuote(meta.getColumnLabel(i)) + (i < colCount ? "," : ""));
+                                    }
+                                    writer.print("\r\n");
+                                    while (rs.next()) {
+                                        for (int i = 1; i <= colCount; i++) {
+                                            Object val = rs.getObject(i);
+                                            // Bọc nháy đúng chuẩn RFC 4180 thay vì xóa dấu phẩy làm hỏng dữ liệu
+                                            writer.print(csvQuote(val == null ? "" : stringify(sqlToHql(val))) + (i < colCount ? "," : ""));
+                                        }
+                                        writer.print("\r\n");
+                                    }
+                                    return true;
                                 }
-                                writer.print("\r\n");
+                            } catch (IOException ioe) {
+                                throw new SQLException("Không ghi được file CSV: " + ioe.getMessage(), ioe);
                             }
-                            return true;
-                        }
-                    }
-                    case "fetchOne": {
-                        requireDb();
-                        try (PreparedStatement pstmt = dbConn.prepareStatement(stringify(args.get(0)))) {
-                            bindSqlParams(pstmt, args.size() > 1 ? args.get(1) : null);
-                            try (ResultSet rs = pstmt.executeQuery()) {
-                                return rs.next() ? readSqlRow(rs) : new LinkedHashMap<String, Object>();
-                            }
-                        }
+                        });
                     }
                 }
-            } catch (SQLException | IOException e) {
+            } catch (SQLException e) {
                 lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
                 throw new RuntimeException("Lỗi Database: " + lastDbError);
             }
@@ -7005,6 +7250,49 @@ public class Interpreter {
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Lỗi Thư viện (hql.chart): " + e.getMessage(), e);
+            }
+        }
+        // ==========================================================================================
+        //   THƯ VIỆN HQL.ENV — ĐỌC TỆP CẤU HÌNH MÔI TRƯỜNG .henv (giống .env của Node.js / .properties của Java)
+        //   Tệp .henv tự được nạp khi chạy script (tìm ở thư mục của file main rồi ngược lên tối đa 6 cấp).
+        // ==========================================================================================
+        if (usedLibraries.contains("hql.env")) {
+            try {
+                switch (name) {
+                    case "envLoad": {
+                        // envLoad("duong/dan/.henv" [, ghiDe])  hoặc  envLoad("thu/muc/du/an")
+                        File f = new File(stringify(args.get(0)));
+                        if (f.isDirectory()) return HqlEnv.autoLoad(f);
+                        return HqlEnv.loadFile(f, args.size() > 1 && Boolean.TRUE.equals(args.get(1)));
+                    }
+                    case "envGet": {
+                        // envGet("DB_HOST") hoặc envGet("DB_HOST", "127.0.0.1")  (biến của hệ điều hành thắng .henv)
+                        return HqlEnv.get(stringify(args.get(0)), args.size() > 1 ? stringify(args.get(1)) : null);
+                    }
+                    case "envHas": return HqlEnv.has(stringify(args.get(0)));
+                    case "envSet": { HqlEnv.set(stringify(args.get(0)), stringify(args.get(1))); return null; }
+                    case "envInt": return (double) HqlEnv.getInt(stringify(args.get(0)), args.size() > 1 ? (int) toDouble(args.get(1)) : 0);
+                    case "envBool": return HqlEnv.getBool(stringify(args.get(0)), args.size() > 1 && Boolean.TRUE.equals(args.get(1)));
+                    case "envAll": return new LinkedHashMap<String, Object>(HqlEnv.all());
+                    case "envFiles": return new ArrayList<Object>(HqlEnv.loadedFiles());
+                    case "envRequire": {
+                        // envRequire("DB_HOST", "DB_PASSWORD") — thiếu khoá nào thì dừng chương trình và nói rõ thiếu khoá nào
+                        ArrayList<String> thieu = new ArrayList<>();
+                        for (Object k : args) {
+                            String key = stringify(k);
+                            String v = HqlEnv.get(key, null);
+                            if (v == null || v.isEmpty()) thieu.add(key);
+                        }
+                        if (!thieu.isEmpty()) {
+                            throw new RuntimeException("Thiếu cấu hình bắt buộc trong tệp .henv: " + String.join(", ", thieu));
+                        }
+                        return true;
+                    }
+                }
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException("Lỗi HQL.ENV: " + e.getMessage(), e);
             }
         }
         if (usedLibraries.contains("hql.config")) {
@@ -8679,14 +8967,22 @@ public class Interpreter {
                 // --- 1. CẤU HÌNH HỘP THƯ GỬI ĐI ---
                 case "mailConfig": {
                     // mailConfig("abc@gmail.com", "matKhauUngDung")  hoặc  (..., "smtp.gmail.com", 587)
-                    mailFromEmail   = stringify(args.get(0)).trim();
-                    mailAppPassword = stringify(args.get(1)).replace(" ", "");
-                    if (args.size() > 2) mailSmtpHost = stringify(args.get(2)).trim();
-                    if (args.size() > 3) mailSmtpPort = (int) toDouble(args.get(3));
-                    lastMailError = "";
+                    mailer.configure(stringify(args.get(0)), stringify(args.get(1)),
+                            args.size() > 2 ? stringify(args.get(2)) : null,
+                            args.size() > 3 ? Integer.valueOf((int) toDouble(args.get(3))) : null);
                     return true;
                 }
-                case "mailSenderName": mailSenderName = stringify(args.get(0)); return null;
+                case "mailConfigEnv": {
+                    // Cấu hình theo tệp .henv: MAIL_EMAIL, MAIL_PASSWORD, MAIL_HOST, MAIL_PORT, MAIL_NAME, MAIL_BRAND...
+                    return mailApDungHenv();
+                }
+                case "mailWarmUp": {
+                    // Mở sẵn kết nối SMTP ở luồng nền (gọi 1 lần khi khởi động) → thư đầu tiên gửi ngay, không chờ bắt tay TLS
+                    mailTuHenvNeuChuaCoCauHinh();
+                    mailer.warmUp();
+                    return null;
+                }
+                case "mailSenderName": mailSenderName = stringify(args.get(0)); mailer.setSenderName(mailSenderName); return null;
                 // mailBrand("SMART FARM", "Hệ thống quản lý trang trại") — chữ in trên đầu mọi lá thư
                 case "mailBrand": {
                     mailBrandName = stringify(args.get(0));
@@ -8699,12 +8995,12 @@ public class Interpreter {
                     mailSupport2 = args.size() > 1 ? stringify(args.get(1)).trim() : "";
                     return true;
                 }
-                case "mailIsConfigured": return mailFromEmail != null && !mailFromEmail.isEmpty();
-                case "mailError": return lastMailError == null ? "" : lastMailError;
+                case "mailIsConfigured": mailTuHenvNeuChuaCoCauHinh(); return mailer.isConfigured();
+                case "mailError": return mailer.lastError();
 
                 // --- 2. TỆP ĐÍNH KÈM ---
-                case "mailAttach": mailAttachments.add(stringify(args.get(0))); return true;
-                case "mailClearAttach": mailAttachments.clear(); return null;
+                case "mailAttach": synchronized (mailAttachments) { mailAttachments.add(stringify(args.get(0))); } return true;
+                case "mailClearAttach": synchronized (mailAttachments) { mailAttachments.clear(); } return null;
 
                 // --- 3. TIỆN ÍCH ---
                 case "mailOtp": {
@@ -8738,12 +9034,8 @@ public class Interpreter {
                 case "mailSendText":
                     return sendHqlMail(stringify(args.get(0)), stringify(args.get(1)), stringify(args.get(2)), false);
                 case "mailSendAsync": {
-                    // Gửi ở luồng riêng để trang web không bị đứng chờ máy chủ Gmail
-                    final String to = stringify(args.get(0));
-                    final String subject = stringify(args.get(1));
-                    final String bodyHtml = stringify(args.get(2));
-                    new Thread(() -> sendHqlMail(to, subject, bodyHtml, true), "hql-mail").start();
-                    return true;
+                    // Xếp vào hàng đợi, một luồng nền gửi lần lượt trên kết nối SMTP dùng lại → trang web không đứng chờ Gmail
+                    return sendHqlMailAsync(stringify(args.get(0)), stringify(args.get(1)), stringify(args.get(2)), true);
                 }
 
                 // --- 5. MẪU THƯ DỰNG SẴN ---
@@ -8853,82 +9145,61 @@ public class Interpreter {
     //   BỘ MÁY GỬI EMAIL (dùng jakarta.mail trong lib/)
     // ==========================================================================================
 
-    private String mailFromEmail = "";
-    private String mailAppPassword = "";
-    private String mailSmtpHost = "smtp.gmail.com";
-    private int mailSmtpPort = 587;
+    /** Bộ gửi thư dùng chung: giữ sẵn 1 kết nối SMTP, gửi nền bằng hàng đợi (xem HqlMailer). */
+    private final HqlMailer mailer = new HqlMailer();
     private String mailSenderName = "Smart Farm";
-    private String lastMailError = "";
+    { mailer.setSenderName(mailSenderName); }
     private final ArrayList<String> mailAttachments = new ArrayList<>();
+
+    /** Lấy danh sách tệp đính kèm đang chờ rồi xoá (đính kèm chỉ áp dụng cho MỘT lần gửi kế tiếp). */
+    private List<String> mailLayTepDinhKem() {
+        synchronized (mailAttachments) {
+            ArrayList<String> ds = new ArrayList<>(mailAttachments);
+            mailAttachments.clear();
+            return ds;
+        }
+    }
+
+    /** Chưa gọi mailConfig mà .henv có MAIL_EMAIL / MAIL_PASSWORD thì tự cấu hình theo .henv. */
+    private synchronized void mailTuHenvNeuChuaCoCauHinh() {
+        if (mailer.isConfigured()) return;
+        mailApDungHenv();
+    }
+
+    /** Đọc MAIL_* (hoặc khoá kiểu mail.sender.email) trong .henv. Trả về true nếu có đủ email + mật khẩu. */
+    private synchronized boolean mailApDungHenv() {
+        String email = HqlEnv.first(null, "MAIL_EMAIL", "MAIL_USER", "mail.sender.email");
+        String pass  = HqlEnv.first(null, "MAIL_PASSWORD", "mail.sender.password");
+        if (email == null || pass == null) return false;
+        String host = HqlEnv.first(null, "MAIL_HOST", "mail.smtp.host");
+        Integer port = null;
+        String portText = HqlEnv.first(null, "MAIL_PORT", "mail.smtp.port");
+        if (portText != null) { try { port = Integer.parseInt(portText.trim()); } catch (NumberFormatException ignore) { } }
+        mailer.configure(email, pass, host, port);
+
+        String ten = HqlEnv.first(null, "MAIL_NAME", "mail.sender.name");
+        if (ten != null) { mailSenderName = ten; mailer.setSenderName(ten); }
+        String brand = HqlEnv.first(null, "MAIL_BRAND");
+        if (brand != null) mailBrandName = brand;
+        String slogan = HqlEnv.first(null, "MAIL_SLOGAN");
+        if (slogan != null) mailBrandSlogan = slogan;
+        String sp1 = HqlEnv.first(null, "MAIL_SUPPORT", "MAIL_SUPPORT1");
+        if (sp1 != null) mailSupport1 = sp1;
+        String sp2 = HqlEnv.first(null, "MAIL_SUPPORT2");
+        if (sp2 != null) mailSupport2 = sp2;
+        return true;
+    }
 
     /** Gửi 1 email. Trả về true nếu thành công, false nếu lỗi (xem chi tiết bằng mailError()). */
     private boolean sendHqlMail(String toEmail, String subject, String content, boolean isHtml) {
-        if (mailFromEmail == null || mailFromEmail.isEmpty()) {
-            lastMailError = "Chưa gọi mailConfig(email, matKhauUngDung) trước khi gửi thư.";
-            System.err.println("[HQL.MAIL] " + lastMailError);
-            return false;
-        }
-        try {
-            java.util.Properties props = new java.util.Properties();
-            props.put("mail.smtp.host", mailSmtpHost);
-            props.put("mail.smtp.port", String.valueOf(mailSmtpPort));
-            props.put("mail.smtp.auth", "true");
-            if (mailSmtpPort == 465) {
-                props.put("mail.smtp.ssl.enable", "true");
-            } else {
-                props.put("mail.smtp.starttls.enable", "true");
-            }
-            props.put("mail.smtp.connectiontimeout", "20000");
-            props.put("mail.smtp.timeout", "20000");
-            props.put("mail.smtp.writetimeout", "20000");
+        mailTuHenvNeuChuaCoCauHinh();
+        return mailer.send(toEmail, subject, content, isHtml, mailLayTepDinhKem());
+    }
 
-            final String userName = mailFromEmail;
-            final String passWord = mailAppPassword;
-            jakarta.mail.Session session = jakarta.mail.Session.getInstance(props, new jakarta.mail.Authenticator() {
-                @Override
-                protected jakarta.mail.PasswordAuthentication getPasswordAuthentication() {
-                    return new jakarta.mail.PasswordAuthentication(userName, passWord);
-                }
-            });
-
-            jakarta.mail.internet.MimeMessage message = new jakarta.mail.internet.MimeMessage(session);
-            try {
-                message.setFrom(new jakarta.mail.internet.InternetAddress(mailFromEmail, mailSenderName, "UTF-8"));
-            } catch (Exception e) {
-                message.setFrom(new jakarta.mail.internet.InternetAddress(mailFromEmail));
-            }
-            message.setRecipients(jakarta.mail.Message.RecipientType.TO,
-                    jakarta.mail.internet.InternetAddress.parse(toEmail));
-            message.setSubject(subject, "UTF-8");
-
-            String kieu = isHtml ? "text/html; charset=UTF-8" : "text/plain; charset=UTF-8";
-            if (mailAttachments.isEmpty()) {
-                message.setContent(content, kieu);
-            } else {
-                jakarta.mail.internet.MimeMultipart multi = new jakarta.mail.internet.MimeMultipart();
-                jakarta.mail.internet.MimeBodyPart phanChu = new jakarta.mail.internet.MimeBodyPart();
-                phanChu.setContent(content, kieu);
-                multi.addBodyPart(phanChu);
-                for (String duongDan : mailAttachments) {
-                    File f = new File(duongDan);
-                    if (!f.isFile()) continue;
-                    jakarta.mail.internet.MimeBodyPart dinhKem = new jakarta.mail.internet.MimeBodyPart();
-                    dinhKem.attachFile(f);
-                    multi.addBodyPart(dinhKem);
-                }
-                message.setContent(multi);
-                mailAttachments.clear();
-            }
-
-            jakarta.mail.Transport.send(message);
-            lastMailError = "";
-            System.out.println("[HQL.MAIL] Đã gửi email thành công tới: " + toEmail);
-            return true;
-        } catch (Exception e) {
-            lastMailError = e.getMessage() == null ? e.toString() : e.getMessage();
-            System.err.println("[HQL.MAIL] Gửi thất bại tới " + toEmail + ": " + lastMailError);
-            return false;
-        }
+    /** Xếp thư vào hàng đợi gửi nền, trả về ngay (true = đã nhận vào hàng đợi). */
+    private boolean sendHqlMailAsync(String toEmail, String subject, String content, boolean isHtml) {
+        mailTuHenvNeuChuaCoCauHinh();
+        return mailer.sendAsync(toEmail, subject, content, isHtml, mailLayTepDinhKem());
     }
 
     // --- Thông tin thương hiệu in trên đầu mỗi lá thư (đổi được bằng mailBrand/mailSupport) ---
