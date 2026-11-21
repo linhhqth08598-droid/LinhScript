@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cách code LinhScript — Làm Web &amp; Giao diện bằng HQL</title>
+</head>
+<body>
+<style>
+  :root{
+    --ground:#F7FBFF; --surface:#FFFFFF; --panel:#EDF5FC; --code:#F1F7FD;
+    --line:#D6E6F4; --line-soft:#E7F1F9;
+    --ink:#0E2237; --body:#2A4258; --dim:#5F7C99;
+    --accent:#0B84D9; --accent-ink:#075E9C; --accent-soft:#E1F1FD;
+    --teal:#0E8C86; --amber:#A85A06; --amber-soft:#FDF3E3;
+    --green:#0C8A5B; --green-soft:#E4F7EE;
+    --red:#CE2C4B; --red-soft:#FDECEF;
+    --shadow:0 1px 2px rgba(14,34,55,.05), 0 8px 24px rgba(14,34,55,.05);
+
+    --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",ui-monospace,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --ground:#0A1826; --surface:#122436; --panel:#0F2135; --code:#0C1D2E;
+      --line:#23405B; --line-soft:#1A3149;
+      --ink:#EAF4FF; --body:#C3D6E8; --dim:#86A3BF;
+      --accent:#55BEFA; --accent-ink:#8CD4FF; --accent-soft:#10344F;
+      --teal:#37D3C4; --amber:#F2B457; --amber-soft:#33260F;
+      --green:#4ADE94; --green-soft:#0D2B1F;
+      --red:#FF7A93; --red-soft:#331722;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0A1826; --surface:#122436; --panel:#0F2135; --code:#0C1D2E;
+    --line:#23405B; --line-soft:#1A3149;
+    --ink:#EAF4FF; --body:#C3D6E8; --dim:#86A3BF;
+    --accent:#55BEFA; --accent-ink:#8CD4FF; --accent-soft:#10344F;
+    --teal:#37D3C4; --amber:#F2B457; --amber-soft:#33260F;
+    --green:#4ADE94; --green-soft:#0D2B1F;
+    --red:#FF7A93; --red-soft:#331722;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.28);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--ground); color:var(--body);
+    font-family:var(--sans); font-size:16.5px; line-height:1.72;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{
+    display:grid; grid-template-columns:236px minmax(0,1fr);
+    gap:44px; max-width:1180px; margin:0 auto; padding:36px 24px 96px;
+    align-items:start;
+  }
+
+  /* ── Mục lục ───────────────────────────────── */
+  .toc{position:sticky; top:24px; max-height:calc(100vh - 48px); overflow:auto}
+  .toc h2{
+    font-family:var(--mono); font-size:.7rem; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--dim); margin:0 0 14px; font-weight:600;
+  }
+  .toc ul{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:1px}
+  .toc a{
+    display:grid; grid-template-columns:24px 1fr; gap:9px;
+    padding:5px 9px; border-radius:7px; text-decoration:none;
+    color:var(--body); font-size:.875rem; line-height:1.45;
+    border-left:2px solid transparent;
+  }
+  .toc a span{font-family:var(--mono); font-size:.76rem; color:var(--dim); padding-top:2px}
+  .toc a:hover{background:var(--accent-soft); color:var(--accent-ink)}
+  .toc a:hover span{color:var(--accent)}
+  .toc a:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+
+  /* ── Hero ──────────────────────────────────── */
+  .hero{
+    background:var(--surface); border:1px solid var(--line);
+    border-radius:16px; padding:38px 40px; margin-bottom:40px;
+    box-shadow:var(--shadow); position:relative; overflow:hidden;
+  }
+  .hero::before{
+    content:""; position:absolute; inset:0 0 auto 0; height:4px;
+    background:linear-gradient(90deg,var(--accent),var(--teal) 65%,var(--green));
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:.75rem; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--accent); margin:0 0 12px; font-weight:600;
+  }
+  .hero h1{
+    margin:0 0 12px; font-size:clamp(1.75rem,3.4vw,2.4rem); line-height:1.2;
+    color:var(--ink); font-weight:700; letter-spacing:-.02em; text-wrap:balance;
+  }
+  .hero p{margin:0; color:var(--dim); font-size:1.02rem; max-width:62ch}
+  .tags{display:flex; flex-wrap:wrap; gap:8px; margin-top:20px}
+  .tags span{
+    font-family:var(--mono); font-size:.76rem; padding:4px 11px;
+    border-radius:20px; background:var(--accent-soft); color:var(--accent-ink);
+    border:1px solid var(--line);
+  }
+
+  /* ── Section ───────────────────────────────── */
+  section{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:28px 34px 32px; margin-bottom:22px; box-shadow:var(--shadow);
+    scroll-margin-top:20px;
+  }
+  section > h2{
+    display:grid; grid-template-columns:auto 1fr; align-items:baseline; gap:12px;
+    margin:0 0 20px; padding-bottom:14px; border-bottom:1px solid var(--line-soft);
+    font-size:1.32rem; color:var(--ink); font-weight:700;
+    letter-spacing:-.015em; text-wrap:balance;
+  }
+  section > h2 .n{
+    font-family:var(--mono); font-size:.85rem; font-weight:600;
+    color:var(--accent); letter-spacing:0;
+  }
+  h3{
+    margin:30px 0 10px; font-size:1.02rem; color:var(--teal);
+    font-weight:650; letter-spacing:-.005em;
+  }
+  h3:first-of-type{margin-top:10px}
+  p{margin:12px 0; max-width:70ch}
+  ul,ol{padding-left:24px; margin:12px 0; max-width:70ch}
+  li{margin:6px 0}
+  b,strong{color:var(--ink); font-weight:650}
+  a{color:var(--accent-ink)}
+
+  code{
+    font-family:var(--mono); font-size:.855em;
+    background:var(--panel); color:var(--amber);
+    padding:1px 6px; border-radius:5px; word-break:break-word;
+  }
+  pre{
+    background:var(--code); border:1px solid var(--line);
+    border-radius:10px; padding:16px 18px; margin:14px 0;
+    overflow-x:auto; font-size:.845rem; line-height:1.68;
+  }
+  pre code{
+    background:none; padding:0; color:var(--body);
+    font-size:inherit; word-break:normal; white-space:pre;
+  }
+  .file{
+    display:inline-flex; align-items:center; gap:7px;
+    font-family:var(--mono); font-size:.775rem; font-weight:600;
+    color:var(--green); background:var(--green-soft);
+    border:1px solid var(--line); border-bottom:none;
+    padding:5px 13px; border-radius:8px 8px 0 0;
+    margin:14px 0 -14px; position:relative; z-index:1;
+  }
+  .file + pre{border-top-left-radius:0}
+
+  /* ── Bảng ──────────────────────────────────── */
+  .tbl{overflow-x:auto; margin:16px 0; border:1px solid var(--line); border-radius:10px}
+  table{width:100%; border-collapse:collapse; font-size:.895rem; min-width:460px}
+  th,td{padding:10px 14px; text-align:left; vertical-align:top;
+    border-bottom:1px solid var(--line-soft)}
+  tr:last-child td{border-bottom:none}
+  th{background:var(--panel); color:var(--dim); font-weight:650;
+    font-size:.78rem; letter-spacing:.05em; text-transform:uppercase}
+  td code{white-space:nowrap}
+  td:first-child{color:var(--ink)}
+
+  /* ── Callout ───────────────────────────────── */
+  .cal{
+    border-radius:10px; padding:14px 18px; margin:18px 0;
+    border:1px solid var(--line); border-left:3px solid;
+    font-size:.94rem; max-width:70ch;
+  }
+  .cal p{margin:8px 0; max-width:none}
+  .cal p:first-child{margin-top:0}
+  .cal p:last-child{margin-bottom:0}
+  .cal pre{margin:10px 0 0}
+  .cal.info{background:var(--accent-soft); border-left-color:var(--accent)}
+  .cal.warn{background:var(--amber-soft); border-left-color:var(--amber)}
+  .cal.good{background:var(--green-soft); border-left-color:var(--green)}
+  .cal .lbl{
+    font-family:var(--mono); font-size:.72rem; letter-spacing:.09em;
+    text-transform:uppercase; font-weight:700; display:block; margin-bottom:5px;
+  }
+  .cal.info .lbl{color:var(--accent-ink)}
+  .cal.warn .lbl{color:var(--amber)}
+  .cal.good .lbl{color:var(--green)}
+
+  /* ── Danh sách có thứ tự thật ──────────────── */
+  .steps{list-style:none; padding:0; margin:16px 0; counter-reset:st;
+    border:1px solid var(--line); border-radius:10px; overflow:hidden; max-width:none}
+  .steps li{
+    counter-increment:st; position:relative; margin:0;
+    padding:11px 18px 11px 52px; border-bottom:1px solid var(--line-soft);
+    font-size:.92rem; background:var(--surface);
+  }
+  .steps li:nth-child(odd){background:var(--panel)}
+  .steps li:last-child{border-bottom:none}
+  .steps li::before{
+    content:counter(st,decimal-leading-zero); position:absolute; left:18px; top:11px;
+    font-family:var(--mono); font-size:.78rem; font-weight:700; color:var(--accent);
+  }
+
+  .end{
+    text-align:center; color:var(--dim); font-size:.85rem;
+    font-family:var(--mono); padding:18px 0 0;
+  }
+
+  @media (max-width:940px){
+    .wrap{grid-template-columns:minmax(0,1fr); gap:0; padding:20px 15px 60px}
+    .toc{position:static; max-height:none; margin-bottom:26px;
+      background:var(--surface); border:1px solid var(--line);
+      border-radius:12px; padding:16px 14px}
+    .hero{padding:28px 22px}
+    section{padding:22px 20px 26px}
+    section > h2{font-size:1.18rem}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none !important; transition:none !important}}
+</style>
+
+<div class="wrap">
+
+<nav class="toc" aria-label="Mục lục">
+  <h2>Mục lục</h2>
+  <ul>
+    <li><a href="#s1"><span>01</span>Tổng quan</a></li>
+    <li><a href="#s2"><span>02</span>Chuẩn bị &amp; chạy</a></li>
+    <li><a href="#s3"><span>03</span>Cấu trúc thư mục</a></li>
+    <li><a href="#s4"><span>04</span>File main web.hql</a></li>
+    <li><a href="#s5"><span>05</span>Cơ chế định tuyến</a></li>
+    <li><a href="#s6"><span>06</span>HQLSP — giao diện</a></li>
+    <li><a href="#s7"><span>07</span>Servlet .hql</a></li>
+    <li><a href="#s8"><span>08</span>Route &amp; API JSON</a></li>
+    <li><a href="#s9"><span>09</span>CSS, ảnh, file tĩnh</a></li>
+    <li><a href="#s10"><span>10</span>Form &amp; dữ liệu</a></li>
+    <li><a href="#s11"><span>11</span>Session &amp; Cookie</a></li>
+    <li><a href="#s12"><span>12</span>Kết nối SQL Server</a></li>
+    <li><a href="#s13"><span>13</span>Layout dùng lại</a></li>
+    <li><a href="#s14"><span>14</span>Tra cứu API</a></li>
+    <li><a href="#s15"><span>15</span>Đóng gói Tomcat</a></li>
+    <li><a href="#s16"><span>16</span>Lỗi thường gặp</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<header class="hero">
+  <p class="eyebrow">hql.web · LinhScript</p>
+  <h1>Cách code LinhScript — Làm Web &amp; Giao diện bằng HQL</h1>
+  <p>Hướng dẫn đầy đủ: từ khởi động máy chủ, viết giao diện HTML, xử lý form,
+     đọc cơ sở dữ liệu, cho tới đóng gói chạy trên Tomcat.</p>
+  <div class="tags">
+    <span>.hqlsp</span><span>&lt;Tên&gt;Servlet.hql</span><span>webRoute()</span><span>Tomcat 10.1</span>
+  </div>
+</header>
+
+<!-- ═══════════════ 1 ═══════════════ -->
+<section id="s1">
+<h2><span class="n">01</span>Tổng quan</h2>
+
+<p>Java có <b>JSP + Servlet</b>. HQL có <b>HQLSP + Servlet.hql</b> — ý tưởng giống hệt,
+chỉ khác cú pháp bên trong thẻ.</p>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Java Web</th><th>HQL Web</th><th>Ghi chú</th></tr></thead>
+<tbody>
+<tr><td><code>index.jsp</code></td><td><code>index.hqlsp</code></td><td>Trang giao diện</td></tr>
+<tr><td><code>BaoCaoServlet.java</code></td><td><code>BaoCaoServlet.hql</code></td><td>Xử lý logic</td></tr>
+<tr><td><code>out.println("&lt;h1&gt;")</code></td><td><code>printWeb("&lt;h1&gt;")</code></td><td>In ra trình duyệt</td></tr>
+<tr><td><code>&lt;%= ... %&gt;</code></td><td><code>&lt;%= ... %&gt;</code></td><td>Y hệt nhau</td></tr>
+<tr><td><code>request.getParameter("ten")</code></td><td><code>param("ten")</code></td><td>Đọc tham số</td></tr>
+<tr><td><code>${pageContext.request.contextPath}</code></td><td><code>webContext()</code></td><td>Tên project</td></tr>
+<tr><td>Text Block <code>"""..."""</code></td><td><code>"""..."""</code></td><td>Y hệt nhau</td></tr>
+<tr><td><code>web.xml</code></td><td>Không cần</td><td>Định tuyến theo quy ước tên file</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>Có <b>3 cách</b> sinh ra một trang web trong HQL, dùng lẫn lộn thoải mái trong cùng project:</p>
+<ol>
+  <li><b>HQLSP</b> — file <code>.hqlsp</code>: viết HTML là chính, chèn HQL vào giữa. Hợp cho <b>giao diện</b>.</li>
+  <li><b>Servlet</b> — file <code>&lt;Tên&gt;Servlet.hql</code>: viết HQL là chính, in HTML ra. Hợp cho <b>xử lý logic / báo cáo</b>.</li>
+  <li><b>Route hàm</b> — <code>webRoute("/duong-dan", "tenHam")</code>: gắn thẳng một hàm vào URL. Hợp cho <b>API JSON</b>.</li>
+</ol>
+</section>
+
+<!-- ═══════════════ 2 ═══════════════ -->
+<section id="s2">
+<h2><span class="n">02</span>Chuẩn bị &amp; chạy</h2>
+
+<p>Trình thông dịch HQL biên dịch bằng <b>JDK 21</b>, nên khi chạy cũng phải dùng
+<b>Java 21</b>. File <code>run.bat</code> ở gốc project đã lo sẵn việc chọn đúng bản Java
+và nạp toàn bộ jar trong thư mục <code>lib\</code>:</p>
+
+<div class="file">run.bat</div>
+<pre><code>@echo off
+chcp 65001 &gt;nul
+
+rem --- Chon JVM: uu tien JAVA_HOME, neu khong co thi dung D:\JDK (Temurin 21) ---
+set "JAVA_EXE=%JAVA_HOME%\bin\java.exe"
+if not exist "%JAVA_EXE%" set "JAVA_EXE=D:\JDK\bin\java.exe"
+if not exist "%JAVA_EXE%" set "JAVA_EXE=java"
+
+set "CP=out\production\NgonNguLapTrinhMoi;lib\*"
+
+"%JAVA_EXE%" -Dfile.encoding=UTF-8 -classpath "%CP%" me.hql.script.LinhScriptRunner %*</code></pre>
+
+<p>Chạy website:</p>
+<pre><code>.\run.bat web.hql</code></pre>
+
+<p>Cửa sổ Run sẽ tự in ra <b>toàn bộ đường dẫn</b>, bấm vào là mở được ngay:</p>
+<pre><code>=========================================================
+   HQL WEB SERVER - QuanLyKho
+=========================================================
+   Dia chi        : http://localhost:8080/QuanLyKho/
+   Trong mang LAN : http://26.62.109.68:8080/QuanLyKho/
+   Thu muc goc    : D:\...\web
+---------------------------------------------------------
+   [Servlet] http://localhost:8080/QuanLyKho/BaoCao        BaoCaoServlet.hql
+   [Trang]   http://localhost:8080/QuanLyKho/              index.hqlsp
+   [Route]   http://localhost:8080/QuanLyKho/api/sanpham   apiSanPham()
+=========================================================
+   Bam Ctrl+C de dung may chu.</code></pre>
+
+<div class="cal info">
+<span class="lbl">Mẹo</span>
+<p>Mở <code>http://localhost:8080/</code> (không có tên project) sẽ được tự chuyển hướng
+về <code>/QuanLyKho/</code>. Dòng <i>"Trong mang LAN"</i> là địa chỉ để máy khác cùng
+mạng Wi-Fi mở được web của bạn.</p>
+</div>
+
+<h3>Biên dịch lại khi sửa mã nguồn Java của trình thông dịch</h3>
+<pre><code>javac -encoding UTF-8 -cp "lib/*" -d out/production/NgonNguLapTrinhMoi src/me/hql/script/*.java</code></pre>
+<p>Chỉ cần làm bước này khi bạn sửa file trong <code>src\</code>. Sửa file
+<code>.hql</code> / <code>.hqlsp</code> thì <b>không cần biên dịch</b> — chỉ cần
+tắt máy chủ (Ctrl+C) rồi chạy lại.</p>
+</section>
+
+<!-- ═══════════════ 3 ═══════════════ -->
+<section id="s3">
+<h2><span class="n">03</span>Cấu trúc thư mục</h2>
+
+<pre><code>NgonNguLapTrinhMoi/
+├── run.bat                  ← script chạy (đã chọn sẵn Java 21 + lib/*)
+├── web.hql                  ← FILE MAIN: cấu hình + khởi động máy chủ
+├── deploy.hql               ← đóng gói ra Tomcat
+├── lib/                     ← toàn bộ .jar (JDBC, Jakarta...)
+├── out/production/...       ← trình thông dịch đã biên dịch
+└── web/                     ← THƯ MỤC GỐC CỦA WEBSITE
+    ├── index.hqlsp          ← trang chủ
+    ├── BaoCaoServlet.hql    ← servlet, mở bằng /BaoCao
+    ├── style.css            ← file tĩnh
+    ├── anh/                 ← ảnh, js... (tự tạo thêm)
+    ├── servlets/            ← (tùy chọn) nơi để servlet cho gọn
+    └── WEB-INF/hql/         ← (tùy chọn) servlet ẩn khỏi truy cập trực tiếp</code></pre>
+
+<p><b>Thư mục gốc website</b> là thư mục bạn khai trong <code>webStart(...)</code>
+(mặc định trong project này là <code>web</code>). Mọi đường dẫn URL đều tính từ đây.</p>
+
+<div class="cal warn">
+<span class="lbl">Bảo mật</span>
+<p>Máy chủ chặn tuyệt đối kiểu tấn công <code>../../</code> để thoát ra ngoài thư mục
+gốc, và <b>không bao giờ</b> trả mã nguồn <code>.hql</code> ra trình duyệt — gõ thẳng
+<code>/BaoCaoServlet.hql</code> sẽ nhận lỗi <b>403</b>.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 4 ═══════════════ -->
+<section id="s4">
+<h2><span class="n">04</span>File main <code>web.hql</code></h2>
+
+<p>Đây là nơi duy nhất chứa cấu hình. Ai cài thư viện HQL về máy khác cũng chỉ cần
+sửa đúng 3 dòng đầu.</p>
+
+<div class="file">web.hql</div>
+<pre><code>use hql.web;
+use hql.time;
+use hql.util;
+
+// ------- CẤU HÌNH — CHỈ CẦN SỬA 3 DÒNG NÀY -------
+var TEN_PROJECT = "/QuanLyKho";   // -&gt; http://localhost:8080/QuanLyKho
+var CONG        = 8080;
+var THU_MUC_WEB = "web";          // thư mục chứa .hqlsp / .html / &lt;Ten&gt;Servlet.hql
+
+// ------- Route viết tay: trả JSON cho /api/sanpham -------
+func apiSanPham() {
+    var ds = ["Laptop", "Phone", "Tablet"];
+    webJson(ds);
+}
+webRoute("/api/sanpham", "apiSanPham");
+
+// Khởi động máy chủ — bảng đường dẫn sẽ tự in ra ngay bên dưới
+webStart(CONG, TEN_PROJECT, THU_MUC_WEB);
+webWait();</code></pre>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Lệnh</th><th>Ý nghĩa</th></tr></thead>
+<tbody>
+<tr><td><code>webStart(cong, "/ten", "thuMuc")</code></td>
+    <td>Khởi động máy chủ. <b>Bắt buộc</b> có tên project (tham số 2). Tham số 3 tuỳ chọn — bỏ qua thì mặc định là thư mục <code>web</code>.</td></tr>
+<tr><td><code>webWait()</code></td>
+    <td>Giữ chương trình chạy mãi. Nếu thiếu, chương trình chạy xong sẽ thoát và tắt luôn máy chủ.</td></tr>
+<tr><td><code>webStop()</code></td><td>Tắt máy chủ bằng lệnh.</td></tr>
+<tr><td><code>webRoot("web")</code></td><td>Đổi thư mục gốc mà không cần khởi động máy chủ (dùng cho <code>deploy.hql</code>).</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="cal info">
+<span class="lbl">Lưu ý</span>
+<p>Tên project tự động được chuẩn hoá: viết <code>"QuanLyKho"</code> hay
+<code>"/QuanLyKho/"</code> đều thành <code>/QuanLyKho</code>. Để trống sẽ báo lỗi ngay
+lúc khởi động.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 5 ═══════════════ -->
+<section id="s5">
+<h2><span class="n">05</span>Cơ chế định tuyến — URL nào chạy file nào?</h2>
+
+<p>Khi có một yêu cầu tới, máy chủ dò <b>theo đúng thứ tự</b> sau, gặp cái nào khớp
+trước thì dùng cái đó:</p>
+
+<ol class="steps">
+  <li>Đường dẫn đã gán bằng <code>webRoute("/abc", "tenHam")</code> → gọi hàm HQL.</li>
+  <li>Đường dẫn đã gán bằng <code>webServlet("/abc", "XyzServlet.hql")</code> → chạy file đó.</li>
+  <li>URL kết thúc bằng <code>/</code> → tìm <code>index.hqlsp</code>, rồi <code>index.html</code>, rồi <code>index.htm</code>.</li>
+  <li>URL kết thúc bằng <code>.hqlsp</code> → chạy thẳng file đó.</li>
+  <li>Quy ước servlet: <code>/BaoCao</code> → tìm <code>BaoCaoServlet.hql</code>.</li>
+  <li>File tĩnh có thật (css, js, png, jpg, svg, ico, json, txt...) → trả nguyên file.</li>
+  <li>Gõ thiếu đuôi: <code>/trangchu</code> → thử <code>trangchu.hqlsp</code>, <code>.html</code>, <code>.htm</code>.</li>
+  <li>Không khớp gì cả → trang lỗi <b>404</b>.</li>
+</ol>
+
+<h3>Quy ước tìm file servlet</h3>
+<p>Với URL <code>/baocao</code> hoặc <code>/BaoCao</code>, máy chủ lần lượt thử các tên
+<code>BaoCaoServlet.hql</code> rồi <code>baocaoServlet.hql</code> — tìm trong 4 nơi:</p>
+<ul>
+  <li>Thư mục cùng cấp với URL (ví dụ <code>/admin/BaoCao</code> → tìm trong <code>web/admin/</code>)</li>
+  <li>Thư mục gốc <code>web/</code></li>
+  <li><code>web/servlets/</code></li>
+  <li><code>web/WEB-INF/hql/</code></li>
+</ul>
+
+<div class="cal good">
+<span class="lbl">Nghĩa là</span>
+<p>Chỉ cần đặt file <code>SanPhamServlet.hql</code> vào <code>web/</code> là tự động có
+URL <code>/QuanLyKho/SanPham</code> — <b>không phải khai báo gì thêm</b>.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 6 ═══════════════ -->
+<section id="s6">
+<h2><span class="n">06</span>HQLSP — viết giao diện</h2>
+
+<p>File <code>.hqlsp</code> là <b>HTML bình thường</b>, chỗ nào cần dữ liệu động thì mở
+thẻ <code>&lt;% %&gt;</code>. Cứ viết giao diện như viết HTML tĩnh, không phải học gì mới.</p>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Cú pháp</th><th>Ý nghĩa</th><th>Biên dịch thành</th></tr></thead>
+<tbody>
+<tr><td><code>&lt;% code %&gt;</code></td><td>Chạy code HQL (kể cả <code>if</code>, <code>for</code> bao quanh HTML)</td><td>chép nguyên code</td></tr>
+<tr><td><code>&lt;%= biểu thức %&gt;</code></td><td>In giá trị ra trang</td><td><code>printWeb(biểuThức)</code></td></tr>
+<tr><td><code>&lt;%-- ghi chú --%&gt;</code></td><td>Ghi chú, <b>không</b> lọt ra HTML</td><td>bỏ qua</td></tr>
+<tr><td><code>&lt;%@ page contentType="..." %&gt;</code></td><td>Đặt kiểu nội dung</td><td><code>webType("...")</code></td></tr>
+<tr><td><code>&lt;%@ include file="header.hqlsp" %&gt;</code></td><td>Nhúng file khác</td><td><code>webInclude("...")</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Ví dụ đầy đủ</h3>
+
+<div class="file">web/index.hqlsp</div>
+<pre><code>&lt;%-- Ghi chú kiểu HQLSP: dòng này không hiện ra HTML --%&gt;
+&lt;!doctype html&gt;
+&lt;html lang="vi"&gt;
+&lt;head&gt;
+    &lt;meta charset="utf-8"&gt;
+    &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+    &lt;title&gt;HQL Web — Trang chủ&lt;/title&gt;
+    &lt;%-- webContext() = tên project, y hệt ${pageContext.request.contextPath} --%&gt;
+    &lt;link rel="stylesheet" href="&lt;%= webContext() %&gt;/style.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div class="box"&gt;
+    &lt;h1&gt;Ngôn ngữ HQL đã chạy được Web!&lt;/h1&gt;
+
+    &lt;p&gt;Bây giờ là: &lt;b&gt;&lt;%= format(now(), "HH:mm:ss dd/MM/yyyy") %&gt;&lt;/b&gt;&lt;/p&gt;
+
+    &lt;% var ten = param("ten", "khách"); %&gt;
+    &lt;p&gt;Xin chào &lt;b&gt;&lt;%= htmlEscape(ten) %&gt;&lt;/b&gt;
+       — bạn truy cập từ &lt;code&gt;&lt;%= webIP() %&gt;&lt;/code&gt;&lt;/p&gt;
+
+    &lt;form method="get"&gt;
+        &lt;input name="ten" value="&lt;%= htmlEscape(ten) %&gt;"&gt;
+        &lt;button type="submit"&gt;Gửi&lt;/button&gt;
+    &lt;/form&gt;
+
+    &lt;h2&gt;Vòng lặp HQL sinh ra HTML&lt;/h2&gt;
+    &lt;ul&gt;
+        &lt;%  var mon = ["Lập trình HQL", "Cơ sở dữ liệu", "Lập trình Web"];
+            var i = 1;
+            for m in mon { %&gt;
+                &lt;li&gt;&lt;%= i %&gt;. &lt;%= m %&gt;&lt;/li&gt;
+        &lt;%      i++;
+            } %&gt;
+    &lt;/ul&gt;
+&lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+<div class="cal info">
+<span class="lbl">Vòng lặp bao quanh HTML</span>
+<p>Mở ngoặc <code>{</code> ở một thẻ <code>&lt;% %&gt;</code>, viết HTML thường ở giữa,
+rồi đóng ngoặc <code>}</code> ở một thẻ <code>&lt;% %&gt;</code> khác. Y hệt cách JSP
+làm với Java.</p>
+</div>
+
+<h3>Rẽ nhánh if / else</h3>
+<pre><code>&lt;% if (param("vai") == "admin") { %&gt;
+    &lt;p class="admin"&gt;Chào quản trị viên!&lt;/p&gt;
+&lt;% } else { %&gt;
+    &lt;p&gt;Chào người dùng thường.&lt;/p&gt;
+&lt;% } %&gt;</code></pre>
+</section>
+
+<!-- ═══════════════ 7 ═══════════════ -->
+<section id="s7">
+<h2><span class="n">07</span>Servlet <code>.hql</code></h2>
+
+<p>Đặt tên file theo đúng quy ước <code>&lt;Tên&gt;Servlet.hql</code> là xong —
+URL sẽ là <code>/&lt;Tên&gt;</code>. Bên trong viết các hàm giống hệt Servlet của Java.</p>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Chạy khi nào</th></tr></thead>
+<tbody>
+<tr><td><code>init()</code></td><td>Đúng 1 lần lúc servlet được nạp vào bộ nhớ</td></tr>
+<tr><td><code>doGet()</code></td><td>Truy cập bằng phương thức GET (gõ URL, bấm link)</td></tr>
+<tr><td><code>doPost()</code></td><td>Truy cập bằng POST (gửi form <code>method="post"</code>)</td></tr>
+<tr><td><code>service()</code></td><td>Dự phòng — chạy nếu không có <code>doGet</code>/<code>doPost</code> tương ứng</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="file">web/BaoCaoServlet.hql → /QuanLyKho/BaoCao</div>
+<pre><code>use hql.web;
+use hql.database;
+
+// --- OOP: dùng class y hệt Java, thuộc tính có @ là public ---
+class SanPham {
+    var @ten;
+    var @gia;
+    var @kho;
+
+    func @init(t, g, k) {
+        this.@ten = t;
+        this.@gia = g;
+        this.@kho = k;
+    }
+    func @thanhTien() { return this.@gia * this.@kho; }
+    func @trangThai() { return this.@kho &gt; 0 ? "Còn hàng" : "Hết hàng"; }
+}
+
+func init() {
+    print("[SERVLET] BaoCaoServlet.hql đã được nạp vào bộ nhớ.");
+}
+
+func doGet() {
+    // Viết cả khối HTML bằng chuỗi 3 nháy """ giống Text Block của Java
+    printWeb("""
+        &lt;!doctype html&gt;
+        &lt;html lang="vi"&gt;
+        &lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;title&gt;Báo cáo kho&lt;/title&gt;
+    """);
+    printWeb("&lt;link rel='stylesheet' href='" + webContext() + "/style.css'&gt;");
+    printWeb("&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Báo cáo kho hàng&lt;/h1&gt;");
+
+    var sp = new SanPham("Laptop", 1200, 5);
+    printWeb("&lt;p&gt;" + htmlEscape(sp.@ten) + " — " + sp.@thanhTien()
+             + " USD — " + sp.@trangThai() + "&lt;/p&gt;");
+
+    printWeb("&lt;a href='" + webContext() + "/'&gt;&amp;larr; Về trang chủ&lt;/a&gt;");
+    printWeb("&lt;/body&gt;&lt;/html&gt;");
+}
+
+func doPost() {
+    webType("text/plain; charset=UTF-8");
+    printWeb("Đã nhận POST với ten = " + param("ten", "(trống)"));
+}</code></pre>
+
+<div class="cal good">
+<span class="lbl">Tiện</span>
+<p>Mỗi servlet có <b>vùng hàm/lớp riêng</b> — hai file servlet cùng đặt tên
+<code>doGet()</code> hay cùng khai <code>class SanPham</code> đều không đụng nhau.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 8 ═══════════════ -->
+<section id="s8">
+<h2><span class="n">08</span>Route hàm &amp; API JSON</h2>
+
+<p>Không muốn tạo file riêng thì gắn thẳng một hàm trong <code>web.hql</code> vào URL:</p>
+
+<pre><code>func apiSanPham() {
+    var ds = ["Laptop", "Phone", "Tablet"];
+    webJson(ds);            // tự đặt contentType = application/json
+}
+webRoute("/api/sanpham", "apiSanPham");</code></pre>
+
+<p><code>webJson()</code> nhận cả mảng lẫn map, tự đổi sang JSON:</p>
+<pre><code>func apiChiTiet() {
+    var sp = {
+        "ten": "Laptop Dell",
+        "gia": 1200,
+        "conHang": true,
+        "mau": ["Đen", "Bạc"]
+    };
+    webJson(sp);
+}
+webRoute("/api/chitiet", "apiChiTiet");</code></pre>
+
+<p>Trả về:</p>
+<pre><code>{"ten":"Laptop Dell","gia":1200,"conHang":true,"mau":["Đen","Bạc"]}</code></pre>
+
+<h3>Gán servlet vào URL tuỳ ý</h3>
+<p>Nếu không thích quy ước tên file, dùng <code>webServlet()</code>:</p>
+<pre><code>webServlet("/bao-cao-kho", "BaoCaoServlet.hql");
+// Giờ mở /QuanLyKho/bao-cao-kho cũng chạy đúng file đó</code></pre>
+</section>
+
+<!-- ═══════════════ 9 ═══════════════ -->
+<section id="s9">
+<h2><span class="n">09</span>CSS, ảnh và file tĩnh</h2>
+
+<p>Cứ bỏ file vào thư mục <code>web/</code>, máy chủ tự trả về với đúng kiểu MIME.
+Định dạng được phục vụ: <code>css</code>, <code>js</code>, <code>html</code>,
+<code>png</code>, <code>jpg</code>, <code>gif</code>, <code>svg</code>,
+<code>ico</code>, <code>json</code>, <code>txt</code>, <code>csv</code>...</p>
+
+<div class="cal warn">
+<span class="lbl">Luôn nhúng qua webContext()</span>
+<p>Đừng viết đường dẫn tuyệt đối <code>/style.css</code>. Vì trang thật nằm ở
+<code>/QuanLyKho/style.css</code> — thiếu tiền tố tên project là CSS sẽ không tải được.</p>
+</div>
+
+<pre><code>&lt;%-- ĐÚNG --%&gt;
+&lt;link rel="stylesheet" href="&lt;%= webContext() %&gt;/style.css"&gt;
+&lt;img src="&lt;%= webContext() %&gt;/anh/logo.png" alt="Logo"&gt;
+&lt;script src="&lt;%= webContext() %&gt;/js/app.js"&gt;&lt;/script&gt;
+&lt;a href="&lt;%= webContext() %&gt;/BaoCao"&gt;Xem báo cáo&lt;/a&gt;
+
+&lt;%-- SAI: sẽ 404 vì thiếu /QuanLyKho --%&gt;
+&lt;link rel="stylesheet" href="/style.css"&gt;</code></pre>
+
+<p>Trong servlet thì nối chuỗi:</p>
+<pre><code>printWeb("&lt;link rel='stylesheet' href='" + webContext() + "/style.css'&gt;");</code></pre>
+
+<h3>Mẫu CSS giao diện</h3>
+<div class="file">web/style.css</div>
+<pre><code>:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+body {
+    margin: 0; padding: 40px 16px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    background: #f4f9ff; color: #0e2237; line-height: 1.6;
+}
+.box {
+    max-width: 860px; margin: 0 auto;
+    background: #ffffff; border: 1px solid #d6e6f4;
+    border-radius: 14px; padding: 32px;
+}
+h1 { margin: 0 0 4px; font-size: 1.7rem; color: #0b84d9; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+th, td { padding: 9px 12px; border-bottom: 1px solid #e7f1f9; text-align: left; }
+th { background: #edf5fc; color: #5f7c99; }
+button {
+    padding: 10px 20px; border: 0; border-radius: 8px; cursor: pointer;
+    background: #0b84d9; color: #ffffff; font-weight: 600;
+}</code></pre>
+</section>
+
+<!-- ═══════════════ 10 ═══════════════ -->
+<section id="s10">
+<h2><span class="n">10</span>Form &amp; dữ liệu người dùng</h2>
+
+<h3>Đọc dữ liệu gửi lên</h3>
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Trả về</th></tr></thead>
+<tbody>
+<tr><td><code>param("ten")</code></td><td>Giá trị tham số; rỗng thì trả <code>""</code></td></tr>
+<tr><td><code>param("ten", "khách")</code></td><td>Giá trị tham số; rỗng thì trả <code>"khách"</code></td></tr>
+<tr><td><code>params()</code></td><td>Map chứa toàn bộ tham số</td></tr>
+<tr><td><code>webMethod()</code></td><td><code>"GET"</code> / <code>"POST"</code>...</td></tr>
+<tr><td><code>webPath()</code></td><td>Đường dẫn, ví dụ <code>/BaoCao</code></td></tr>
+<tr><td><code>webQuery()</code></td><td>Chuỗi sau dấu <code>?</code></td></tr>
+<tr><td><code>webBody()</code></td><td>Toàn bộ nội dung body (dùng cho JSON gửi lên)</td></tr>
+<tr><td><code>webIP()</code></td><td>Địa chỉ IP người truy cập</td></tr>
+<tr><td><code>reqHeader("User-Agent")</code></td><td>Một header của request</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><code>param()</code> đọc được cả tham số trên URL (GET) lẫn dữ liệu form (POST) —
+không phải phân biệt.</p>
+
+<h3>Form GET — lọc dữ liệu ngay trên trang</h3>
+<pre><code>&lt;% var tuKhoa = param("q", ""); %&gt;
+&lt;form method="get"&gt;
+    &lt;input name="q" placeholder="Tìm sản phẩm..." value="&lt;%= htmlEscape(tuKhoa) %&gt;"&gt;
+    &lt;button type="submit"&gt;Tìm&lt;/button&gt;
+&lt;/form&gt;
+
+&lt;% if (tuKhoa != "") { %&gt;
+    &lt;p&gt;Đang tìm: &lt;b&gt;&lt;%= htmlEscape(tuKhoa) %&gt;&lt;/b&gt;&lt;/p&gt;
+&lt;% } %&gt;</code></pre>
+
+<h3>Form POST — gửi sang servlet xử lý</h3>
+<pre><code>&lt;form method="post" action="&lt;%= webContext() %&gt;/DangNhap"&gt;
+    &lt;input name="taiKhoan" placeholder="Tài khoản"&gt;
+    &lt;input name="matKhau" type="password" placeholder="Mật khẩu"&gt;
+    &lt;button type="submit"&gt;Đăng nhập&lt;/button&gt;
+&lt;/form&gt;</code></pre>
+
+<div class="file">web/DangNhapServlet.hql</div>
+<pre><code>use hql.web;
+
+func doGet() {
+    webRedirect(webContext() + "/");     // vào thẳng bằng GET thì đá về trang chủ
+}
+
+func doPost() {
+    var tk = param("taiKhoan");
+    var mk = param("matKhau");
+
+    if (tk == "admin" &amp;&amp; mk == "123") {
+        sessionSet("nguoiDung", tk);
+        webRedirect(webContext() + "/");
+    } else {
+        webStatus(401);
+        printWeb("&lt;p style='color:#ce2c4b'&gt;Sai tài khoản hoặc mật khẩu!&lt;/p&gt;");
+        printWeb("&lt;a href='" + webContext() + "/'&gt;Quay lại&lt;/a&gt;");
+    }
+}</code></pre>
+
+<div class="cal warn">
+<span class="lbl">Chống XSS — bắt buộc</span>
+<p>Mọi thứ người dùng nhập vào, khi in ra HTML <b>phải</b> bọc <code>htmlEscape()</code>.
+Nếu không, họ gõ <code>&lt;script&gt;...&lt;/script&gt;</code> vào ô input là chạy được
+mã độc trên trang của bạn.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 11 ═══════════════ -->
+<section id="s11">
+<h2><span class="n">11</span>Session &amp; Cookie</h2>
+
+<h3>Session — nhớ dữ liệu theo từng người dùng</h3>
+<pre><code>&lt;%  var luot = sessionGet("luot");
+    if (luot == null) { luot = 0; }
+    luot = luot + 1;
+    sessionSet("luot", luot); %&gt;
+&lt;p&gt;Bạn đã tải trang này &lt;b&gt;&lt;%= luot %&gt;&lt;/b&gt; lần trong phiên hiện tại.&lt;/p&gt;</code></pre>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Công dụng</th></tr></thead>
+<tbody>
+<tr><td><code>sessionSet(khoa, giaTri)</code></td><td>Lưu giá trị vào phiên</td></tr>
+<tr><td><code>sessionGet(khoa)</code></td><td>Lấy ra; chưa có thì trả <code>null</code></td></tr>
+<tr><td><code>sessionDel(khoa)</code></td><td>Xoá 1 khoá</td></tr>
+<tr><td><code>sessionId()</code></td><td>Mã phiên hiện tại</td></tr>
+<tr><td><code>sessionKill()</code></td><td>Huỷ cả phiên (đăng xuất)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Kiểm tra đăng nhập</h3>
+<pre><code>&lt;%  var nguoiDung = sessionGet("nguoiDung");
+    if (nguoiDung == null) {
+        webRedirect(webContext() + "/DangNhap");
+    } else { %&gt;
+    &lt;p&gt;Xin chào &lt;b&gt;&lt;%= htmlEscape(nguoiDung) %&gt;&lt;/b&gt;
+       — &lt;a href="&lt;%= webContext() %&gt;/DangXuat"&gt;Đăng xuất&lt;/a&gt;&lt;/p&gt;
+&lt;% } %&gt;</code></pre>
+
+<h3>Cookie — nhớ lâu hơn, kể cả sau khi tắt trình duyệt</h3>
+<pre><code>cookieSet("mauNen", "sang");          // cookie theo phiên
+cookieSet("mauNen", "sang", 604800);  // sống 7 ngày (tính bằng giây)
+
+var mau = cookieGet("mauNen");
+if (mau == null) { mau = "sang"; }</code></pre>
+</section>
+
+<!-- ═══════════════ 12 ═══════════════ -->
+<section id="s12">
+<h2><span class="n">12</span>Kết nối SQL Server</h2>
+
+<p>Driver JDBC đã nằm sẵn trong <code>lib\mssql-jdbc-13.4.0.jre11.jar</code> và được
+<code>run.bat</code> nạp tự động.</p>
+
+<div class="file">web/BaoCaoServlet.hql (phần đọc CSDL)</div>
+<pre><code>use hql.web;
+use hql.database;
+
+func doGet() {
+    printWeb("&lt;h1&gt;Báo cáo kho hàng&lt;/h1&gt;");
+
+    var ok = connect("localhost", 1433, "DemoDB", "sa", "123");
+
+    if (ok) {
+        printWeb("&lt;table&gt;&lt;tr&gt;&lt;th&gt;Sản phẩm&lt;/th&gt;&lt;th&gt;Giá&lt;/th&gt;&lt;th&gt;Tồn&lt;/th&gt;&lt;/tr&gt;");
+
+        for dong in query("SELECT ProductName, Price, Stock FROM Products") {
+            printWeb("&lt;tr&gt;&lt;td&gt;" + htmlEscape(dong.ProductName) + "&lt;/td&gt;");
+            printWeb("&lt;td&gt;" + dong.Price + "&lt;/td&gt;");
+            printWeb("&lt;td&gt;" + dong.Stock + "&lt;/td&gt;&lt;/tr&gt;");
+        }
+        printWeb("&lt;/table&gt;");
+
+        var soKhach = queryValue("SELECT COUNT(*) FROM Customers");
+        printWeb("&lt;p&gt;Tổng số khách hàng: &lt;b&gt;" + soKhach + "&lt;/b&gt;&lt;/p&gt;");
+
+        closeDB();
+    } else {
+        printWeb("&lt;p class='loi'&gt;Không kết nối được CSDL: "
+                 + htmlEscape(dbError()) + "&lt;/p&gt;");
+    }
+}</code></pre>
+
+<p>Truy cập cột bằng dấu chấm: <code>dong.ProductName</code> — đúng tên cột trong câu SQL.</p>
+
+<div class="cal warn">
+<span class="lbl">Chống SQL Injection</span>
+<p>Khi câu lệnh có dữ liệu người dùng nhập, <b>đừng</b> nối chuỗi. Dùng
+<code>querySafe()</code> / <code>executeSafe()</code> với dấu <code>?</code>:</p>
+<pre><code>// SAI — người dùng gõ:  ' OR '1'='1  là lộ hết dữ liệu
+var kq = query("SELECT * FROM Products WHERE Name = '" + param("q") + "'");
+
+// ĐÚNG
+var kq = querySafe("SELECT * FROM Products WHERE Name = ?", param("q"));</code></pre>
+</div>
+</section>
+
+<!-- ═══════════════ 13 ═══════════════ -->
+<section id="s13">
+<h2><span class="n">13</span>Layout dùng lại — header / footer</h2>
+
+<p>Đừng chép lại phần <code>&lt;head&gt;</code> và menu ở mọi trang. Tách ra file riêng
+rồi nhúng vào.</p>
+
+<div class="file">web/header.hqlsp</div>
+<pre><code>&lt;!doctype html&gt;
+&lt;html lang="vi"&gt;
+&lt;head&gt;
+    &lt;meta charset="utf-8"&gt;
+    &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
+    &lt;title&gt;Quản Lý Kho&lt;/title&gt;
+    &lt;link rel="stylesheet" href="&lt;%= webContext() %&gt;/style.css"&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div class="box"&gt;
+    &lt;div class="menu"&gt;
+        &lt;a href="&lt;%= webContext() %&gt;/"&gt;Trang chủ&lt;/a&gt;
+        &lt;a href="&lt;%= webContext() %&gt;/BaoCao"&gt;Báo cáo&lt;/a&gt;
+    &lt;/div&gt;</code></pre>
+
+<div class="file">web/footer.hqlsp</div>
+<pre><code>    &lt;hr&gt;
+    &lt;p class="sub"&gt;© 2026 — Viết bằng ngôn ngữ HQL&lt;/p&gt;
+&lt;/div&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+<div class="file">web/index.hqlsp</div>
+<pre><code>&lt;%@ include file="header.hqlsp" %&gt;
+
+    &lt;h1&gt;Danh sách sản phẩm&lt;/h1&gt;
+    &lt;p&gt;Nội dung riêng của trang này...&lt;/p&gt;
+
+&lt;%@ include file="footer.hqlsp" %&gt;</code></pre>
+
+<p>Trong servlet thì gọi hàm tương ứng:</p>
+<pre><code>func doGet() {
+    webInclude("header.hqlsp");     // in thẳng ra trang
+    printWeb("&lt;h1&gt;Báo cáo&lt;/h1&gt;");
+    webInclude("footer.hqlsp");
+}</code></pre>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Khác nhau ở đâu</th></tr></thead>
+<tbody>
+<tr><td><code>webInclude("a.hqlsp")</code></td><td>Chạy file rồi <b>in thẳng</b> kết quả ra trang</td></tr>
+<tr><td><code>webRender("a.hqlsp")</code></td><td>Chạy file rồi <b>trả về chuỗi HTML</b> để bạn xử lý tiếp</td></tr>
+</tbody>
+</table>
+</div>
+
+<pre><code>var noiDung = webRender("bang-sanpham.hqlsp");
+if (noiDung == "") {
+    printWeb("&lt;p&gt;Chưa có sản phẩm nào.&lt;/p&gt;");
+} else {
+    printWeb(noiDung);
+}</code></pre>
+</section>
+
+<!-- ═══════════════ 14 ═══════════════ -->
+<section id="s14">
+<h2><span class="n">14</span>Bảng tra cứu API <code>hql.web</code></h2>
+
+<h3>Máy chủ &amp; định tuyến</h3>
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Công dụng</th></tr></thead>
+<tbody>
+<tr><td><code>webStart(cong, "/ten", "thuMuc")</code></td><td>Khởi động máy chủ (tên project bắt buộc)</td></tr>
+<tr><td><code>webWait()</code></td><td>Giữ chương trình chạy</td></tr>
+<tr><td><code>webStop()</code></td><td>Dừng máy chủ</td></tr>
+<tr><td><code>webRoot("web")</code></td><td>Đặt/đọc thư mục gốc website</td></tr>
+<tr><td><code>webRoute("/duong-dan", "tenHam")</code></td><td>Gán 1 hàm HQL cho 1 URL</td></tr>
+<tr><td><code>webServlet("/duong-dan", "X.hql")</code></td><td>Gán servlet cho URL tuỳ ý</td></tr>
+<tr><td><code>webContext()</code></td><td>Trả về tên project, vd <code>/QuanLyKho</code></td></tr>
+<tr><td><code>webExportTomcat("Ten", "web.hql")</code></td><td>Đóng gói ra thư mục chạy trên Tomcat</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Đọc yêu cầu (request)</h3>
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Công dụng</th></tr></thead>
+<tbody>
+<tr><td><code>param(ten[, mặcĐịnh])</code></td><td>Đọc 1 tham số (GET hoặc POST)</td></tr>
+<tr><td><code>params()</code></td><td>Map toàn bộ tham số</td></tr>
+<tr><td><code>webMethod()</code></td><td>GET / POST / PUT...</td></tr>
+<tr><td><code>webPath()</code></td><td>Đường dẫn URL</td></tr>
+<tr><td><code>webQuery()</code></td><td>Chuỗi truy vấn sau <code>?</code></td></tr>
+<tr><td><code>webBody()</code></td><td>Nội dung body thô</td></tr>
+<tr><td><code>webIP()</code></td><td>IP người truy cập</td></tr>
+<tr><td><code>reqHeader(ten)</code></td><td>Đọc 1 header</td></tr>
+<tr><td><code>cookieGet(ten)</code></td><td>Đọc 1 cookie</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Trả kết quả (response)</h3>
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Công dụng</th></tr></thead>
+<tbody>
+<tr><td><code>printWeb(x)</code></td><td>In nội dung ra trang</td></tr>
+<tr><td><code>webStatus(mã)</code></td><td>Đặt mã trạng thái (404, 401, 500...)</td></tr>
+<tr><td><code>webType(kiểu)</code></td><td>Đặt <code>Content-Type</code></td></tr>
+<tr><td><code>resHeader(tên, giáTrị)</code></td><td>Thêm header trả về</td></tr>
+<tr><td><code>webRedirect(url)</code></td><td>Chuyển hướng trang</td></tr>
+<tr><td><code>cookieSet(tên, giáTrị[, giây])</code></td><td>Gửi cookie về trình duyệt</td></tr>
+<tr><td><code>webJson(dữLiệu)</code></td><td>Trả JSON (tự đặt content-type)</td></tr>
+<tr><td><code>webInclude(file)</code></td><td>Nhúng file, in thẳng ra</td></tr>
+<tr><td><code>webRender(file)</code></td><td>Chạy file, trả về chuỗi HTML</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3>Session &amp; tiện ích</h3>
+<div class="tbl">
+<table>
+<thead><tr><th>Hàm</th><th>Công dụng</th></tr></thead>
+<tbody>
+<tr><td><code>sessionSet(k, v)</code> / <code>sessionGet(k)</code></td><td>Lưu / lấy dữ liệu phiên</td></tr>
+<tr><td><code>sessionDel(k)</code> / <code>sessionKill()</code></td><td>Xoá 1 khoá / huỷ cả phiên</td></tr>
+<tr><td><code>sessionId()</code></td><td>Mã phiên</td></tr>
+<tr><td><code>htmlEscape(s)</code></td><td>Chống XSS khi in dữ liệu người dùng</td></tr>
+<tr><td><code>urlEncode(s)</code> / <code>urlDecode(s)</code></td><td>Mã hoá / giải mã URL</td></tr>
+<tr><td><code>webMime(tênFile)</code></td><td>Đoán kiểu MIME từ tên file</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="cal info">
+<span class="lbl">Phạm vi dùng</span>
+<p>Các hàm đọc request và trả response chỉ dùng được <b>bên trong</b> servlet hoặc file
+<code>.hqlsp</code>. Gọi ở ngoài sẽ báo lỗi:
+<code>'param()' chỉ dùng được bên trong Servlet hoặc file .hqlsp</code>.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 15 ═══════════════ -->
+<section id="s15">
+<h2><span class="n">15</span>Đóng gói lên Tomcat 10.1</h2>
+
+<div class="file">deploy.hql</div>
+<pre><code>use hql.web;
+
+var TEN_PROJECT = "QuanLyKho";   // = tên trên URL
+var FILE_MAIN   = "web.hql";     // file main của bạn
+
+webRoot("web");
+webExportTomcat(TEN_PROJECT, FILE_MAIN);</code></pre>
+
+<pre><code>.\run.bat deploy.hql</code></pre>
+
+<p>Sẽ sinh ra thư mục:</p>
+<pre><code>QuanLyKho/
+├── index.hqlsp, BaoCaoServlet.hql, style.css ...
+└── WEB-INF/
+    ├── web.xml        (đã khai sẵn me.hql.script.LinhScriptRunner$HqlServlet)
+    ├── main.hql       (chính là file main của bạn)
+    ├── classes/       (trình thông dịch HQL đã biên dịch)
+    └── lib/           (các .jar, vd driver SQL Server)</code></pre>
+
+<p>Chép thư mục <code>QuanLyKho</code> vào <code>&lt;Tomcat&gt;/webapps/</code>,
+khởi động Tomcat rồi mở <code>http://localhost:8080/QuanLyKho</code>.</p>
+
+<div class="cal good">
+<span class="lbl">Một file main, chạy được cả 2 nơi</span>
+<p>Khi chạy trong Tomcat, <code>webStart()</code> và <code>webWait()</code>
+<b>tự động vô hiệu</b> (Tomcat đã là máy chủ rồi), tên project lấy theo tên thư mục
+trong <code>webapps/</code> — nên không phải sửa gì cả.</p>
+</div>
+</section>
+
+<!-- ═══════════════ 16 ═══════════════ -->
+<section id="s16">
+<h2><span class="n">16</span>Lỗi thường gặp</h2>
+
+<div class="tbl">
+<table>
+<thead><tr><th>Lỗi</th><th>Nguyên nhân &amp; cách sửa</th></tr></thead>
+<tbody>
+
+<tr><td><code>UnsupportedClassVersionError ... class file version 65.0 ... up to 52.0</code></td>
+    <td>Đang chạy bằng <b>Java 8</b> trong khi mã biên dịch bằng <b>Java 21</b>.
+        Dùng <code>run.bat</code> (đã trỏ thẳng vào JDK 21), hoặc đặt
+        <code>JAVA_HOME</code> và đưa <code>%JAVA_HOME%\bin</code> lên
+        <b>trên</b> <code>...\Oracle\Java\java8path</code> trong biến <code>Path</code>.</td></tr>
+
+<tr><td><code>ClassNotFoundException: com.microsoft.sqlserver.jdbc.SQLServerDriver</code></td>
+    <td>Thiếu jar JDBC trong classpath. Kiểm tra
+        <code>lib\mssql-jdbc-13.4.0.jre11.jar</code> có tồn tại và
+        <code>run.bat</code> đang dùng <code>lib\*</code>.</td></tr>
+
+<tr><td>Trang hiện ra nhưng <b>mất hết CSS</b></td>
+    <td>Nhúng thiếu <code>webContext()</code>. Phải là
+        <code>href="&lt;%= webContext() %&gt;/style.css"</code>.</td></tr>
+
+<tr><td><b>404</b> khi mở servlet</td>
+    <td>Sai quy ước tên file. Muốn URL <code>/BaoCao</code> thì file phải tên đúng
+        <code>BaoCaoServlet.hql</code>, đặt trong <code>web/</code>,
+        <code>web/servlets/</code> hoặc <code>web/WEB-INF/hql/</code>.</td></tr>
+
+<tr><td><b>403</b> — Không được xem mã nguồn file .hql</td>
+    <td>Bạn gõ thẳng <code>/BaoCaoServlet.hql</code> lên trình duyệt.
+        Phải gõ <code>/BaoCao</code> (bỏ chữ <code>Servlet.hql</code>).</td></tr>
+
+<tr><td><code>'param()' chỉ dùng được bên trong Servlet hoặc file .hqlsp</code></td>
+    <td>Gọi hàm web ở ngoài ngữ cảnh request — ví dụ gọi <code>param()</code>
+        ngay trong <code>web.hql</code> ở mức ngoài cùng.</td></tr>
+
+<tr><td>Sửa <code>.hqlsp</code> mà trang không đổi</td>
+    <td>Nhấn <code>Ctrl+F5</code> để trình duyệt bỏ cache. Nếu vẫn vậy thì
+        tắt máy chủ (Ctrl+C) và chạy lại.</td></tr>
+
+<tr><td><code>Address already in use: bind</code></td>
+    <td>Cổng 8080 đang bị chiếm (thường do lần chạy trước chưa tắt hẳn, hoặc Tomcat
+        đang chạy). Đổi <code>var CONG = 8081;</code> hoặc tắt tiến trình cũ.</td></tr>
+
+<tr><td>Chương trình chạy xong tự thoát, web không mở được</td>
+    <td>Thiếu <code>webWait();</code> ở cuối file main.</td></tr>
+
+<tr><td>Tiếng Việt hiển thị thành <code>?????</code></td>
+    <td>Thiếu <code>&lt;meta charset="utf-8"&gt;</code> trong HTML, hoặc chạy thiếu
+        <code>-Dfile.encoding=UTF-8</code>.</td></tr>
+
+</tbody>
+</table>
+</div>
+</section>
+
+<p class="end">docs/CachCodeLinhScript.html — HQL Web</p>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module version="4">
+  <component name="NewModuleRootManager" inherit-compiler-output="true">
+    <exclude-output />
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module-library" exported="">
+      <library>
+        <CLASSES>
+          <root url="jar://C:/Program Files/Apache Software Foundation/Tomcat 10.1/lib/servlet-api.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <!--
+      Toàn bộ thư viện .jar lấy từ thư mục lib/ NGAY TRONG PROJECT.
+
+      TRƯỚC ĐÂY trỏ vào "D:/Tải xuống/..." và bị lỗi
+      NoClassDefFoundError: jakarta/mail/Authenticator.
+      Lý do: máy Java trên Windows đọc tham số -classpath theo bảng mã
+      sun.jnu.encoding (ở máy này là Cp1252), mà Cp1252 KHÔNG biểu diễn được
+      dấu tiếng Việt. Đường dẫn bị biến dạng -> không thấy file .jar ->
+      Java lặng lẽ bỏ qua (không báo lỗi) -> tới lúc cần lớp thì mới văng lỗi.
+
+      Dùng jarDirectory nên cứ thả thêm .jar vào lib/ là tự được nạp,
+      không phải khai báo lại từng file.
+    -->
+    <orderEntry type="module-library" exported="">
+      <library name="lib">
+        <CLASSES>
+          <root url="file://$MODULE_DIR$/lib" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+        <jarDirectory url="file://$MODULE_DIR$/lib" recursive="false" />
+      </library>
+    </orderEntry>
+  </component>
+</module>
