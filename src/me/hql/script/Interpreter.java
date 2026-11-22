@@ -1115,8 +1115,10 @@ public class Interpreter {
         loadHqlServlet(file);
         String key = file.getCanonicalPath();
 
-        String verb = "do" + ctx.method.charAt(0) + ctx.method.substring(1).toLowerCase();  // GET -> doGet, POST -> doPost
-        if (ctx.method.equals("QUERY")) verb = "doQuery";   // HTTP QUERY method -> doQuery()
+        // GET -> doGet, POST -> doPost, QUERY (HTTP QUERY method) -> doQuery. Kept final: it is used inside a lambda below.
+        final String verb = ctx.method.equals("QUERY")
+                ? "doQuery"
+                : "do" + ctx.method.charAt(0) + ctx.method.substring(1).toLowerCase();
         final String[] candidates = {verb, "service", "doGet", "main"};
 
         withServletScope(key, () -> {
@@ -8788,8 +8790,8 @@ public class Interpreter {
                         String path = stringify(args.get(1));
                         String kind = name.equals("exportXlsx") ? "xlsx"
                                 : name.equals("exportDocx") ? "docx"
-                                : name.equals("exportPdf") ? "pdf"
-                                : HqlExport.kindOfPath(path);
+                                  : name.equals("exportPdf") ? "pdf"
+                                    : HqlExport.kindOfPath(path);
                         if (kind.isEmpty()) {
                             throw new RuntimeException("Không đoán được định dạng từ đuôi tệp '" + path + "' (dùng .xlsx, .docx, .pdf hoặc .csv).");
                         }
