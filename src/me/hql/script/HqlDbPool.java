@@ -124,10 +124,42 @@ public final class HqlDbPool implements AutoCloseable {
         }
     }
 
+    /**
+     * Load the JDBC driver for the URL explicitly with a constant class name.
+     * In a GraalVM native image DriverManager's ServiceLoader scan finds nothing ("No suitable driver"),
+     * but Class.forName("literal") is detected at build time, so the driver gets compiled in and registers itself.
+     * On a normal JVM this is harmless: it just loads the driver a little earlier.
+     */
+    private static volatile String driverLoadNote = "";
+
+    private static void loadDriver(String url) {
+        if (url == null) return;
+        driverLoadNote = "";
+        try {
+            if (url.startsWith("jdbc:sqlserver:")) Class.forName("com.microsoft.sqlserver.jdbc.SQLServerDriver");
+            else if (url.startsWith("jdbc:mysql:")) Class.forName("com.mysql.cj.jdbc.Driver");
+            else if (url.startsWith("jdbc:postgresql:")) Class.forName("org.postgresql.Driver");
+            else if (url.startsWith("jdbc:sqlite:")) Class.forName("org.sqlite.JDBC");
+            else if (url.startsWith("jdbc:mariadb:")) Class.forName("org.mariadb.jdbc.Driver");
+        } catch (Throwable ex) {
+            // driver jar missing or its static init failed: remember the real reason to show it below
+            StringBuilder why = new StringBuilder(" [driver load failed: ").append(ex);
+            for (Throwable c = ex.getCause(); c != null && c != c.getCause(); c = c.getCause()) why.append(" <- ").append(c);
+            driverLoadNote = why.append("]").toString();
+        }
+    }
+
     private Entry open() throws SQLException {
-        Connection c = (cfg.user == null)
-                ? DriverManager.getConnection(cfg.url)
-                : DriverManager.getConnection(cfg.url, cfg.user, cfg.pass);
+        loadDriver(cfg.url);
+        Connection c;
+        try {
+            c = (cfg.user == null)
+                    ? DriverManager.getConnection(cfg.url)
+                    : DriverManager.getConnection(cfg.url, cfg.user, cfg.pass);
+        } catch (SQLException ex) {
+            if (!driverLoadNote.isEmpty()) throw new SQLException(ex.getMessage() + driverLoadNote, ex.getSQLState(), ex.getErrorCode(), ex);
+            throw ex;
+        }
         total.incrementAndGet();
         return new Entry(c);
     }
