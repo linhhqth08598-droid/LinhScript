@@ -15,6 +15,6 @@ public class Token {
 
     @Override
     public String toString() {
-        return "[" + type + ": " + value + " (Dòng " + line + ")]";
+        return "[" + type + ": " + value + " (line " + line + ")]";
     }
 }

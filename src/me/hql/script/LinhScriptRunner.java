@@ -10,17 +10,17 @@ public class LinhScriptRunner {
      * Dò ngược lên từ vị trí file chạy (jpackage.app-path hoặc Native Image) để tìm một file
      * theo đường dẫn tương đối. Trả về null nếu không thấy.
      */
-    private static String timCanhFileChay(String duongDanTuongDoi) {
-        String duAn = System.getProperty("jpackage.app-path");
-        if (duAn == null) {
-            duAn = ProcessHandle.current().info().command().orElse(null);
+    private static String findBesideRunFile(String relativePathString) {
+        String projectName = System.getProperty("jpackage.app-path");
+        if (projectName == null) {
+            projectName = ProcessHandle.current().info().command().orElse(null);
         }
-        if (duAn == null) { return null; }
-        java.io.File thuMuc = new java.io.File(duAn).getAbsoluteFile().getParentFile();
-        for (int i = 0; thuMuc != null && i < 12; i++) {
-            java.io.File thu = new java.io.File(thuMuc, duongDanTuongDoi);
-            if (thu.exists()) { return thu.getAbsolutePath(); }
-            thuMuc = thuMuc.getParentFile();
+        if (projectName == null) { return null; }
+        java.io.File dirName = new java.io.File(projectName).getAbsoluteFile().getParentFile();
+        for (int i = 0; dirName != null && i < 12; i++) {
+            java.io.File tryItem = new java.io.File(dirName, relativePathString);
+            if (tryItem.exists()) { return tryItem.getAbsolutePath(); }
+            dirName = dirName.getParentFile();
         }
         return null;
     }
@@ -52,29 +52,29 @@ public class LinhScriptRunner {
 
             // --- BẪY LỖI SAI ĐƯỜNG DẪN FILE ---
             if (!Files.exists(Paths.get(entryPoint))) {
-                String lai = timCanhFileChay(entryPoint);
-                if (lai == null) {
+                String retryPath = findBesideRunFile(entryPoint);
+                if (retryPath == null) {
                     System.err.println(ANSI_RED + "Lỗi hệ thống: Không tìm thấy file '" + entryPoint + "'" + ANSI_RESET);
                     return;
                 }
-                entryPoint = lai;
+                entryPoint = retryPath;
             }
             interpreter.runFile(entryPoint);
         } catch (Exception e) {
-            Throwable rootCause = BaoLoi.goc(e);
+            Throwable rootCause = ErrorReport.rootCauseOf(e);
             Token errToken = interpreter.getLastExecutedToken();
 
-            System.err.println(BaoLoi.banChu(rootCause, errToken, interpreter.getNganXepGoi(), true));
+            System.err.println(ErrorReport.textReport(rootCause, errToken, interpreter.getCallStackSnapshot(), true));
 
             if (errToken == null) {
-                inViTriTuCauBao(rootCause.getMessage(), args[0]);
+                printLocationFromMessage(rootCause.getMessage(), args[0]);
             }
             System.exit(1);
         }
     }
 
     /** Dựng dòng "at <đường dẫn>:<số dòng>" từ câu báo lỗi của Lexer. */
-    private static void inViTriTuCauBao(String errorMessage, String entryPoint) {
+    private static void printLocationFromMessage(String errorMessage, String entryPoint) {
         try {
             String absolutePath = Paths.get(entryPoint).toAbsolutePath().normalize().toString();
             String lineSuffix = "";
@@ -102,7 +102,7 @@ public class LinhScriptRunner {
         public void init() {
             interpreter = new Interpreter();
             interpreter.webInitForContainer(getServletContext().getRealPath("/"));
-            log("[HQL] Động cơ HQL Web đã khởi động tại: " + getServletContext().getRealPath("/"));
+            log("[HQL] HQL Web engine started at: " + getServletContext().getRealPath("/"));
         }
 
         @Override

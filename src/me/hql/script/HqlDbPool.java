@@ -214,7 +214,7 @@ public final class HqlDbPool implements AutoCloseable {
     /** Ví dụ: "dang dung 1 / nhan roi 4 / tong 5 / toi da 10". */
     public String stats() {
         int tot = total.get(), id = idle.size();
-        return "đang dùng " + Math.max(0, tot - id) + " / nhàn rỗi " + id + " / tổng " + tot + " / tối đa " + cfg.maxSize;
+        return "in use " + Math.max(0, tot - id) + " / idle " + id + " / total " + tot + " / max " + cfg.maxSize;
     }
 
     public int activeCount() { return Math.max(0, total.get() - idle.size()); }

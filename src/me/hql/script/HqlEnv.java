@@ -101,8 +101,8 @@ public final class HqlEnv {
                 for (Map.Entry<String, String> e : parsed.entrySet()) {
                     if (override || !VALUES.containsKey(e.getKey())) VALUES.put(e.getKey(), e.getValue());
                 }
-                String duongDan = f.getAbsolutePath();
-                if (!LOADED_FILES.contains(duongDan)) LOADED_FILES.add(duongDan);   // không ghi trùng cùng một tệp
+                String pathString = f.getAbsolutePath();
+                if (!LOADED_FILES.contains(pathString)) LOADED_FILES.add(pathString);   // không ghi trùng cùng một tệp
             }
             return true;
         } catch (IOException ex) {

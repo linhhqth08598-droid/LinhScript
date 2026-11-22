@@ -38,12 +38,12 @@ Chạy `LinhScriptRunner web.hql`, cửa sổ Run sẽ **tự in ra toàn bộ �
 =========================================================
    HQL WEB SERVER - QuanLyKho
 =========================================================
-   Dia chi        : http://localhost:8080/QuanLyKho/
-   Trong mang LAN : http://26.62.109.68:8080/QuanLyKho/
-   Thu muc goc    : D:\...\web
+   Address        : http://localhost:8080/QuanLyKho/
+   LAN address    : http://26.62.109.68:8080/QuanLyKho/
+   Root folder    : D:\...\web
 ---------------------------------------------------------
    [Servlet] http://localhost:8080/QuanLyKho/BaoCao        BaoCaoServlet.hql
-   [Trang]   http://localhost:8080/QuanLyKho/              index.hqlsp
+   [Page]   http://localhost:8080/QuanLyKho/              index.hqlsp
    [Route]   http://localhost:8080/QuanLyKho/api/sanpham   apiSanPham()
 =========================================================
 ```
@@ -190,3 +190,26 @@ tên project lấy theo tên thư mục trong `webapps/` — nên cùng một fi
 - Không bao giờ trả mã nguồn `.hql` ra trình duyệt.
 - `querySafe()` / `executeSafe()` dùng tham số `?` chống SQL Injection.
 - `htmlEscape()` chống XSS khi in dữ liệu người dùng nhập.
+
+---
+
+## 5. doQuery() và httpQuery() — phương thức HTTP QUERY
+
+`QUERY` là phương thức HTTP an toàn (chỉ đọc, giống GET) nhưng được gửi kèm **body**, dùng cho truy vấn dài/phức tạp.
+
+```java
+// web/TimKiemServlet.hql
+func doQuery() {
+    var dieuKien = webBody();                 // body của request QUERY
+    webJson(query("SELECT * FROM Products WHERE " + dieuKien));
+}
+```
+
+Phía client (hql.net):
+
+```java
+var kq = httpQuery("http://localhost:8080/QuanLyKho/timkiem", "Price > 100");
+```
+
+Servlet không có `doQuery()` thì request QUERY rơi về `service()` rồi `doGet()`.
+Trong servlet, `query("SELECT ...")` vẫn là hàm truy vấn database của `hql.database`.

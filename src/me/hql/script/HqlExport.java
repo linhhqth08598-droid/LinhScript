@@ -380,7 +380,7 @@ public final class HqlExport {
                 int start = 0;
                 if (hdr instanceof List) { for (Object h : (List<?>) hdr) k.add(textOf(h)); }
                 else if (!grid.isEmpty()) { for (Object h : grid.get(0)) k.add(textOf(h)); start = 1; }
-                while (k.size() < width) k.add("Cột " + (k.size() + 1));
+                while (k.size() < width) k.add("Column " + (k.size() + 1));
                 for (int r = start; r < grid.size(); r++) {
                     Object[] row = new Object[k.size()];
                     List<Object> src = grid.get(r);
@@ -388,7 +388,7 @@ public final class HqlExport {
                     rs.add(row);
                 }
             } else if (first != null) {
-                k.add("Giá trị");
+                k.add("Value");
                 for (Object o : list) rs.add(new Object[]{o});
             } else {
                 Object hdr = g(opt, "headers", "tieudecot");
@@ -1626,11 +1626,11 @@ public final class HqlExport {
         int add(String body) { return add(body.getBytes(StandardCharsets.ISO_8859_1)); }
 
         byte[] stream(String dict, byte[] raw) throws IOException {
-            ByteArrayOutputStream bo = new ByteArrayOutputStream();
+            ByteArrayOutputStream byteOut = new ByteArrayOutputStream();
             Deflater df = new Deflater(Deflater.BEST_COMPRESSION);
-            try (DeflaterOutputStream d = new DeflaterOutputStream(bo, df)) { d.write(raw); }
+            try (DeflaterOutputStream d = new DeflaterOutputStream(byteOut, df)) { d.write(raw); }
             df.end();
-            byte[] z = bo.toByteArray();
+            byte[] z = byteOut.toByteArray();
             ByteArrayOutputStream o = new ByteArrayOutputStream();
             o.write(("<< " + dict + " /Length " + z.length + " /Filter /FlateDecode >>\nstream\n").getBytes(StandardCharsets.ISO_8859_1));
             o.write(z);
@@ -1679,9 +1679,9 @@ public final class HqlExport {
                     cm.append("endbfchar\n");
                 }
                 cm.append("endcmap CMapName currentdict /CMap defineresource pop end end");
-                int tu = add(stream("", cm.toString().getBytes(StandardCharsets.ISO_8859_1)));
+                int fromVal = add(stream("", cm.toString().getBytes(StandardCharsets.ISO_8859_1)));
 
-                int type0 = add("<< /Type /Font /Subtype /Type0 /BaseFont /" + base + " /Encoding /Identity-H /DescendantFonts [" + cid + " 0 R] /ToUnicode " + tu + " 0 R >>");
+                int type0 = add("<< /Type /Font /Subtype /Type0 /BaseFont /" + base + " /Encoding /Identity-H /DescendantFonts [" + cid + " 0 R] /ToUnicode " + fromVal + " 0 R >>");
                 fontObj.put(f.name, type0);
             }
 

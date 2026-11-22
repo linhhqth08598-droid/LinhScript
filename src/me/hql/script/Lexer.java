@@ -149,6 +149,7 @@ public class Lexer {
         // hql.net thư viện Networking
         KEYWORDS.put("httpGet", "httpGet");
         KEYWORDS.put("httpPost", "httpPost");
+        KEYWORDS.put("httpQuery", "httpQuery");
         KEYWORDS.put("download", "download");
         KEYWORDS.put("isOnline", "isOnline");
         KEYWORDS.put("addHeader", "addHeader");
@@ -923,12 +924,12 @@ public class Lexer {
                 // So dong cua token phai la cho MO khoi. Lay dong dong thi mot khoi
                 // HTML 200 dong se bao loi o tan cuoi khoi, xa han cau printWeb(...)
                 // dang hong - doc bao loi xong van khong biet tim o dau.
-                int dongMoKhoi = currentLine;
+                int blockOpenLine = currentLine;
                 for (char ch : code.substring(0, endBlock + 3).toCharArray()) {
                     if (ch == '\n') currentLine++;
                 }
 
-                tokens.add(new Token("STRING", stripTextBlock(raw), fileName, dongMoKhoi));
+                tokens.add(new Token("STRING", stripTextBlock(raw), fileName, blockOpenLine));
                 code = code.substring(endBlock + 3);
                 continue;
             }
@@ -950,8 +951,8 @@ public class Lexer {
 
                 if (endQuote < code.length()) {
                     // Dịch ngược các ký tự escape về dạng chuẩn (quét 1 lượt, không bị dịch chồng)
-                    String tho = code.substring(1, endQuote);   // nguyen van nam trong file
-                    String strValue = unescape(tho);
+                    String rawText = code.substring(1, endQuote);   // nguyen van nam trong file
+                    String strValue = unescape(rawText);
                     tokens.add(new Token("STRING", strValue, fileName, currentLine));
 
                     // Cập nhật số dòng nếu trong chuỗi có dấu xuống dòng
@@ -966,8 +967,8 @@ public class Lexer {
                      * 2800: mui ten >> chi vao dong chu thich chu khong phai cau lenh
                      * dang hong. Chi dau xuong dong THAT trong ma nguon moi duoc tinh.
                      */
-                    for (int iTho = 0; iTho < tho.length(); iTho++) {
-                        if (tho.charAt(iTho) == '\n') currentLine++;
+                    for (int rawIdx = 0; rawIdx < rawText.length(); rawIdx++) {
+                        if (rawText.charAt(rawIdx) == '\n') currentLine++;
                     }
 
                     code = code.substring(endQuote + 1);

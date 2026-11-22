@@ -167,7 +167,7 @@ public class Interpreter {
          * loại đó vẫn phải tự giữ khoá — không thì luồng khác ghi một cái là
          * ném ConcurrentModificationException giữa chừng.
          */
-        public java.util.Set<String> tenBien() {
+        public java.util.Set<String> variableName() {
             synchronized (variables) { return new java.util.HashSet<>(variables.keySet()); }
         }
 
@@ -252,10 +252,10 @@ public class Interpreter {
      * Tách vùng nhớ theo luồng mới là đúng gốc: biến cục bộ ai nấy giữ, còn biến
      * toàn cục vẫn chung một gốc nên mọi luồng vẫn thấy CONG, TEN_PROJECT...
      */
-    private final Scope scopeGoc = new Scope();
-    private final ThreadLocal<Scope> scopeCuaLuong = ThreadLocal.withInitial(() -> scopeGoc);
-    private Scope scope() { return scopeCuaLuong.get(); }
-    private void datScope(Scope s) { scopeCuaLuong.set(s); }
+    private final Scope rootScope = new Scope();
+    private final ThreadLocal<Scope> threadScope = ThreadLocal.withInitial(() -> rootScope);
+    private Scope scope() { return threadScope.get(); }
+    private void setScope(Scope s) { threadScope.set(s); }
     private final HashMap<String, FunctionDef> functionMemory = new HashMap<>();
     private final HashMap<String, HqlClass> hqlClasses = new HashMap<>();
     private final Set<String> usedLibraries = new HashSet<>();
@@ -288,15 +288,15 @@ public class Interpreter {
     //  cai o luong hen gio. Doc bao loi kieu do la di lac duong ngay.
     //  Tach vet theo luong la het chen nhau.
     // ------------------------------------------------------------------
-    private static final class VetChay {
-        Token cuoi = null;                                                   // cau lenh cuoi cung da chay
-        final java.util.ArrayDeque<BaoLoi.Khung> nganXep = new java.util.ArrayDeque<>();
+    private static final class ExecTrace {
+        Token lastToken = null;                                                   // cau lenh cuoi cung da chay
+        final java.util.ArrayDeque<ErrorReport.StackFrame> callStack = new java.util.ArrayDeque<>();
     }
-    private final ThreadLocal<VetChay> vetChay = ThreadLocal.withInitial(VetChay::new);
-    private VetChay vet() { return vetChay.get(); }
+    private final ThreadLocal<ExecTrace> execTrace = ThreadLocal.withInitial(ExecTrace::new);
+    private ExecTrace trace() { return execTrace.get(); }
 
     /** Có in báo lỗi chi tiết (file, dòng, mã nguồn) ra trình duyệt không. */
-    private boolean webHienLoiChiTiet = true;
+    private boolean webShowDetailedErrors = true;
     // --- BỘ NHỚ GIAO DIỆN HQL.UI ---
     private JFrame hqlWindow = null;
     private JPanel hqlPanel = null;
@@ -317,15 +317,15 @@ public class Interpreter {
 
     /** Bắt buộc phải có kết nối trước khi chạy lệnh SQL (nếu .henv có cấu hình DB thì tự kết nối). */
     private void requireDb() {
-        if (dbPool == null && !dbTuKetNoiTuHenv()) {
+        if (dbPool == null && !dbConnectFromHenv()) {
             throw new RuntimeException("Chưa kết nối Database! Hãy gọi connect(...) hoặc connectEnv() trước, "
                     + "hoặc khai báo DB_HOST / DB_NAME / DB_USER / DB_PASSWORD trong tệp .henv.");
         }
     }
 
     /** Có thể chạy SQL được không (đang trong giao dịch, đã có bể, hoặc tự nối được từ .henv). */
-    private boolean dbSanSang() {
-        return dbTx.get() != null || dbPool != null || dbTuKetNoiTuHenv();
+    private boolean dbReady() {
+        return dbTx.get() != null || dbPool != null || dbConnectFromHenv();
     }
 
     /**
@@ -343,17 +343,17 @@ public class Interpreter {
         }
     }
 
-    private boolean dbCoCauHinhTrongHenv() {
+    private boolean dbConfiguredInHenv() {
         return HqlEnv.first(null, "DB_URL", "db.url") != null
                 || HqlEnv.first(null, "DB_NAME", "db.dbname", "DB_DATABASE") != null;
     }
 
     /** Tự kết nối theo .henv (chỉ chạy khi script chưa gọi connect). Kiểu "lười": lần dùng đầu tiên mới nối. */
-    private synchronized boolean dbTuKetNoiTuHenv() {
+    private synchronized boolean dbConnectFromHenv() {
         if (dbPool != null) return true;
-        if (!dbCoCauHinhTrongHenv()) return false;
+        if (!dbConfiguredInHenv()) return false;
         try {
-            dbMoBe(dbTargetTuHenv());
+            dbOpenPool(dbTargetFromHenv());
             return true;
         } catch (Exception e) {
             lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
@@ -363,7 +363,7 @@ public class Interpreter {
     }
 
     /** Đọc DB_URL hoặc (DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD); nhận cả khoá kiểu db.hostname. */
-    private DbTarget dbTargetTuHenv() throws SQLException {
+    private DbTarget dbTargetFromHenv() throws SQLException {
         String url  = HqlEnv.first(null, "DB_URL", "db.url");
         String user = HqlEnv.first(null, "DB_USER", "DB_USERNAME", "db.username");
         String pass = HqlEnv.first(null, "DB_PASSWORD", "DB_PASS", "db.password");
@@ -392,7 +392,7 @@ public class Interpreter {
     }
 
     /** Mở bể mới rồi đổi sang dùng nó (bể cũ, nếu có, đóng sau). Ném SQLException nếu sai thông tin đăng nhập. */
-    private void dbMoBe(DbTarget t) throws SQLException {
+    private void dbOpenPool(DbTarget t) throws SQLException {
         HqlDbPool.Config c = new HqlDbPool.Config();
         c.url = t.url; c.user = t.user; c.pass = t.pass;
         int max = dbPoolMax > 0 ? dbPoolMax : HqlEnv.getInt("DB_POOL_MAX", 10);
@@ -401,21 +401,21 @@ public class Interpreter {
         c.maxSize = max;
         c.minIdle = min;
         c.connectionTimeoutMs = HqlEnv.getInt("DB_TIMEOUT_MS", 15000);
-        HqlDbPool moi = new HqlDbPool(c);
-        HqlDbPool cu = dbPool;
-        dbPool = moi;
-        if (cu != null) cu.close();
+        HqlDbPool newPool = new HqlDbPool(c);
+        HqlDbPool previousPool = dbPool;
+        dbPool = newPool;
+        if (previousPool != null) previousPool.close();
     }
 
     /** Đóng bể hiện tại (kết nối đang cho mượn sẽ tự đóng khi được trả). */
-    private void dbDongBe() {
+    private void dbClosePool() {
         HqlDbPool p = dbPool;
         dbPool = null;
         if (p != null) p.close();
     }
 
     /** Request/luồng kết thúc mà còn giao dịch bỏ dở → hủy, kẻo luồng web này (dùng lại cho request sau) kẹt trong giao dịch cũ. */
-    private void dbHuyGiaoDichBoQuen() {
+    private void dbRollbackForgottenTx() {
         Connection tx = dbTx.get();
         if (tx == null) return;
         dbTx.remove();
@@ -424,7 +424,7 @@ public class Interpreter {
         System.err.println("[HQL.DATABASE] Cảnh báo: giao dịch chưa commit/rollback khi kết thúc request — đã tự rollback.");
     }
 
-    private void dbGhiNhoKhoaVuaSinh(PreparedStatement ps) {
+    private void dbRememberGeneratedKey(PreparedStatement ps) {
         try (ResultSet k = ps.getGeneratedKeys()) {
             if (k != null && k.next()) {
                 Object v = k.getObject(1);
@@ -577,22 +577,22 @@ public class Interpreter {
     // ==========================================================================================
 
     /** Đổi object/mảng/map của script sang dạng thuần (Map, List) mà HqlExport đọc được. */
-    private Object exportChuanHoa(Object v) {
+    private Object exportNormalize(Object v) {
         if (v instanceof HqlObject) {
             HqlObject o = (HqlObject) v;
             LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-            for (String f : o.hqlClass.fields) m.put(f, exportChuanHoa(o.fields.get(f)));
-            for (Map.Entry<String, Object> e : o.fields.entrySet()) m.putIfAbsent(e.getKey(), exportChuanHoa(e.getValue()));
+            for (String f : o.hqlClass.fields) m.put(f, exportNormalize(o.fields.get(f)));
+            for (Map.Entry<String, Object> e : o.fields.entrySet()) m.putIfAbsent(e.getKey(), exportNormalize(e.getValue()));
             return m;
         }
         if (v instanceof List) {
             ArrayList<Object> l = new ArrayList<>();
-            for (Object x : (List<?>) v) l.add(exportChuanHoa(x));
+            for (Object x : (List<?>) v) l.add(exportNormalize(x));
             return l;
         }
         if (v instanceof Map) {
             LinkedHashMap<String, Object> m = new LinkedHashMap<>();
-            for (Map.Entry<?, ?> e : ((Map<?, ?>) v).entrySet()) m.put(String.valueOf(e.getKey()), exportChuanHoa(e.getValue()));
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) v).entrySet()) m.put(String.valueOf(e.getKey()), exportNormalize(e.getValue()));
             return m;
         }
         return v;
@@ -603,10 +603,10 @@ public class Interpreter {
      * còn lại (mảng bản ghi, mảng các mảng, 1 bản ghi) = dữ liệu có sẵn.
      * Bảng rỗng vẫn giữ được dòng tiêu đề nhờ nhét "headers" vào tuỳ chọn.
      */
-    private Object exportDuLieu(Object data, Map<String, Object> opt) throws SQLException {
+    private Object exportData(Object data, Map<String, Object> opt) throws SQLException {
         if (data instanceof String) {
             final String sql = (String) data;
-            if (!dbSanSang()) {
+            if (!dbReady()) {
                 throw new RuntimeException("Dữ liệu là chuỗi SQL nên cần kết nối Database (connect(...) / connectEnv()). "
                         + "Hoặc truyền vào một mảng dữ liệu.");
             }
@@ -628,7 +628,7 @@ public class Interpreter {
                 }
             });
         }
-        return exportChuanHoa(data);
+        return exportNormalize(data);
     }
 
     /** Bọc 1 ô dữ liệu CSV theo chuẩn RFC 4180. */
@@ -697,7 +697,7 @@ public class Interpreter {
         if (mainFile.isFile()) {
             try {
                 runFile(mainFile.getPath());
-                System.out.println("[HQL.WEB] Đã nạp file main: " + mainFile.getPath());
+                System.out.println("[HQL.WEB] Loaded main file: " + mainFile.getPath());
             } catch (Exception e) {
                 System.err.println("[HQL.WEB] Lỗi khi chạy file main '" + mainFile.getPath() + "': " + e.getMessage());
             }
@@ -724,8 +724,8 @@ public class Interpreter {
              * TRƯỚC — báo lỗi in ra "doPost() được gọi tại main.hql:1250" trong khi
              * doPost nằm ở DongBoServlet.hql. Nhìn là biết sai mà rất khó đoán vì sao.
              */
-            vet().nganXep.clear();
-            vet().cuoi = null;
+            trace().callStack.clear();
+            trace().lastToken = null;
 
             try {
                 routeWebRequest(ctx);
@@ -733,23 +733,23 @@ public class Interpreter {
                 // ------------------------------------------------------
                 //  BÁO LỖI ĐẦY ĐỦ — xem lớp BaoLoi để biết nó in những gì
                 // ------------------------------------------------------
-                Throwable goc = BaoLoi.goc(e);
+                Throwable rootErr = ErrorReport.rootCauseOf(e);
 
                 // In ra cửa sổ dòng lệnh trước: dù trình duyệt có đóng ngay thì
                 // nhật ký máy chủ vẫn còn nguyên vết.
-                System.err.println(BaoLoi.banChu(goc, vet().cuoi, vet().nganXep, true));
+                System.err.println(ErrorReport.textReport(rootErr, trace().lastToken, trace().callStack, true));
 
                 ctx.status = 500;
                 ctx.rawOut = null;
                 ctx.out.setLength(0);
                 ctx.contentType = "text/html; charset=UTF-8";
-                ctx.out.append(webHienLoiChiTiet
-                        ? BaoLoi.banHtml(goc, vet().cuoi, vet().nganXep, ctx.path)
-                        : BaoLoi.banHtmlGon(goc));
+                ctx.out.append(webShowDetailedErrors
+                        ? ErrorReport.htmlReport(rootErr, trace().lastToken, trace().callStack, ctx.path)
+                        : ErrorReport.htmlReportCompact(rootErr));
             } finally {
-                dbHuyGiaoDichBoQuen();      // request xong mà quên commit/rollback -> hủy, đừng để kẹt sang request sau
+                dbRollbackForgottenTx();      // request xong mà quên commit/rollback -> hủy, đừng để kẹt sang request sau
                 webCtx = saved;
-                vet().nganXep.clear();
+                trace().callStack.clear();
             }
         }
     }
@@ -808,9 +808,9 @@ public class Interpreter {
      * như cũ — mở rộng ra cả gốc thì hoá ra chạy hai website chồng nhau.
      * Tham số phải là đường dẫn đã chuyển hết sang chữ thường.
      */
-    private boolean laFileXacMinhGoc(String pathThuong) {
-        if (pathThuong.startsWith("/.well-known/")) return true;   // ACME, App Links, Apple
-        switch (pathThuong) {
+    private boolean isRootVerificationFile(String pathLower) {
+        if (pathLower.startsWith("/.well-known/")) return true;   // ACME, App Links, Apple
+        switch (pathLower) {
             case "/riot.txt":                       // Riot Games
             case "/robots.txt":
             case "/favicon.ico":
@@ -876,19 +876,19 @@ public class Interpreter {
          * điều hành. Chỉ chạy khi cách nhanh phía trên đã trượt, nên không tốn
          * thêm lần đọc đĩa nào cho đường đi bình thường.
          */
-        List<String> canTim = new ArrayList<>();
-        canTim.add((seg + "servlet.hql").toLowerCase());
-        if (seg.toLowerCase().endsWith("servlet")) { canTim.add((seg + ".hql").toLowerCase()); }
+        List<String> wantedNames = new ArrayList<>();
+        wantedNames.add((seg + "servlet.hql").toLowerCase());
+        if (seg.toLowerCase().endsWith("servlet")) { wantedNames.add((seg + ".hql").toLowerCase()); }
 
         for (String folder : new String[]{dir, "/", "/servlets/", "/WEB-INF/hql/"}) {
-            File thuMuc = resolveWebFile(folder);
-            if (thuMuc == null || !thuMuc.isDirectory()) continue;
-            File[] ds = thuMuc.listFiles();
+            File dirName = resolveWebFile(folder);
+            if (dirName == null || !dirName.isDirectory()) continue;
+            File[] ds = dirName.listFiles();
             if (ds == null) continue;
             for (File f : ds) {
                 if (!f.isFile()) continue;
-                String ten = f.getName().toLowerCase();
-                for (String c : canTim) { if (ten.equals(c)) return f; }
+                String fileNameLower = f.getName().toLowerCase();
+                for (String c : wantedNames) { if (fileNameLower.equals(c)) return f; }
             }
         }
         return null;
@@ -1110,7 +1110,7 @@ public class Interpreter {
         return map.get("@" + funcName);   // Hỗ trợ cả kiểu đặt tên public @doGet
     }
 
-    /** Gọi doGet/doPost/service của file servlet theo đúng method của request. */
+    /** Gọi doGet/doPost/doQuery/service của file servlet theo đúng method của request. */
     private void runHqlServletFile(File file, WebContext ctx) throws IOException {
         loadHqlServlet(file);
         String key = file.getCanonicalPath();
@@ -1168,7 +1168,7 @@ public class Interpreter {
             while (wsServer != null && !wsServer.isClosed()) {
                 try {
                     Socket s = wsServer.accept();
-                    Thread t = new Thread(() -> wsPhucVu(s));
+                    Thread t = new Thread(() -> wsServe(s));
                     t.setDaemon(true);
                     t.start();
                 } catch (IOException e) {
@@ -1179,7 +1179,7 @@ public class Interpreter {
         wsThread.setDaemon(true);   // đừng giữ tiến trình sống khi mọi thứ khác đã xong
         wsThread.start();
 
-        System.out.println("[HQL.WS] May chu WebSocket dang nghe o cong " + port);
+        System.out.println("[HQL.WS] WebSocket server listening on port " + port);
     }
 
     private void stopWsServer() {
@@ -1194,7 +1194,7 @@ public class Interpreter {
     }
 
     /** Bắt tay theo RFC 6455 rồi nằm đó nghe cho tới khi bên kia đóng. */
-    private void wsPhucVu(Socket s) {
+    private void wsServe(Socket s) {
         try {
             s.setTcpNoDelay(true);   // tin nhắn ngắn, đừng để Nagle gom lại rồi trễ thêm 40ms
 
@@ -1202,35 +1202,35 @@ public class Interpreter {
             OutputStream out = s.getOutputStream();
 
             // --- Đọc phần đầu HTTP (kết thúc bằng một dòng trống) ---
-            StringBuilder dau = new StringBuilder();
-            int c, lienTiep = 0;
+            StringBuilder headerText = new StringBuilder();
+            int c, consecutiveCount = 0;
             while ((c = in.read()) != -1) {
-                dau.append((char) c);
-                if (c == '\n') { lienTiep++; if (lienTiep == 2) break; }
-                else if (c != '\r') { lienTiep = 0; }
-                if (dau.length() > 8192) break;   // đầu request dài bất thường: bỏ
+                headerText.append((char) c);
+                if (c == '\n') { consecutiveCount++; if (consecutiveCount == 2) break; }
+                else if (c != '\r') { consecutiveCount = 0; }
+                if (headerText.length() > 8192) break;   // đầu request dài bất thường: bỏ
             }
 
-            String khoa = null;
-            for (String dong : dau.toString().split("\r?\n")) {
-                String d = dong.trim();
+            String wsKey = null;
+            for (String lineText : headerText.toString().split("\r?\n")) {
+                String d = lineText.trim();
                 if (d.toLowerCase().startsWith("sec-websocket-key:")) {
-                    khoa = d.substring(d.indexOf(':') + 1).trim();
+                    wsKey = d.substring(d.indexOf(':') + 1).trim();
                 }
             }
-            if (khoa == null) { s.close(); return; }
+            if (wsKey == null) { s.close(); return; }
 
             // --- Sec-WebSocket-Accept = Base64(SHA1(khoa + GUID)) ---
             // Chuỗi GUID này do RFC ấn định, không phải mình bịa ra.
             String GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11";
-            byte[] bam = java.security.MessageDigest.getInstance("SHA-1")
-                    .digest((khoa + GUID).getBytes(StandardCharsets.UTF_8));
-            String nhan = Base64.getEncoder().encodeToString(bam);
+            byte[] sha1Digest = java.security.MessageDigest.getInstance("SHA-1")
+                    .digest((wsKey + GUID).getBytes(StandardCharsets.UTF_8));
+            String wsAcceptKey = Base64.getEncoder().encodeToString(sha1Digest);
 
             out.write(("HTTP/1.1 101 Switching Protocols\r\n"
                     + "Upgrade: websocket\r\n"
                     + "Connection: Upgrade\r\n"
-                    + "Sec-WebSocket-Accept: " + nhan + "\r\n\r\n")
+                    + "Sec-WebSocket-Accept: " + wsAcceptKey + "\r\n\r\n")
                     .getBytes(StandardCharsets.UTF_8));
             out.flush();
 
@@ -1247,13 +1247,13 @@ public class Interpreter {
                 int b1 = in.read();
                 if (b1 == -1) break;
                 boolean coMask = (b1 & 0x80) != 0;
-                long dai = b1 & 0x7F;
+                long payloadLen = b1 & 0x7F;
 
-                if (dai == 126) {
-                    dai = ((long) in.read() << 8) | in.read();
-                } else if (dai == 127) {
-                    dai = 0;
-                    for (int i = 0; i < 8; i++) { dai = (dai << 8) | in.read(); }
+                if (payloadLen == 126) {
+                    payloadLen = ((long) in.read() << 8) | in.read();
+                } else if (payloadLen == 127) {
+                    payloadLen = 0;
+                    for (int i = 0; i < 8; i++) { payloadLen = (payloadLen << 8) | in.read(); }
                 }
 
                 byte[] mask = new byte[4];
@@ -1261,16 +1261,16 @@ public class Interpreter {
 
                 // Khung quá lớn thì cắt kết nối chứ đừng cấp phát theo lời khai
                 // của bên kia — đó là cách dễ nhất để bị làm cạn bộ nhớ.
-                if (dai > 1_000_000) break;
+                if (payloadLen > 1_000_000) break;
 
-                byte[] than = new byte[(int) dai];
-                in.readNBytes(than, 0, (int) dai);
+                byte[] bodyBytes = new byte[(int) payloadLen];
+                in.readNBytes(bodyBytes, 0, (int) payloadLen);
                 if (coMask) {
-                    for (int i = 0; i < than.length; i++) { than[i] = (byte) (than[i] ^ mask[i & 3]); }
+                    for (int i = 0; i < bodyBytes.length; i++) { bodyBytes[i] = (byte) (bodyBytes[i] ^ mask[i & 3]); }
                 }
 
                 if (opcode == 0x8) { break; }                    // close
-                if (opcode == 0x9) { wsGuiKhung(s, 0xA, than); }  // ping -> pong
+                if (opcode == 0x9) { wsSendFrame(s, 0xA, bodyBytes); }  // ping -> pong
             }
         } catch (Exception ignored) {
             // Mất mạng, tab đóng đột ngột, bên kia nói sai giao thức — tất cả
@@ -1282,56 +1282,56 @@ public class Interpreter {
     }
 
     /** Đóng gói một khung theo RFC 6455. Máy chủ gửi thì KHÔNG mask. */
-    private void wsGuiKhung(Socket s, int opcode, byte[] than) throws IOException {
+    private void wsSendFrame(Socket s, int opcode, byte[] bodyBytes) throws IOException {
         OutputStream out = s.getOutputStream();
-        ByteArrayOutputStream khung = new ByteArrayOutputStream();
+        ByteArrayOutputStream wsFrame = new ByteArrayOutputStream();
 
-        khung.write(0x80 | opcode);   // FIN + opcode
+        wsFrame.write(0x80 | opcode);   // FIN + opcode
 
-        if (than.length < 126) {
-            khung.write(than.length);
-        } else if (than.length < 65536) {
-            khung.write(126);
-            khung.write((than.length >> 8) & 0xFF);
-            khung.write(than.length & 0xFF);
+        if (bodyBytes.length < 126) {
+            wsFrame.write(bodyBytes.length);
+        } else if (bodyBytes.length < 65536) {
+            wsFrame.write(126);
+            wsFrame.write((bodyBytes.length >> 8) & 0xFF);
+            wsFrame.write(bodyBytes.length & 0xFF);
         } else {
-            khung.write(127);
-            for (int i = 7; i >= 0; i--) { khung.write((int) ((long) than.length >> (8 * i)) & 0xFF); }
+            wsFrame.write(127);
+            for (int i = 7; i >= 0; i--) { wsFrame.write((int) ((long) bodyBytes.length >> (8 * i)) & 0xFF); }
         }
-        khung.write(than, 0, than.length);
+        wsFrame.write(bodyBytes, 0, bodyBytes.length);
 
         // Một socket không cho hai luồng cùng ghi: khung sẽ đan vào nhau và
         // bên kia nhận được rác. Khoá theo từng socket.
         synchronized (s) {
-            out.write(khung.toByteArray());
+            out.write(wsFrame.toByteArray());
             out.flush();
         }
     }
 
     /** Đẩy một chuỗi xuống MỌI trang đang mở. Trả về số nơi nhận được. */
-    private int wsGuiTatCa(String chu) {
-        byte[] than = chu.getBytes(StandardCharsets.UTF_8);
-        int dem = 0;
+    private int wsBroadcast(String textValue) {
+        byte[] bodyBytes = textValue.getBytes(StandardCharsets.UTF_8);
+        int removedCount = 0;
 
-        List<Socket> chet = new ArrayList<>();
-        List<Socket> ban;
-        synchronized (wsClients) { ban = new ArrayList<>(wsClients); }
+        List<Socket> deadSockets = new ArrayList<>();
+        List<Socket> clientsCopy;
+        synchronized (wsClients) { clientsCopy = new ArrayList<>(wsClients); }
 
-        for (Socket s : ban) {
+        for (Socket s : clientsCopy) {
             try {
-                wsGuiKhung(s, 0x1, than);   // 0x1 = khung chữ
-                dem++;
+                wsSendFrame(s, 0x1, bodyBytes);   // 0x1 = khung chữ
+                removedCount++;
             } catch (Exception e) {
-                chet.add(s);
+                deadSockets.add(s);
             }
         }
 
         // Dọn những kết nối vừa hỏng, không thì lần sau lại thử ghi vào chúng.
-        for (Socket s : chet) {
+        for (Socket s : deadSockets) {
             wsClients.remove(s);
             try { s.close(); } catch (IOException ignored) { }
         }
-        return dem;
+        return removedCount;
     }
 
     private void startWebServer(int port) throws IOException {
@@ -1347,15 +1347,15 @@ public class Interpreter {
     /** In ra cửa sổ Run toàn bộ đường dẫn của website để bấm vào là mở được ngay. */
     private void printWebBanner() {
         String base = "http://localhost:" + webServerPort + webAppContext;
-        String lan = getClientIpAddress();
+        String lanAddress = getClientIpAddress();
 
         System.out.println();
         System.out.println("=========================================================");
         System.out.println("   HQL WEB SERVER - " + webAppContext.substring(1));
         System.out.println("=========================================================");
-        System.out.println("   Dia chi        : " + base + "/");
-        System.out.println("   Trong mang LAN : http://" + lan + ":" + webServerPort + webAppContext + "/");
-        System.out.println("   Thu muc goc    : " + webRootDir.getPath());
+        System.out.println("   Address        : " + base + "/");
+        System.out.println("   LAN address    : http://" + lanAddress + ":" + webServerPort + webAppContext + "/");
+        System.out.println("   Root folder    : " + webRootDir.getPath());
         System.out.println("---------------------------------------------------------");
 
         // Gom hết đường dẫn lại: [loại, url, nguồn]
@@ -1367,7 +1367,7 @@ public class Interpreter {
                 String n = f.getName();
                 String low = n.toLowerCase();
                 if (low.endsWith(".hqlsp") || low.endsWith(".html") || low.endsWith(".htm")) {
-                    rows.add(new String[]{"[Trang]  ", low.startsWith("index.") ? base + "/" : base + "/" + n, n});
+                    rows.add(new String[]{"[Page]   ", low.startsWith("index.") ? base + "/" : base + "/" + n, n});
                 } else if (low.endsWith("servlet.hql")) {
                     /*
                      * IN ĐƯỜNG DẪN BẰNG CHỮ THƯỜNG.
@@ -1378,8 +1378,8 @@ public class Interpreter {
                      * hết, và bộ dò servlet đã nhận cả hai kiểu, nên in kiểu
                      * chuẩn cho khỏi dạy nhau thói quen sai.
                      */
-                    String tenServlet = n.substring(0, n.length() - "Servlet.hql".length());
-                    rows.add(new String[]{"[Servlet]", base + "/" + tenServlet.toLowerCase(), n});
+                    String servletName = n.substring(0, n.length() - "Servlet.hql".length());
+                    rows.add(new String[]{"[Servlet]", base + "/" + servletName.toLowerCase(), n});
                 }
             }
         }
@@ -1393,10 +1393,10 @@ public class Interpreter {
         int width = 0;
         for (String[] r : rows) width = Math.max(width, r[1].length());
         for (String[] r : rows) System.out.println("   " + r[0] + " " + padRight(r[1], width + 3) + r[2]);
-        if (rows.isEmpty()) System.out.println("   (Thư mục gốc chưa có file .hqlsp / .html / <Ten>Servlet.hql nào)");
+        if (rows.isEmpty()) System.out.println("   (Root folder has no .hqlsp / .html / <Name>Servlet.hql files yet)");
 
         System.out.println("=========================================================");
-        System.out.println("   Bam Ctrl+C de dung may chu.");
+        System.out.println("   Press Ctrl+C to stop the server.");
         System.out.println();
     }
 
@@ -1447,16 +1447,16 @@ public class Interpreter {
                  * Chuẩn URL cũng nói phần tên miền không phân biệt hoa thường, nên
                  * người dùng mặc nhiên tưởng cả địa chỉ đều thế.
                  */
-                String rawThuong = rawPath.toLowerCase();
-                String ctxThuong = webAppContext.toLowerCase();
-                if (rawThuong.equals(ctxThuong) || rawPath.equals("/") || rawPath.isEmpty()) {
+                String rawLower = rawPath.toLowerCase();
+                String ctxLower = webAppContext.toLowerCase();
+                if (rawLower.equals(ctxLower) || rawPath.equals("/") || rawPath.isEmpty()) {
                     ex.getResponseHeaders().set("Location", webAppContext + "/");
                     ex.sendResponseHeaders(302, -1);
                     return;
                 }
-                if (rawThuong.startsWith(ctxThuong + "/")) {
+                if (rawLower.startsWith(ctxLower + "/")) {
                     rawPath = rawPath.substring(webAppContext.length());
-                } else if (laFileXacMinhGoc(rawThuong)) {
+                } else if (isRootVerificationFile(rawLower)) {
                     /*
                      * FILE XÁC MINH QUYỀN SỞ HỮU TÊN MIỀN — PHỤC VỤ Ở GỐC.
                      *
@@ -1471,12 +1471,12 @@ public class Interpreter {
                      * Danh sách đóng, không mở cửa cho mọi file ở gốc: chỉ đúng
                      * mấy tên chuẩn dùng để xác minh.
                      */
-                    File fileGoc = resolveWebFile(rawPath);
-                    if (fileGoc != null && fileGoc.isFile()) {
-                        byte[] du = Files.readAllBytes(fileGoc.toPath());
-                        ex.getResponseHeaders().set("Content-Type", webMimeType(fileGoc.getName()));
-                        ex.sendResponseHeaders(200, du.length);
-                        ex.getResponseBody().write(du);
+                    File sourceFile = resolveWebFile(rawPath);
+                    if (sourceFile != null && sourceFile.isFile()) {
+                        byte[] fileBytes = Files.readAllBytes(sourceFile.toPath());
+                        ex.getResponseHeaders().set("Content-Type", webMimeType(sourceFile.getName()));
+                        ex.sendResponseHeaders(200, fileBytes.length);
+                        ex.getResponseBody().write(fileBytes);
                         return;
                     }
                     ex.sendResponseHeaders(404, -1);
@@ -1765,7 +1765,7 @@ public class Interpreter {
                 }
             }
         }
-        System.out.println("[HQL.WEB] Đã đóng gói webapp tại: " + target.getPath());
+        System.out.println("[HQL.WEB] Webapp packaged at: " + target.getPath());
         System.out.println("[HQL.WEB] Chép thư mục này vào <Tomcat>/webapps/ rồi mở http://localhost:8080/" + target.getName());
         return target.getPath();
     }
@@ -1795,7 +1795,7 @@ public class Interpreter {
     private int mouseX = 0, mouseY = 0;
     private boolean mouseLeftDown = false, mouseRightDown = false;
     private boolean mouseLeftPressed = false, mouseRightPressed = false;
-    private final StringBuilder chuDaGo = new StringBuilder();   // ký tự người chơi vừa gõ (ô chat)
+    private final StringBuilder typedText = new StringBuilder();   // ký tự người chơi vừa gõ (ô chat)
     private int frameCount = 0;
 
     // --- BỘ NHỚ GAME ENGINE V2 (NÂNG CẤP CHO GAME HÀNH ĐỘNG) ---
@@ -1835,35 +1835,35 @@ public class Interpreter {
 
     // ================== BỘ NHỚ BẢN ĐỒ & TẦM NHÌN (HQL.GAME - dùng cho game bắn súng) ==================
     // Bản đồ dạng lưới ký tự. Ký tự nào chặn tầm nhìn / chặn đạn do kịch bản khai báo.
-    private char[][] banDoLuoi = null;
-    private int banDoOKichThuoc = 32;
+    private char[][] mapGrid = null;
+    private int mapCellSize = 32;
 
     // --- CHẾ ĐỘ 2.5D NHÌN CHÉO (ISOMETRIC) ---
     // Toạ độ thế giới vẫn là mặt phẳng X-Y bình thường; khi vẽ thì chiếu chéo 45 độ:
     //     sx = (tx - ty) * isoRong/2      sy = (tx + ty) * isoCao/2
     // với tx, ty là toạ độ tính theo Ô.
-    private double isoRong = 64;     // bề rộng hình thoi của một ô
-    private double isoCao = 32;      // chiều cao hình thoi của một ô (tỉ lệ 2:1)
-    private String banDoChanNhin = "#BW";   // ký tự chặn tầm nhìn
-    private String banDoChanDan = "#B";     // ký tự chặn đạn hoàn toàn (W = gỗ: đạn xuyên được)
+    private double isoWidth = 64;     // bề rộng hình thoi của một ô
+    private double isoHeight = 32;      // chiều cao hình thoi của một ô (tỉ lệ 2:1)
+    private String mapViewBlockers = "#BW";   // ký tự chặn tầm nhìn
+    private String mapBulletBlockers = "#B";     // ký tự chặn đạn hoàn toàn (W = gỗ: đạn xuyên được)
 
     /** Quả khói: chặn tầm nhìn theo hình tròn. */
-    private static class QuaKhoi { double x, y, r; }
-    private final List<QuaKhoi> danhSachKhoi = new ArrayList<>();
+    private static class SmokePuff { double x, y, r; }
+    private final List<SmokePuff> smokePuffs = new ArrayList<>();
 
     // ================== BỘ NHỚ MẠNG NHIỀU NGƯỜI CHƠI (HQL.MANG) ==================
-    private ServerSocket mangServerSocket = null;
-    private final ConcurrentHashMap<String, Socket> mangKhach = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<String, BufferedWriter> mangGhiKhach = new ConcurrentHashMap<>();
-    private final java.util.concurrent.BlockingQueue<String[]> mangHopThu =
+    private ServerSocket netServerSocket = null;
+    private final ConcurrentHashMap<String, Socket> netGuests = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, BufferedWriter> netWriteGuest = new ConcurrentHashMap<>();
+    private final java.util.concurrent.BlockingQueue<String[]> netInbox =
             new java.util.concurrent.LinkedBlockingQueue<>();
-    private final java.util.concurrent.BlockingQueue<String> mangHopThuKhach =
+    private final java.util.concurrent.BlockingQueue<String> netGuestInbox =
             new java.util.concurrent.LinkedBlockingQueue<>();
-    private Socket mangSocketToiServer = null;
-    private BufferedWriter mangGhiToiServer = null;
-    private volatile boolean mangServerDangChay = false;
-    private volatile boolean mangDaNoiToiServer = false;
-    private int mangDemId = 0;
+    private Socket netSocketToServer = null;
+    private BufferedWriter netWriteToServer = null;
+    private volatile boolean netServerRunning = false;
+    private volatile boolean netConnectedToServer = false;
+    private int netIdCounter = 0;
 
     // --- BỘ NHỚ AUTO PC (HQL.PC) ---
     private java.awt.Robot pcRobot = null;
@@ -1963,8 +1963,8 @@ public class Interpreter {
      * Chuẩn hoá tên phím để người viết game gõ kiểu nào cũng nhận:
      * "esc" = "ESC" = "ESCAPE", "ctrl" = "CONTROL", "return" = "ENTER"...
      */
-    private String chuanHoaTenPhim(String phim) {
-        String p = phim.trim().toUpperCase();
+    private String normalizeKeyName(String keyName) {
+        String p = keyName.trim().toUpperCase();
         switch (p) {
             case "ESCAPE": return "ESC";
             case "CONTROL": return "CTRL";
@@ -1979,12 +1979,12 @@ public class Interpreter {
     }
 
     /** Đang vẽ giao diện (HUD)? Khi bật thì mọi nét vẽ bám theo màn hình, không bị camera kéo đi. */
-    private boolean cheDoGiaoDien = false;
+    private boolean uiMode = false;
 
     /** Độ lệch X khi vẽ vật thể trong thế giới game (camera + rung màn hình). */
-    private int camOffX() { return cheDoGiaoDien ? 0 : (int) Math.round(cameraX + shakeOffX); }
+    private int camOffX() { return uiMode ? 0 : (int) Math.round(cameraX + shakeOffX); }
     /** Độ lệch Y khi vẽ vật thể trong thế giới game (camera + rung màn hình). */
-    private int camOffY() { return cheDoGiaoDien ? 0 : (int) Math.round(cameraY + shakeOffY); }
+    private int camOffY() { return uiMode ? 0 : (int) Math.round(cameraY + shakeOffY); }
 
     /** Nạp ảnh có cache: cùng 1 đường dẫn chỉ đọc từ ổ cứng đúng 1 lần. */
     private Image loadGameImage(String path) {
@@ -2010,16 +2010,16 @@ public class Interpreter {
         Thread t = new Thread(() -> {
             try {
                 float sampleRate = 44100f;
-                int soLuongMau = (int) (sampleRate * millis / 1000.0);
-                byte[] buf = new byte[soLuongMau * 2];
-                for (int i = 0; i < soLuongMau; i++) {
-                    double tienDo = (double) i / soLuongMau;
+                int sampleCount = (int) (sampleRate * millis / 1000.0);
+                byte[] buf = new byte[sampleCount * 2];
+                for (int i = 0; i < sampleCount; i++) {
+                    double progressValue = (double) i / sampleCount;
                     // Bao hình: to dần rất nhanh rồi tắt dần -> nghe như tiếng gõ/chém
-                    double baoHinh = Math.min(1.0, tienDo * 20.0) * Math.pow(1.0 - tienDo, 2.0);
-                    double goc = 2.0 * Math.PI * freq * i / sampleRate;
-                    short mau = (short) (Math.sin(goc) * 32767.0 * baoHinh * Math.max(0, Math.min(1, volume)));
-                    buf[i * 2] = (byte) (mau & 0xff);
-                    buf[i * 2 + 1] = (byte) ((mau >> 8) & 0xff);
+                    double amplitudeScale = Math.min(1.0, progressValue * 20.0) * Math.pow(1.0 - progressValue, 2.0);
+                    double angleVal = 2.0 * Math.PI * freq * i / sampleRate;
+                    short sampleValue = (short) (Math.sin(angleVal) * 32767.0 * amplitudeScale * Math.max(0, Math.min(1, volume)));
+                    buf[i * 2] = (byte) (sampleValue & 0xff);
+                    buf[i * 2 + 1] = (byte) ((sampleValue >> 8) & 0xff);
                 }
                 AudioFormat af = new AudioFormat(sampleRate, 16, 1, true, false);
                 SourceDataLine line = AudioSystem.getSourceDataLine(af);
@@ -2047,20 +2047,20 @@ public class Interpreter {
     // ================== TIỆN ÍCH BẢN ĐỒ & TẦM NHÌN ==================
 
     /** Ký tự của ô tại toạ độ thế giới (x, y). Trả về ' ' nếu ra ngoài bản đồ. */
-    private char oTaiDiem(double x, double y) {
-        if (banDoLuoi == null) return ' ';
-        int c = (int) Math.floor(x / banDoOKichThuoc);
-        int h = (int) Math.floor(y / banDoOKichThuoc);
-        if (h < 0 || h >= banDoLuoi.length) return '#';
-        if (c < 0 || c >= banDoLuoi[h].length) return '#';
-        return banDoLuoi[h][c];
+    private char tileAtPoint(double x, double y) {
+        if (mapGrid == null) return ' ';
+        int c = (int) Math.floor(x / mapCellSize);
+        int h = (int) Math.floor(y / mapCellSize);
+        if (h < 0 || h >= mapGrid.length) return '#';
+        if (c < 0 || c >= mapGrid[h].length) return '#';
+        return mapGrid[h][c];
     }
 
-    private boolean diemChanNhin(double x, double y) {
-        char k = oTaiDiem(x, y);
-        if (banDoChanNhin.indexOf(k) >= 0) return true;
-        for (int i = 0; i < danhSachKhoi.size(); i++) {
-            QuaKhoi q = danhSachKhoi.get(i);
+    private boolean viewBlockedAt(double x, double y) {
+        char k = tileAtPoint(x, y);
+        if (mapViewBlockers.indexOf(k) >= 0) return true;
+        for (int i = 0; i < smokePuffs.size(); i++) {
+            SmokePuff q = smokePuffs.get(i);
             double dx = x - q.x, dy = y - q.y;
             if (dx * dx + dy * dy <= q.r * q.r) return true;
         }
@@ -2071,15 +2071,15 @@ public class Interpreter {
      * Bắn một tia từ (x1,y1) tới (x2,y2). Trả về khoảng cách tới chỗ bị chặn,
      * hoặc -1 nếu đi thông suốt. Bước nhảy nhỏ nên đủ chính xác cho game 2D.
      */
-    private double doTiaNhin(double x1, double y1, double x2, double y2) {
+    private double viewRayLength(double x1, double y1, double x2, double y2) {
         double dx = x2 - x1, dy = y2 - y1;
-        double dai = Math.hypot(dx, dy);
-        if (dai < 0.0001) return -1;
-        double buoc = Math.max(3.0, banDoOKichThuoc / 6.0);
-        int soBuoc = (int) (dai / buoc);
-        for (int i = 1; i <= soBuoc; i++) {
-            double t = (i * buoc) / dai;
-            if (diemChanNhin(x1 + dx * t, y1 + dy * t)) return i * buoc;
+        double rayLength = Math.hypot(dx, dy);
+        if (rayLength < 0.0001) return -1;
+        double stepSize = Math.max(3.0, mapCellSize / 6.0);
+        int stepCount = (int) (rayLength / stepSize);
+        for (int i = 1; i <= stepCount; i++) {
+            double t = (i * stepSize) / rayLength;
+            if (viewBlockedAt(x1 + dx * t, y1 + dy * t)) return i * stepSize;
         }
         return -1;
     }
@@ -2087,56 +2087,56 @@ public class Interpreter {
     // ================== TIỆN ÍCH 2.5D NHÌN CHÉO ==================
 
     /** Đổi toạ độ thế giới (pixel) sang toạ độ MÀN HÌNH kiểu nhìn chéo (chưa trừ camera). */
-    private double isoTruc_X(double wx, double wy) {
-        double tx = wx / banDoOKichThuoc, ty = wy / banDoOKichThuoc;
-        return (tx - ty) * (isoRong / 2.0);
+    private double isoAxisX(double wx, double wy) {
+        double tx = wx / mapCellSize, ty = wy / mapCellSize;
+        return (tx - ty) * (isoWidth / 2.0);
     }
-    private double isoTruc_Y(double wx, double wy) {
-        double tx = wx / banDoOKichThuoc, ty = wy / banDoOKichThuoc;
-        return (tx + ty) * (isoCao / 2.0);
+    private double isoAxisY(double wx, double wy) {
+        double tx = wx / mapCellSize, ty = wy / mapCellSize;
+        return (tx + ty) * (isoHeight / 2.0);
     }
     /** Đã trừ camera - dùng khi vẽ thật. */
-    private int isoManHinhX(double wx, double wy) { return (int) Math.round(isoTruc_X(wx, wy) - camOffX()); }
-    private int isoManHinhY(double wx, double wy) { return (int) Math.round(isoTruc_Y(wx, wy) - camOffY()); }
+    private int isoScreenX(double wx, double wy) { return (int) Math.round(isoAxisX(wx, wy) - camOffX()); }
+    private int isoScreenY(double wx, double wy) { return (int) Math.round(isoAxisY(wx, wy) - camOffY()); }
 
     /** Vẽ một khối hộp (ô tường) trong không gian nhìn chéo. */
-    private void veKhoiIso(double wx, double wy, double caoKhoi, Color mauTren, Color mauTrai, Color mauPhai) {
-        double nuaR = isoRong / 2.0, nuaC = isoCao / 2.0;
-        int cx = isoManHinhX(wx, wy);
-        int cy = isoManHinhY(wx, wy);
-        int h = (int) Math.round(caoKhoi);
+    private void drawIsoBlock(double wx, double wy, double blockHeight, Color topColor, Color leftColor, Color rightColor) {
+        double halfR = isoWidth / 2.0, halfC = isoHeight / 2.0;
+        int cx = isoScreenX(wx, wy);
+        int cy = isoScreenY(wx, wy);
+        int h = (int) Math.round(blockHeight);
 
         // Mặt trên (hình thoi)
-        int[] tx = { cx, (int) (cx + nuaR), cx, (int) (cx - nuaR) };
-        int[] ty = { cy - h, (int) (cy - h + nuaC), (int) (cy - h + isoCao), (int) (cy - h + nuaC) };
+        int[] tx = { cx, (int) (cx + halfR), cx, (int) (cx - halfR) };
+        int[] ty = { cy - h, (int) (cy - h + halfC), (int) (cy - h + isoHeight), (int) (cy - h + halfC) };
         // Mặt trái
-        int[] lx = { (int) (cx - nuaR), cx, cx, (int) (cx - nuaR) };
-        int[] ly = { (int) (cy - h + nuaC), (int) (cy - h + isoCao), (int) (cy + isoCao), (int) (cy + nuaC) };
+        int[] lx = { (int) (cx - halfR), cx, cx, (int) (cx - halfR) };
+        int[] ly = { (int) (cy - h + halfC), (int) (cy - h + isoHeight), (int) (cy + isoHeight), (int) (cy + halfC) };
         // Mặt phải
-        int[] rx = { cx, (int) (cx + nuaR), (int) (cx + nuaR), cx };
-        int[] ry = { (int) (cy - h + isoCao), (int) (cy - h + nuaC), (int) (cy + nuaC), (int) (cy + isoCao) };
+        int[] rx = { cx, (int) (cx + halfR), (int) (cx + halfR), cx };
+        int[] ry = { (int) (cy - h + isoHeight), (int) (cy - h + halfC), (int) (cy + halfC), (int) (cy + isoHeight) };
 
-        gameGraphics.setColor(mauTrai);
+        gameGraphics.setColor(leftColor);
         gameGraphics.fillPolygon(lx, ly, 4);
-        gameGraphics.setColor(mauPhai);
+        gameGraphics.setColor(rightColor);
         gameGraphics.fillPolygon(rx, ry, 4);
-        gameGraphics.setColor(mauTren);
+        gameGraphics.setColor(topColor);
         gameGraphics.fillPolygon(tx, ty, 4);
     }
 
     /** Dựng đa giác tầm nhìn quanh (x, y) bằng cách phóng tia ra xung quanh. */
-    private Polygon dungDaGiacTamNhin(double x, double y, double banKinh, int soTia) {
+    private Polygon buildViewPolygon(double x, double y, double contextRadius, int rayCount) {
         Polygon p = new Polygon();
-        double buoc = Math.max(3.0, banDoOKichThuoc / 8.0);
-        for (int i = 0; i < soTia; i++) {
-            double goc = i * 2 * Math.PI / soTia;
-            double cx = Math.cos(goc), cy = Math.sin(goc);
+        double stepSize = Math.max(3.0, mapCellSize / 8.0);
+        for (int i = 0; i < rayCount; i++) {
+            double angleVal = i * 2 * Math.PI / rayCount;
+            double cx = Math.cos(angleVal), cy = Math.sin(angleVal);
             double t = 0;
             double px = x, py = y;
-            while (t < banKinh) {
-                t += buoc;
+            while (t < contextRadius) {
+                t += stepSize;
                 double nx = x + cx * t, ny = y + cy * t;
-                if (diemChanNhin(nx, ny)) { px = nx; py = ny; break; }
+                if (viewBlockedAt(nx, ny)) { px = nx; py = ny; break; }
                 px = nx; py = ny;
             }
             p.addPoint((int) Math.round(px), (int) Math.round(py));
@@ -2147,24 +2147,24 @@ public class Interpreter {
     // ================== TIỆN ÍCH MẠNG ==================
 
     /** Mở luồng đọc cho một kết nối: mỗi dòng nhận được đẩy vào hộp thư. */
-    private void moLuongDoc(Socket s, String idKhach, boolean laServer) {
+    private void startReaderThread(Socket s, String guestId, boolean laServer) {
         Thread t = new Thread(() -> {
             try {
                 BufferedReader br = new BufferedReader(new InputStreamReader(s.getInputStream(), StandardCharsets.UTF_8));
-                String dong;
-                while ((dong = br.readLine()) != null) {
-                    if (laServer) mangHopThu.offer(new String[]{idKhach, dong});
-                    else mangHopThuKhach.offer(dong);
+                String lineText;
+                while ((lineText = br.readLine()) != null) {
+                    if (laServer) netInbox.offer(new String[]{guestId, lineText});
+                    else netGuestInbox.offer(lineText);
                 }
             } catch (Exception ignored) {
             } finally {
                 if (laServer) {
-                    mangKhach.remove(idKhach);
-                    mangGhiKhach.remove(idKhach);
-                    mangHopThu.offer(new String[]{idKhach, "@ROI"});   // báo cho kịch bản biết khách đã thoát
+                    netGuests.remove(guestId);
+                    netWriteGuest.remove(guestId);
+                    netInbox.offer(new String[]{guestId, "@ROI"});   // báo cho kịch bản biết khách đã thoát
                 } else {
-                    mangDaNoiToiServer = false;
-                    mangHopThuKhach.offer("@MAT_KET_NOI");
+                    netConnectedToServer = false;
+                    netGuestInbox.offer("@MAT_KET_NOI");
                 }
                 try { s.close(); } catch (Exception ignored2) {}
             }
@@ -2173,34 +2173,34 @@ public class Interpreter {
         t.start();
     }
 
-    private void mangGuiChoKhach(String id, String noiDung) {
-        BufferedWriter w = mangGhiKhach.get(id);
+    private void netSendToGuest(String id, String bodyContent) {
+        BufferedWriter w = netWriteGuest.get(id);
         if (w == null) return;
         try {
             synchronized (w) {
-                w.write(noiDung);
+                w.write(bodyContent);
                 w.write("\n");
                 w.flush();
             }
         } catch (Exception e) {
-            mangKhach.remove(id);
-            mangGhiKhach.remove(id);
+            netGuests.remove(id);
+            netWriteGuest.remove(id);
         }
     }
 
     /** Dựng cửa sổ game (dùng chung cho gameWindow và gameWindowFull). */
-    private void taoCuaSoGame(String tieuDe, int w, int h, boolean toanManHinh) {
+    private void createGameWindow(String titleText, int w, int h, boolean fullScreen) {
         if (gameWindow != null) gameWindow.dispose();
 
-        gameWindow = new JFrame(tieuDe);
+        gameWindow = new JFrame(titleText);
         gameWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         gameWindow.setResizable(false);
-        if (toanManHinh) {
+        if (fullScreen) {
             gameWindow.setUndecorated(true);          // bỏ viền, phủ kín màn hình
             gameWindow.setExtendedState(JFrame.MAXIMIZED_BOTH);
         }
         gameWindow.setSize(w, h);
-        if (!toanManHinh) gameWindow.setLocationRelativeTo(null);
+        if (!fullScreen) gameWindow.setLocationRelativeTo(null);
         else gameWindow.setLocation(0, 0);
 
         gameBuffer = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
@@ -2222,18 +2222,18 @@ public class Interpreter {
         gameWindow.addKeyListener(new KeyAdapter() {
             @Override
             public void keyPressed(KeyEvent e) {
-                String key = chuanHoaTenPhim(KeyEvent.getKeyText(e.getKeyCode()));
+                String key = normalizeKeyName(KeyEvent.getKeyText(e.getKeyCode()));
                 if (!keysDown.contains(key)) keysPressed.add(key);
                 keysDown.add(key);
             }
             @Override
             public void keyReleased(KeyEvent e) {
-                keysDown.remove(chuanHoaTenPhim(KeyEvent.getKeyText(e.getKeyCode())));
+                keysDown.remove(normalizeKeyName(KeyEvent.getKeyText(e.getKeyCode())));
             }
             @Override
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
-                if (c >= 32 && c != 127 && chuDaGo.length() < 400) chuDaGo.append(c);
+                if (c >= 32 && c != 127 && typedText.length() < 400) typedText.append(c);
             }
         });
 
@@ -2254,7 +2254,7 @@ public class Interpreter {
 
         gameWindow.add(gameCanvas);
         gameWindow.pack();
-        if (toanManHinh) gameWindow.setSize(w, h);
+        if (fullScreen) gameWindow.setSize(w, h);
         gameWindow.setVisible(true);
         gameWindow.requestFocus();
     }
@@ -2262,7 +2262,7 @@ public class Interpreter {
     /** Engine tự cập nhật + vẽ hạt hiệu ứng và chữ bay sau mỗi khung hình. */
     private void updateAndDrawEffects() {
         if (gameGraphics == null) return;
-        cheDoGiaoDien = false; // phòng khi kịch bản quên gọi endUI()
+        uiMode = false; // phòng khi kịch bản quên gọi endUI()
         int dx = camOffX(), dy = camOffY();
 
         // 1. Hạt hiệu ứng
@@ -2313,10 +2313,10 @@ public class Interpreter {
     private final HashMap<String, JComponent> hqlWidgets = new HashMap<>();
     private final HashMap<String, ButtonGroup> hqlRadioGroups = new HashMap<>();
 
-    public Token getLastExecutedToken() { return vet().cuoi; }
+    public Token getLastExecutedToken() { return trace().lastToken; }
 
     /** Ngăn xếp gọi hàm lúc này — BaoLoi dùng để in đường đi tới chỗ lỗi. */
-    public java.util.Deque<BaoLoi.Khung> getNganXepGoi() { return vet().nganXep; }
+    public java.util.Deque<ErrorReport.StackFrame> getCallStackSnapshot() { return trace().callStack; }
 
     // --- BỘ NHỚ CẤU HÌNH HQL.NET ---
     private HashMap<String, String> netHeaders = new HashMap<>();
@@ -2351,7 +2351,7 @@ public class Interpreter {
         List<Token> tokens = Lexer.tokenize(content, filePath);
         try {
             runAll(tokens);
-        } catch (ReturnException bo) {
+        } catch (ReturnException byteOut) {
             // Cho phép gõ 'return' ở ngoài cùng để dừng sớm cả file, không coi là lỗi
         }
     }
@@ -2418,7 +2418,7 @@ public class Interpreter {
     private void executeImport(String fileName) {
         try {
             // 1. CHỤP LẠI TRẠNG THÁI TRƯỚC KHI IMPORT (Làm mốc để lọc Export)
-            java.util.Set<String> oldVars = scope().tenBien();
+            java.util.Set<String> oldVars = scope().variableName();
             java.util.Set<String> oldFuncs = new java.util.HashSet<>(functionMemory.keySet());
             java.util.Set<String> oldClasses = new java.util.HashSet<>(hqlClasses.keySet());
 
@@ -2439,7 +2439,7 @@ public class Interpreter {
 
             // 6. BỘ LỌC XUẤT KHẨU BẢO MẬT (Xóa đi các Biến/Hàm/Lớp không có dấu @)
             java.util.List<String> toRemoveVars = new java.util.ArrayList<>();
-            for (String key : scope().tenBien()) {
+            for (String key : scope().variableName()) {
                 if (!oldVars.contains(key) && !key.startsWith("@")) toRemoveVars.add(key);
             }
             for (String key : toRemoveVars) scope().variables.remove(key);
@@ -2513,7 +2513,7 @@ public class Interpreter {
     public void runSingle(List<Token> tokens) {
         if (tokens.isEmpty() || isUseCommand(tokens) || isImportCommand(tokens) || isFunctionDeclaration(tokens) || isClassDeclaration(tokens)) return;
 
-        vet().cuoi = tokens.get(0);
+        trace().lastToken = tokens.get(0);
 
         if (isImporting) {
             // Chỉ cho phép khai báo biến (var) và gán giá trị (=)
@@ -2572,10 +2572,10 @@ public class Interpreter {
         resolveExpression(tokens);
     }
 
-    private void enterScope() { datScope(new Scope(scope())); }
+    private void enterScope() { setScope(new Scope(scope())); }
     /** Mở vùng nhớ riêng của một hàm: biến khai báo bằng 'var' bên trong sẽ không đè ra ngoài. */
-    private void enterFunctionScope() { datScope(new Scope(scope(), true)); }
-    private void exitScope() { datScope(scope().getParent()); }
+    private void enterFunctionScope() { setScope(new Scope(scope(), true)); }
+    private void exitScope() { setScope(scope().getParent()); }
 
     private boolean isPrintCommand(List<Token> t) { return !t.isEmpty() && t.get(0).value.equals("print"); }
     private void executePrint(List<Token> tokens) {
@@ -2591,10 +2591,10 @@ public class Interpreter {
         if (assignIndex == -1) assignIndex = findTopLevelOperator(tokens, "ASSIGN_OP");
 
         List<Token> lhs = tokens.subList(0, assignIndex);
-        boolean laKhaiBao = false;   // Có từ khoá 'var' đứng trước hay không
+        boolean isDeclaration = false;   // Có từ khoá 'var' đứng trước hay không
         if (!lhs.isEmpty() && lhs.get(0).type.equals("KEYWORD") && lhs.get(0).value.equals("var")) {
             lhs = lhs.subList(1, lhs.size());
-            laKhaiBao = true;
+            isDeclaration = true;
         }
         String op = tokens.get(assignIndex).value;
         Object rhsValue = resolveExpression(tokens.subList(assignIndex + 1, tokens.size()));
@@ -2602,7 +2602,7 @@ public class Interpreter {
         if (lhs.size() == 1 && lhs.get(0).type.equals("IDENTIFIER")) {
             String varName = lhs.get(0).value;
             if (op.equals("=")) {
-                if (laKhaiBao) scope().declare(varName, rhsValue);
+                if (isDeclaration) scope().declare(varName, rhsValue);
                 else scope().assign(varName, rhsValue);
             } else {
                 Object lhsValue = scope().get(varName);
@@ -2629,39 +2629,39 @@ public class Interpreter {
             if (openIdx <= 0) throw new RuntimeException("Lỗi: Vế trái của phép gán không hợp lệ.");
 
             Object container = resolveExpression(lhs.subList(0, openIdx));
-            Object khoa = resolveExpression(lhs.subList(openIdx + 1, lhs.size() - 1));
+            Object entryKey = resolveExpression(lhs.subList(openIdx + 1, lhs.size() - 1));
 
             if (container instanceof List) {
                 List<Object> ds = (List<Object>) container;
-                int idx = (int) toDouble(khoa);
+                int idx = (int) toDouble(entryKey);
                 if (idx < 0 || idx >= ds.size())
                     throw new RuntimeException("Lỗi: Vị trí " + idx + " nằm ngoài mảng (kích thước " + ds.size() + ").");
-                Object giaTriMoi = rhsValue;
+                Object newValueObj = rhsValue;
                 if (!op.equals("=")) {
-                    double cu = toDouble(ds.get(idx));
-                    giaTriMoi = switch (op) {
-                        case "+=" -> cu + toDouble(rhsValue);
-                        case "-=" -> cu - toDouble(rhsValue);
-                        case "*=" -> cu * toDouble(rhsValue);
-                        case "/=" -> cu / toDouble(rhsValue);
+                    double previousValue = toDouble(ds.get(idx));
+                    newValueObj = switch (op) {
+                        case "+=" -> previousValue + toDouble(rhsValue);
+                        case "-=" -> previousValue - toDouble(rhsValue);
+                        case "*=" -> previousValue * toDouble(rhsValue);
+                        case "/=" -> previousValue / toDouble(rhsValue);
                         default -> throw new RuntimeException("Toán tử gán không hợp lệ: " + op);
                     };
                 }
-                ds.set(idx, giaTriMoi);
+                ds.set(idx, newValueObj);
             } else if (container instanceof Map) {
-                Map<Object, Object> bang = (Map<Object, Object>) container;
-                Object giaTriMoi = rhsValue;
+                Map<Object, Object> tableMap = (Map<Object, Object>) container;
+                Object newValueObj = rhsValue;
                 if (!op.equals("=")) {
-                    double cu = toDouble(bang.get(stringify(khoa)));
-                    giaTriMoi = switch (op) {
-                        case "+=" -> cu + toDouble(rhsValue);
-                        case "-=" -> cu - toDouble(rhsValue);
-                        case "*=" -> cu * toDouble(rhsValue);
-                        case "/=" -> cu / toDouble(rhsValue);
+                    double previousValue = toDouble(tableMap.get(stringify(entryKey)));
+                    newValueObj = switch (op) {
+                        case "+=" -> previousValue + toDouble(rhsValue);
+                        case "-=" -> previousValue - toDouble(rhsValue);
+                        case "*=" -> previousValue * toDouble(rhsValue);
+                        case "/=" -> previousValue / toDouble(rhsValue);
                         default -> throw new RuntimeException("Toán tử gán không hợp lệ: " + op);
                     };
                 }
-                bang.put(stringify(khoa), giaTriMoi);
+                tableMap.put(stringify(entryKey), newValueObj);
             } else {
                 throw new RuntimeException("Lỗi: Chỉ có thể gán bằng [ ] cho mảng hoặc bảng (map).");
             }
@@ -2701,17 +2701,17 @@ public class Interpreter {
         Scope savedScope = scope(); // LƯU LẠI GỐC
 
         try {
-            datScope(new Scope(savedScope)); // Mở scope an toàn
+            setScope(new Scope(savedScope)); // Mở scope an toàn
             runAll(body);
-        } catch (ReturnException | BreakException | ContinueException dieuKhien) {
+        } catch (ReturnException | BreakException | ContinueException controller) {
             // return/break/continue KHÔNG phải lỗi -> phải cho nó bay tiếp ra ngoài,
             // nếu nuốt ở đây thì 'return' nằm trong try...catch sẽ mất tác dụng.
-            datScope(savedScope);
-            throw dieuKhien;
+            setScope(savedScope);
+            throw controller;
         } catch (Exception ex) {
             pendingException = ex; // Chỉ treo lỗi, không đụng vào scope
         } finally {
-            datScope(savedScope); // ÉP BUỘC KHÔI PHỤC GỐC dù có lỗi hay không
+            setScope(savedScope); // ÉP BUỘC KHÔI PHỤC GỐC dù có lỗi hay không
         }
 
         int nextIndex = bodyEndIndex + 1;
@@ -2732,10 +2732,10 @@ public class Interpreter {
 
             Scope preFinallyScope = scope();
             try {
-                datScope(new Scope(preFinallyScope));
+                setScope(new Scope(preFinallyScope));
                 runAll(finallyBody);
             } finally {
-                datScope(preFinallyScope);
+                setScope(preFinallyScope);
             }
         }
     }
@@ -2760,13 +2760,13 @@ public class Interpreter {
         String errorMessage = pendingException.getMessage() != null ? pendingException.getMessage() : pendingException.toString();
         pendingException = null;
 
-        Scope gocCatch = scope();
+        Scope catchScope = scope();
         try {
             enterScope();
             scope().put(errVarName, errorMessage);
             runAll(body); // Bây giờ chạy code thoải mái không sợ bị sập nữa
         } finally {
-            datScope(gocCatch);   // luôn đóng vùng nhớ, kể cả khi bên trong có return/break
+            setScope(catchScope);   // luôn đóng vùng nhớ, kể cả khi bên trong có return/break
         }
     }
 
@@ -2784,12 +2784,12 @@ public class Interpreter {
 
         if (isMatched) {
             List<Token> body = tokens.subList(bodyBraceIndex + 1, bodyEndIndex);
-            Scope gocIf = scope();
+            Scope ifScope = scope();
             try {
                 enterScope();
                 runAll(body); // Hàm runAll mới sẽ tự bảo vệ trạng thái này
             } finally {
-                datScope(gocIf);  // return/break nhảy ra giữa chừng vẫn phải trả lại vùng nhớ
+                setScope(ifScope);  // return/break nhảy ra giữa chừng vẫn phải trả lại vùng nhớ
             }
         }
 
@@ -2801,13 +2801,13 @@ public class Interpreter {
 
     private boolean isElseCommand(List<Token> t) { return !t.isEmpty() && t.get(0).value.equals("else"); }
     private void executeElse(List<Token> tokens) {
-        boolean daCoNhanhKhop = previousIfMatched;
+        boolean hasMatchedBranch = previousIfMatched;
 
         // --- HỖ TRỢ CHUỖI "else if" ---
         // Trước đây "else if (dk) {A} else {B}" bị hiểu nhầm: nó nhảy tới dấu { đầu tiên
         // (chính là { của if) rồi chạy A mà KHÔNG kiểm tra điều kiện dk, đồng thời nuốt luôn nhánh else cuối.
         if (tokens.size() > 1 && tokens.get(1).value.equals("if")) {
-            if (!daCoNhanhKhop) {
+            if (!hasMatchedBranch) {
                 // Chưa nhánh nào khớp -> coi phần còn lại là một lệnh if hoàn chỉnh (nó tự lo else phía sau)
                 executeIf(tokens.subList(1, tokens.size()));
             } else {
@@ -2817,16 +2817,16 @@ public class Interpreter {
             return;
         }
 
-        if (!daCoNhanhKhop) {
+        if (!hasMatchedBranch) {
             int bodyBraceIndex = findTokenIndex(tokens, "L_BRACE", 0);
             int bodyEndIndex = findMatchingBrace(tokens, bodyBraceIndex);
             List<Token> body = tokens.subList(bodyBraceIndex + 1, bodyEndIndex);
-            Scope gocElse = scope();
+            Scope elseScope = scope();
             try {
                 enterScope();
                 runAll(body);
             } finally {
-                datScope(gocElse);
+                setScope(elseScope);
             }
         }
         // Set thành true để báo hiệu cụm IF-ELSE này đã xong
@@ -2839,7 +2839,7 @@ public class Interpreter {
         List<Token> condition = extractCondition(tokens, 1, bodyBraceIndex);
         int bodyEndIndex = findMatchingBrace(tokens, bodyBraceIndex);
         List<Token> body = tokens.subList(bodyBraceIndex + 1, bodyEndIndex);
-        Scope gocWhile = scope();
+        Scope whileScope = scope();
         while (evaluateBooleanExpression(condition)) {
             try {
                 enterScope();
@@ -2849,7 +2849,7 @@ public class Interpreter {
             } catch (ContinueException e) {
                 continue;              // Bỏ qua và chạy vòng tiếp theo
             } finally {
-                datScope(gocWhile);   // đóng vùng nhớ trong MỌI trường hợp (kể cả return)
+                setScope(whileScope);   // đóng vùng nhớ trong MỌI trường hợp (kể cả return)
             }
         }
     }
@@ -2877,7 +2877,7 @@ public class Interpreter {
             if (toPos != -1 && inPos < toPos) {
                 int start = (int) toDouble(resolveExpression(header.subList(inPos + 1, toPos)));
                 int end = (int) toDouble(resolveExpression(header.subList(toPos + 1, header.size())));
-                Scope gocFor = scope();
+                Scope forScope = scope();
                 for (int i = start; i <= end; i++) {
                     try {
                         enterScope();
@@ -2885,7 +2885,7 @@ public class Interpreter {
                         runAll(body);
                     } catch (BreakException e) { break; }
                     catch (ContinueException e) { continue; }
-                    finally { datScope(gocFor); }
+                    finally { setScope(forScope); }
                 }
             }
             // TRƯỜNG HỢP 2: Lặp Foreach cho Mảng và Chuỗi (for member in team)
@@ -2895,7 +2895,7 @@ public class Interpreter {
                 // Nếu duyệt qua danh sách (List)
                 if (iterable instanceof ArrayList) {
                     ArrayList<?> list = (ArrayList<?>) iterable;
-                    Scope gocDs = scope();
+                    Scope listLoopScope = scope();
                     for (Object item : list) {
                         try {
                             enterScope();
@@ -2903,13 +2903,13 @@ public class Interpreter {
                             runAll(body);
                         } catch (BreakException e) { break; }
                         catch (ContinueException e) { continue; }
-                        finally { datScope(gocDs); }
+                        finally { setScope(listLoopScope); }
                     }
                 }
                 // Nếu duyệt qua chữ cái trong một Chuỗi (String)
                 else if (iterable instanceof String) {
                     String str = (String) iterable;
-                    Scope gocChuoi = scope();
+                    Scope stringLoopScope = scope();
                     for (char c : str.toCharArray()) {
                         try {
                             enterScope();
@@ -2917,7 +2917,7 @@ public class Interpreter {
                             runAll(body);
                         } catch (BreakException e) { break; }
                         catch (ContinueException e) { continue; }
-                        finally { datScope(gocChuoi); }
+                        finally { setScope(stringLoopScope); }
                     }
                 } else {
                     throw new RuntimeException("Lỗi: Không thể dùng 'in' cho kiểu dữ liệu này.");
@@ -2938,7 +2938,7 @@ public class Interpreter {
         List<List<Token>> statements = splitCommands(body);
         boolean fallThrough = false; // Cờ hiệu chạy tuột xuống nếu không có break
 
-        Scope gocSwitch = scope();
+        Scope switchScope = scope();
         enterScope();
         try {
             for (List<Token> stmt : statements) {
@@ -2974,7 +2974,7 @@ public class Interpreter {
             // Khi người dùng gọi 'break;', nó sẽ văng ngoại lệ ra tới đây
             // Catch này sẽ cản lại, kết quả là thoát khỏi cấu trúc switch êm ru!
         } finally {
-            datScope(gocSwitch);
+            setScope(switchScope);
         }
     }
 
@@ -3012,7 +3012,7 @@ public class Interpreter {
 
         if (tokens.size() == 1) return getObjectValue(tokens.get(0));
 
-        vet().cuoi = tokens.get(0);
+        trace().lastToken = tokens.get(0);
 
         int questionIndex = findTopLevelOperator(tokens, "TERNARY_Q");
         if (questionIndex != -1) {
@@ -3234,36 +3234,36 @@ public class Interpreter {
                         + "' (cần " + def.params.size() + ", nhận " + argGroups.size() + ").");
 
             // Tính giá trị tham số TRƯỚC (ở vùng nhớ của nơi gọi), rồi mới mở vùng nhớ riêng của hàm
-            List<Object> giaTriThamSo = new ArrayList<>();
-            for (int i = 0; i < def.params.size(); i++) giaTriThamSo.add(resolveExpression(argGroups.get(i)));
+            List<Object> paramValueText = new ArrayList<>();
+            for (int i = 0; i < def.params.size(); i++) paramValueText.add(resolveExpression(argGroups.get(i)));
 
-            Scope gocHam = scope();
+            Scope funcScope = scope();
 
             // Ghi lại CHỖ GỌI trước khi nhảy vào hàm. Vào rồi thì vet().cuoi
             // đổi sang thân hàm, lúc đó không lần ngược ra được nữa.
-            Token choGoi = vet().cuoi;
-            vet().nganXep.push(new BaoLoi.Khung(functionName,
-                    choGoi == null ? "" : choGoi.file,
-                    choGoi == null ? 0 : choGoi.line));
+            Token callerToken = trace().lastToken;
+            trace().callStack.push(new ErrorReport.StackFrame(functionName,
+                    callerToken == null ? "" : callerToken.file,
+                    callerToken == null ? 0 : callerToken.line));
 
-            boolean xongEm = false;
+            boolean finishedFlag = false;
             try {
                 enterFunctionScope();
                 for (int i = 0; i < def.params.size(); i++) {
-                    scope().put(def.params.get(i), giaTriThamSo.get(i));
+                    scope().put(def.params.get(i), paramValueText.get(i));
                 }
                 runAll(def.body);
-                xongEm = true;
-            } catch (ReturnException bo) {
+                finishedFlag = true;
+            } catch (ReturnException byteOut) {
                 // Gặp 'return' -> thoát hàm ngay, giá trị đã nằm trong returnValue
-                xongEm = true;
+                finishedFlag = true;
             } finally {
-                datScope(gocHam);   // trả lại đúng vùng nhớ của nơi gọi
+                setScope(funcScope);   // trả lại đúng vùng nhớ của nơi gọi
 
                 // Chỉ dọn khung khi hàm chạy XONG ÊM. Đang có lỗi bay ra thì GIỮ
                 // NGUYÊN, vì chỗ bắt lỗi trên cùng cần cả ngăn xếp mới in được
                 // đường đi. webDispatch / runFile xoá sạch ở đầu mỗi lượt chạy.
-                if (xongEm && !vet().nganXep.isEmpty()) { vet().nganXep.pop(); }
+                if (finishedFlag && !trace().callStack.isEmpty()) { trace().callStack.pop(); }
             }
             Object result = returnValue;
             returnValue = "";
@@ -3333,10 +3333,10 @@ public class Interpreter {
                     return list.remove(list.size() - 1);
                 case "set": {
                     // mang.set(viTri, giaTri) - đổi giá trị 1 phần tử tại chỗ
-                    int viTri = (int) toDouble(resolveExpression(argGroups.get(0)));
-                    if (viTri < 0 || viTri >= list.size())
-                        throw new RuntimeException("Lỗi: Vị trí " + viTri + " nằm ngoài mảng (kích thước " + list.size() + ").");
-                    return list.set(viTri, resolveExpression(argGroups.get(1)));
+                    int tokenPos = (int) toDouble(resolveExpression(argGroups.get(0)));
+                    if (tokenPos < 0 || tokenPos >= list.size())
+                        throw new RuntimeException("Lỗi: Vị trí " + tokenPos + " nằm ngoài mảng (kích thước " + list.size() + ").");
+                    return list.set(tokenPos, resolveExpression(argGroups.get(1)));
                 }
                 case "clear":
                     list.clear();
@@ -3357,14 +3357,14 @@ public class Interpreter {
                     if (def == null) throw new RuntimeException("Lỗi: Không tìm thấy hàm callback '" + mapFunc + "'");
 
                     ArrayList<Object> mapResult = new ArrayList<>();
-                    Scope gocMap = scope();
+                    Scope mapScope = scope();
                     for (Object item : list) {
                         try {
                             enterFunctionScope();
                             if (!def.params.isEmpty()) scope().put(def.params.get(0), item);
                             runAll(def.body);
-                        } catch (ReturnException bo) {
-                        } finally { datScope(gocMap); }
+                        } catch (ReturnException byteOut) {
+                        } finally { setScope(mapScope); }
                         mapResult.add(returnValue);
                         returnValue = "";
                     }
@@ -3376,14 +3376,14 @@ public class Interpreter {
                     if (def == null) throw new RuntimeException("Lỗi: Không tìm thấy hàm callback '" + filterFunc + "'");
 
                     ArrayList<Object> filterResult = new ArrayList<>();
-                    Scope gocLoc = scope();
+                    Scope filterScope = scope();
                     for (Object item : list) {
                         try {
                             enterFunctionScope();
                             if (!def.params.isEmpty()) scope().put(def.params.get(0), item);
                             runAll(def.body);
-                        } catch (ReturnException bo) {
-                        } finally { datScope(gocLoc); }
+                        } catch (ReturnException byteOut) {
+                        } finally { setScope(filterScope); }
                         if (toBoolean(returnValue)) filterResult.add(item);
                         returnValue = "";
                     }
@@ -3398,15 +3398,15 @@ public class Interpreter {
                     Object accumulator = argGroups.size() > 1 ? resolveExpression(argGroups.get(1)) : (list.isEmpty() ? null : list.get(0));
                     int startIndex = argGroups.size() > 1 ? 0 : 1;
 
-                    Scope gocGop = scope();
+                    Scope mergedScope = scope();
                     for (int i = startIndex; i < list.size(); i++) {
                         try {
                             enterFunctionScope();
                             scope().put(def.params.get(0), accumulator);
                             scope().put(def.params.get(1), list.get(i));
                             runAll(def.body);
-                        } catch (ReturnException bo) {
-                        } finally { datScope(gocGop); }
+                        } catch (ReturnException byteOut) {
+                        } finally { setScope(mergedScope); }
                         accumulator = returnValue;
                         returnValue = "";
                     }
@@ -3418,19 +3418,19 @@ public class Interpreter {
             HqlObject hqlObj = (HqlObject) target;
             FunctionDef methodDef = findHqlMethod(hqlObj.hqlClass, methodName);
             if (methodDef != null) {
-                List<Object> giaTriThamSo = new ArrayList<>();
-                for (int i = 0; i < methodDef.params.size(); i++) giaTriThamSo.add(resolveExpression(argGroups.get(i)));
-                Scope gocPT = scope();
+                List<Object> paramValueText = new ArrayList<>();
+                for (int i = 0; i < methodDef.params.size(); i++) paramValueText.add(resolveExpression(argGroups.get(i)));
+                Scope methodScope = scope();
                 try {
                     enterFunctionScope();
                     scope().put("this", hqlObj);
                     for (int i = 0; i < methodDef.params.size(); i++) {
-                        scope().put(methodDef.params.get(i), giaTriThamSo.get(i));
+                        scope().put(methodDef.params.get(i), paramValueText.get(i));
                     }
                     runAll(methodDef.body);
-                } catch (ReturnException bo) {
+                } catch (ReturnException byteOut) {
                 } finally {
-                    datScope(gocPT);
+                    setScope(methodScope);
                 }
                 Object result = returnValue;
                 returnValue = "";
@@ -3467,7 +3467,7 @@ public class Interpreter {
                 // --- THÊM LOẠT HÀM MẠNG VÀO ĐÂY ---
                 // --- WEBSOCKET (máy chủ đẩy dữ liệu xuống trang) ---
                 "wsStart", "wsGuiTatCa", "wsSoKetNoi", "wsStop",
-                "httpGet", "httpPost", "httpPostFile", "download", "isOnline", "addHeader", "setCookie",
+                "httpGet", "httpPost", "httpQuery", "httpPostFile", "download", "isOnline", "addHeader", "setCookie",
                 "setTimeout", "setProxy", "ignoreSSL", "getStatusCode", "getContentType",
                 "getResponseHeader", "getIP", "getHost", "ping", "checkPort",
                 // --- BỔ SUNG HÀM HQL.SYS VÀO ĐÂY ---
@@ -3622,7 +3622,7 @@ public class Interpreter {
 
 
     /** Cờ báo "thư viện này không xử lý hàm đó" (dùng khi tách bớt executeBuiltin cho nhẹ). */
-    private static final Object CHUA_XU_LY = new Object();
+    private static final Object NOT_HANDLED = new Object();
 
     // ======================================================================
     //  THƯ VIỆN hql.app — DỰNG APP MÁY TÍNH TỪ MỘT TRANG WEB HQL
@@ -3667,94 +3667,94 @@ public class Interpreter {
     // ======================================================================
 
     /** Cửa sổ app và tiến trình con đang mở, đánh số từ 1. */
-    private final java.util.Map<Integer, Process> tienTrinhApp = new java.util.HashMap<>();
-    private int maTienTrinhKe = 0;
+    private final java.util.Map<Integer, Process> appProcesses = new java.util.HashMap<>();
+    private int nextProcessId = 0;
 
-    private Object thuVienApp(String name, List<Object> args) {
+    private Object appLibrary(String name, List<Object> args) {
         try {
             switch (name) {
 
                 // ---------- CỬA SỔ APP ----------
                 case "appCoTrinhDuyet":
-                    return timTrinhDuyetApp() != null;
+                    return findAppBrowser() != null;
 
                 case "appCuaSo": {
                     String url = stringify(args.get(0));
-                    String tieuDe = args.size() > 1 ? stringify(args.get(1)) : "App";
-                    int rong = args.size() > 2 ? (int) toDouble(args.get(2)) : 1400;
-                    int cao  = args.size() > 3 ? (int) toDouble(args.get(3)) : 900;
+                    String titleText = args.size() > 1 ? stringify(args.get(1)) : "App";
+                    int windowWidth = args.size() > 2 ? (int) toDouble(args.get(2)) : 1400;
+                    int windowHeight  = args.size() > 3 ? (int) toDouble(args.get(3)) : 900;
                     // Tham số thứ 5: đường dẫn ảnh icon cửa sổ. Bỏ trống thì
                     // cửa sổ đeo icon mặc định của CEF — CON CHIM CÁNH CỤT,
                     // chẳng liên quan gì tới app của mình.
-                    String anh = args.size() > 4 ? stringify(args.get(4)) : "";
+                    String iconPath = args.size() > 4 ? stringify(args.get(4)) : "";
 
-                    maTienTrinhKe++;
-                    int ma = maTienTrinhKe;
-                    cuaSoApp.put(ma, moCuaSoChromium(url, tieuDe, rong, cao, anh));
-                    return (double) ma;
+                    nextProcessId++;
+                    int appId = nextProcessId;
+                    appWindows.put(appId, openChromiumWindow(url, titleText, windowWidth, windowHeight, iconPath));
+                    return (double) appId;
                 }
 
                 case "appDangMo": {
-                    CuaSoApp cs = cuaSoApp.get((int) toDouble(args.get(0)));
+                    AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null) { return false; }
-                    if (cs.tienTrinhLui != null) { return cs.tienTrinhLui.isAlive(); }
-                    return cs.daDong.getCount() > 0;
+                    if (cs.fallbackProcess != null) { return cs.fallbackProcess.isAlive(); }
+                    return cs.closedLatch.getCount() > 0;
                 }
 
                 case "appCho": {
-                    CuaSoApp cs = cuaSoApp.get((int) toDouble(args.get(0)));
+                    AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null) { return 0.0; }
-                    if (cs.tienTrinhLui != null) { return (double) cs.tienTrinhLui.waitFor(); }
-                    cs.daDong.await();
+                    if (cs.fallbackProcess != null) { return (double) cs.fallbackProcess.waitFor(); }
+                    cs.closedLatch.await();
                     return 0.0;
                 }
 
                 case "appDong": {
-                    CuaSoApp cs = cuaSoApp.get((int) toDouble(args.get(0)));
+                    AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null) { return false; }
-                    if (cs.tienTrinhLui != null) {
-                        if (!cs.tienTrinhLui.isAlive()) { return false; }
-                        cs.tienTrinhLui.destroy();
+                    if (cs.fallbackProcess != null) {
+                        if (!cs.fallbackProcess.isAlive()) { return false; }
+                        cs.fallbackProcess.destroy();
                         return true;
                     }
-                    if (cs.khung != null) {
-                        javax.swing.SwingUtilities.invokeLater(() -> cs.khung.dispose());
+                    if (cs.windowFrame != null) {
+                        javax.swing.SwingUtilities.invokeLater(() -> cs.windowFrame.dispose());
                     }
-                    cs.daDong.countDown();
+                    cs.closedLatch.countDown();
                     return true;
                 }
 
                 case "tienTrinhSong": {
-                    Process tt = tienTrinhApp.get((int) toDouble(args.get(0)));
-                    return tt != null && tt.isAlive();
+                    Process processObj = appProcesses.get((int) toDouble(args.get(0)));
+                    return processObj != null && processObj.isAlive();
                 }
 
                 case "tienTrinhTat": {
-                    Process tt = tienTrinhApp.get((int) toDouble(args.get(0)));
-                    if (tt == null || !tt.isAlive()) { return false; }
-                    tt.destroy();
+                    Process processObj = appProcesses.get((int) toDouble(args.get(0)));
+                    if (processObj == null || !processObj.isAlive()) { return false; }
+                    processObj.destroy();
                     // Xin tử tế trước, không chết thì mới ép. Ép ngay thì tiến
                     // trình không kịp dọn — máy chủ web không kịp nhả cổng,
                     // đúng cái đã đẻ ra lỗi "Address already in use" ở bản
                     // chạy khay (mục 33 work.txt).
-                    if (!tt.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) { tt.destroyForcibly(); }
+                    if (!processObj.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)) { processObj.destroyForcibly(); }
                     return true;
                 }
 
                 // ---------- TIẾN TRÌNH CON ----------
                 case "tienTrinhChay": {
-                    List<String> lenh = new ArrayList<>();
-                    Object dau = args.get(0);
-                    if (dau instanceof List) {
-                        for (Object o : (List<?>) dau) { lenh.add(stringify(o)); }
+                    List<String> commandText = new ArrayList<>();
+                    Object headerText = args.get(0);
+                    if (headerText instanceof List) {
+                        for (Object o : (List<?>) headerText) { commandText.add(stringify(o)); }
                     } else {
                         // Nhận cả chuỗi cho tiện, nhưng CHỈ nên dùng khi đường
                         // dẫn không có dấu cách.
-                        lenh.add(stringify(dau));
+                        commandText.add(stringify(headerText));
                     }
-                    if (lenh.isEmpty()) { throw new RuntimeException("tienTrinhChay: danh sach lenh rong."); }
+                    if (commandText.isEmpty()) { throw new RuntimeException("tienTrinhChay: danh sach lenh rong."); }
 
-                    ProcessBuilder pb = new ProcessBuilder(lenh);
+                    ProcessBuilder pb = new ProcessBuilder(commandText);
                     if (args.size() > 1 && !stringify(args.get(1)).isEmpty()) {
                         pb.directory(new java.io.File(stringify(args.get(1))));
                     }
@@ -3766,10 +3766,10 @@ public class Interpreter {
                         pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
                     }
 
-                    Process tt = pb.start();
-                    maTienTrinhKe++;
-                    tienTrinhApp.put(maTienTrinhKe, tt);
-                    return (double) maTienTrinhKe;
+                    Process processObj = pb.start();
+                    nextProcessId++;
+                    appProcesses.put(nextProcessId, processObj);
+                    return (double) nextProcessId;
                 }
 
                 // ---------- HỎI MÔI TRƯỜNG ----------
@@ -3805,12 +3805,12 @@ public class Interpreter {
                 //  Nên máy không có khay thì GIỮ NGUYÊN nết cũ: đóng là thoát.
                 // ======================================================================
                 case "appKhay": {
-                    CuaSoApp cs = cuaSoApp.get((int) toDouble(args.get(0)));
-                    if (cs == null || cs.khung == null) { return false; }
+                    AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
+                    if (cs == null || cs.windowFrame == null) { return false; }
 
-                    String anh       = args.size() > 1 ? stringify(args.get(1)) : "";
-                    String nhanMo    = args.size() > 2 ? stringify(args.get(2)) : "Mo ung dung";
-                    String nhanThoat = args.size() > 3 ? stringify(args.get(3)) : "Thoat";
+                    String iconPath       = args.size() > 1 ? stringify(args.get(1)) : "";
+                    String openLabel    = args.size() > 2 ? stringify(args.get(2)) : "Open app";
+                    String exitLabel = args.size() > 3 ? stringify(args.get(3)) : "Thoat";
 
                     if (!java.awt.SystemTray.isSupported()) {
                         System.out.println("[hql.app] May khong ho tro khay he thong - giu nguyen: dong cua so la thoat.");
@@ -3818,8 +3818,8 @@ public class Interpreter {
                     }
 
                     java.awt.Image bt = null;
-                    if (!anh.isEmpty() && new java.io.File(anh).isFile()) {
-                        try { bt = javax.imageio.ImageIO.read(new java.io.File(anh)); } catch (java.io.IOException ignored) { }
+                    if (!iconPath.isEmpty() && new java.io.File(iconPath).isFile()) {
+                        try { bt = javax.imageio.ImageIO.read(new java.io.File(iconPath)); } catch (java.io.IOException ignored) { }
                     }
                     if (bt == null) {
                         // TrayIcon KHÔNG nhận null: ném NullPointerException ngay. Thà vẽ
@@ -3832,38 +3832,38 @@ public class Interpreter {
                     }
 
                     final java.awt.Image icon = bt;
-                    final javax.swing.JFrame khung = cs.khung;
-                    final CuaSoApp csf = cs;
+                    final javax.swing.JFrame windowFrame = cs.windowFrame;
+                    final AppWindow csf = cs;
 
                     java.awt.PopupMenu menu = new java.awt.PopupMenu();
-                    java.awt.MenuItem mMo = new java.awt.MenuItem(nhanMo);
-                    java.awt.MenuItem mThoat = new java.awt.MenuItem(nhanThoat);
-                    menu.add(mMo);
+                    java.awt.MenuItem openItem = new java.awt.MenuItem(openLabel);
+                    java.awt.MenuItem exitItem = new java.awt.MenuItem(exitLabel);
+                    menu.add(openItem);
                     menu.addSeparator();
-                    menu.add(mThoat);
+                    menu.add(exitItem);
 
-                    java.awt.TrayIcon ti = new java.awt.TrayIcon(icon, khung.getTitle(), menu);
-                    ti.setImageAutoSize(true);
+                    java.awt.TrayIcon trayIconObj = new java.awt.TrayIcon(icon, windowFrame.getTitle(), menu);
+                    trayIconObj.setImageAutoSize(true);
 
-                    java.awt.event.ActionListener mo = (ev) -> javax.swing.SwingUtilities.invokeLater(() -> {
-                        khung.setVisible(true);
+                    java.awt.event.ActionListener openListener = (ev) -> javax.swing.SwingUtilities.invokeLater(() -> {
+                        windowFrame.setVisible(true);
                         // Bị thu nhỏ trước đó thì phải bỏ cờ ICONIFIED, không thì
                         // setVisible(true) chỉ trả nó về thanh tác vụ chứ không mở ra.
-                        khung.setState(javax.swing.JFrame.NORMAL);
-                        khung.toFront();
-                        khung.requestFocus();
+                        windowFrame.setState(javax.swing.JFrame.NORMAL);
+                        windowFrame.toFront();
+                        windowFrame.requestFocus();
                     });
-                    mMo.addActionListener(mo);
-                    ti.addActionListener(mo);   // bấm đúp icon khay
+                    openItem.addActionListener(openListener);
+                    trayIconObj.addActionListener(openListener);   // bấm đúp icon khay
 
-                    mThoat.addActionListener((ev) -> {
-                        java.awt.SystemTray.getSystemTray().remove(ti);
-                        javax.swing.SwingUtilities.invokeLater(khung::dispose);
-                        csf.daDong.countDown();   // appCho() nhả ra, app.hql chạy tiếp phần dọn dẹp
+                    exitItem.addActionListener((ev) -> {
+                        java.awt.SystemTray.getSystemTray().remove(trayIconObj);
+                        javax.swing.SwingUtilities.invokeLater(windowFrame::dispose);
+                        csf.closedLatch.countDown();   // appCho() nhả ra, app.hql chạy tiếp phần dọn dẹp
                     });
 
                     try {
-                        java.awt.SystemTray.getSystemTray().add(ti);
+                        java.awt.SystemTray.getSystemTray().add(trayIconObj);
                     } catch (java.awt.AWTException ex) {
                         System.out.println("[hql.app] Khong them duoc icon khay: " + ex.getMessage());
                         return false;
@@ -3871,16 +3871,16 @@ public class Interpreter {
 
                     // Dấu X giờ chỉ ẩn cửa sổ. Gỡ hết listener cũ trước, không thì cái
                     // listener dựng lúc mở cửa sổ vẫn countDown và app vẫn thoát như cũ.
-                    for (java.awt.event.WindowListener wl : khung.getWindowListeners()) {
-                        khung.removeWindowListener(wl);
+                    for (java.awt.event.WindowListener wl : windowFrame.getWindowListeners()) {
+                        windowFrame.removeWindowListener(wl);
                     }
-                    khung.addWindowListener(new java.awt.event.WindowAdapter() {
+                    windowFrame.addWindowListener(new java.awt.event.WindowAdapter() {
                         @Override
                         public void windowClosing(java.awt.event.WindowEvent e) {
-                            khung.setVisible(false);
+                            windowFrame.setVisible(false);
                         }
                     });
-                    csf.oKhay = true;
+                    csf.inTray = true;
                     return true;
                 }
 
@@ -3895,34 +3895,34 @@ public class Interpreter {
                 //  Trả về chuỗi rỗng nếu không tìm ra, để bên HQL tự quyết
                 //  định báo lỗi thế nào.
                 case "appThuMucGoc": {
-                    String moc = stringify(args.get(0));
-                    List<java.io.File> ung = new ArrayList<>();
+                    String anchorMark = stringify(args.get(0));
+                    List<java.io.File> appFiles = new ArrayList<>();
 
-                    String duAn = System.getProperty("jpackage.app-path");
-                    if (duAn != null) {
-                        java.io.File f = new java.io.File(duAn).getAbsoluteFile().getParentFile();
-                        while (f != null && ung.size() < 12) { ung.add(f); f = f.getParentFile(); }
+                    String projectName = System.getProperty("jpackage.app-path");
+                    if (projectName != null) {
+                        java.io.File f = new java.io.File(projectName).getAbsoluteFile().getParentFile();
+                        while (f != null && appFiles.size() < 12) { appFiles.add(f); f = f.getParentFile(); }
                     }
                     java.io.File f2 = new java.io.File("").getAbsoluteFile();
-                    while (f2 != null && ung.size() < 24) { ung.add(f2); f2 = f2.getParentFile(); }
+                    while (f2 != null && appFiles.size() < 24) { appFiles.add(f2); f2 = f2.getParentFile(); }
 
-                    for (java.io.File g : ung) {
-                        if (new java.io.File(g, moc).exists()) { return g.getAbsolutePath(); }
+                    for (java.io.File g : appFiles) {
+                        if (new java.io.File(g, anchorMark).exists()) { return g.getAbsolutePath(); }
                     }
                     return "";
                 }
 
                 // ---------- CỔNG MẠNG ----------
                 case "congDangMo": {
-                    return congCoAiGiu((int) toDouble(args.get(0)));
+                    return portInUse((int) toDouble(args.get(0)));
                 }
 
                 case "choCong": {
-                    int cong = (int) toDouble(args.get(0));
-                    double giay = args.size() > 1 ? toDouble(args.get(1)) : 30;
-                    long het = System.currentTimeMillis() + (long) (giay * 1000);
+                    int portNumber = (int) toDouble(args.get(0));
+                    double secondsAmount = args.size() > 1 ? toDouble(args.get(1)) : 30;
+                    long het = System.currentTimeMillis() + (long) (secondsAmount * 1000);
                     while (System.currentTimeMillis() < het) {
-                        if (congCoAiGiu(cong)) { return true; }
+                        if (portInUse(portNumber)) { return true; }
                         Thread.sleep(200);
                     }
                     return false;
@@ -3933,7 +3933,7 @@ public class Interpreter {
         } catch (Exception e) {
             throw new RuntimeException("Loi Thu vien (hql.app): " + e.getMessage(), e);
         }
-        return CHUA_XU_LY;
+        return NOT_HANDLED;
     }
 
 
@@ -3967,47 +3967,47 @@ public class Interpreter {
     // ======================================================================
 
     /** Một cửa sổ app đang mở: khung cửa sổ + chốt chờ lúc đóng. */
-    private static class CuaSoApp {
-        javax.swing.JFrame khung;
-        java.util.concurrent.CountDownLatch daDong = new java.util.concurrent.CountDownLatch(1);
-        Process tienTrinhLui;   // khác null nghĩa là đang lùi về Edge
-        boolean oKhay;          // đã thu về khay: bấm X chỉ ẩn, không thoát
+    private static class AppWindow {
+        javax.swing.JFrame windowFrame;
+        java.util.concurrent.CountDownLatch closedLatch = new java.util.concurrent.CountDownLatch(1);
+        Process fallbackProcess;   // khác null nghĩa là đang lùi về Edge
+        boolean inTray;          // đã thu về khay: bấm X chỉ ẩn, không thoát
     }
 
-    private final java.util.Map<Integer, CuaSoApp> cuaSoApp = new java.util.HashMap<>();
+    private final java.util.Map<Integer, AppWindow> appWindows = new java.util.HashMap<>();
 
     /** CefApp chỉ được dựng MỘT LẦN cho cả tiến trình — dựng lần hai là nó ném lỗi. */
-    private static Object cefAppChung = null;
+    private static Object sharedCefApp = null;
 
-    private CuaSoApp moCuaSoChromium(String url, String tieuDe, int rong, int cao, String anh) throws Exception {
-        CuaSoApp cs = new CuaSoApp();
+    private AppWindow openChromiumWindow(String url, String titleText, int windowWidth, int windowHeight, String iconPath) throws Exception {
+        AppWindow cs = new AppWindow();
         try {
-            java.io.File nha = new java.io.File("hql_app_cef");
-            nha.mkdirs();
-            java.io.File phien = new java.io.File("hql_app_cef/phien_"
-                    + tieuDe.replaceAll("[^a-zA-Z0-9]", "_"));
-            phien.mkdirs();
+            java.io.File cefHomeDir = new java.io.File("hql_app_cef");
+            cefHomeDir.mkdirs();
+            java.io.File sessionDir = new java.io.File("hql_app_cef/phien_"
+                    + titleText.replaceAll("[^a-zA-Z0-9]", "_"));
+            sessionDir.mkdirs();
 
-            if (cefAppChung == null) {
-                me.friwi.jcefmaven.CefAppBuilder xay = new me.friwi.jcefmaven.CefAppBuilder();
-                xay.setInstallDir(nha);
-                xay.getCefSettings().windowless_rendering_enabled = false;
+            if (sharedCefApp == null) {
+                me.friwi.jcefmaven.CefAppBuilder cefBuilder = new me.friwi.jcefmaven.CefAppBuilder();
+                cefBuilder.setInstallDir(cefHomeDir);
+                cefBuilder.getCefSettings().windowless_rendering_enabled = false;
                 // Hồ sơ riêng: cookie đăng nhập của app KHÔNG trộn với phiên
                 // duyệt web cá nhân, và ngược lại.
-                xay.getCefSettings().cache_path = phien.getAbsolutePath();
-                cefAppChung = xay.build();
+                cefBuilder.getCefSettings().cache_path = sessionDir.getAbsolutePath();
+                sharedCefApp = cefBuilder.build();
             }
-            org.cef.CefApp cefApp = (org.cef.CefApp) cefAppChung;
+            org.cef.CefApp cefApp = (org.cef.CefApp) sharedCefApp;
             org.cef.CefClient client = cefApp.createClient();
-            org.cef.browser.CefBrowser trinhDuyet = client.createBrowser(url, false, false);
+            org.cef.browser.CefBrowser browserObj = client.createBrowser(url, false, false);
 
             javax.swing.SwingUtilities.invokeAndWait(() -> {
-                javax.swing.JFrame khung = new javax.swing.JFrame(tieuDe);
-                khung.setDefaultCloseOperation(javax.swing.WindowConstants.DO_NOTHING_ON_CLOSE);
-                khung.getContentPane().add(trinhDuyet.getUIComponent(), java.awt.BorderLayout.CENTER);
-                khung.setSize(new java.awt.Dimension(rong, cao));
-                khung.setMinimumSize(new java.awt.Dimension(900, 600));
-                khung.setLocationRelativeTo(null);
+                javax.swing.JFrame windowFrame = new javax.swing.JFrame(titleText);
+                windowFrame.setDefaultCloseOperation(javax.swing.WindowConstants.DO_NOTHING_ON_CLOSE);
+                windowFrame.getContentPane().add(browserObj.getUIComponent(), java.awt.BorderLayout.CENTER);
+                windowFrame.setSize(new java.awt.Dimension(windowWidth, windowHeight));
+                windowFrame.setMinimumSize(new java.awt.Dimension(900, 600));
+                windowFrame.setLocationRelativeTo(null);
 
                 // ICON CỬA SỔ. Không đặt thì Windows bày icon mặc định của
                 // CEF (con chim cánh cụt) trên thanh tác vụ và góc cửa sổ —
@@ -4021,31 +4021,31 @@ public class Interpreter {
                 //  setIconImage() rất hay nhận phải ảnh chưa có gì — icon lúc
                 //  hiện lúc không, tuỳ máy nhanh chậm. ImageIO.read() nạp
                 //  xong mới trả về, và ném lỗi nếu file hỏng.
-                if (!anh.isEmpty()) {
-                    java.io.File fAnh = new java.io.File(anh);
-                    if (fAnh.isFile()) {
+                if (!iconPath.isEmpty()) {
+                    java.io.File iconFile = new java.io.File(iconPath);
+                    if (iconFile.isFile()) {
                         try {
-                            java.awt.image.BufferedImage bt = javax.imageio.ImageIO.read(fAnh);
-                            if (bt != null) { khung.setIconImage(bt); }
-                            else { System.out.println("[hql.app] Khong doc duoc anh icon: " + anh
+                            java.awt.image.BufferedImage bt = javax.imageio.ImageIO.read(iconFile);
+                            if (bt != null) { windowFrame.setIconImage(bt); }
+                            else { System.out.println("[hql.app] Khong doc duoc anh icon: " + iconPath
                                     + " (ImageIO khong hieu dinh dang - phai la PNG/GIF/JPG)."); }
                         } catch (java.io.IOException ex) {
-                            System.out.println("[hql.app] Loi doc anh icon " + anh + ": " + ex.getMessage());
+                            System.out.println("[hql.app] Loi doc anh icon " + iconPath + ": " + ex.getMessage());
                         }
                     } else {
-                        System.out.println("[hql.app] Khong thay anh icon: " + anh);
+                        System.out.println("[hql.app] Khong thay anh icon: " + iconPath);
                     }
                 }
 
-                khung.addWindowListener(new java.awt.event.WindowAdapter() {
+                windowFrame.addWindowListener(new java.awt.event.WindowAdapter() {
                     @Override
                     public void windowClosing(java.awt.event.WindowEvent e) {
-                        khung.dispose();
-                        cs.daDong.countDown();
+                        windowFrame.dispose();
+                        cs.closedLatch.countDown();
                     }
                 });
-                khung.setVisible(true);
-                cs.khung = khung;
+                windowFrame.setVisible(true);
+                cs.windowFrame = windowFrame;
             });
             return cs;
 
@@ -4053,15 +4053,15 @@ public class Interpreter {
             System.out.println("[hql.app] Khong dung duoc Chromium nhung (" + e.getClass().getSimpleName()
                     + ": " + e.getMessage() + ").");
             System.out.println("[hql.app] Lui ve khung Edge/Chrome co san tren may.");
-            cs.tienTrinhLui = moCuaSoMuonTrinhDuyet(url, tieuDe, rong, cao);
+            cs.fallbackProcess = openBorrowedBrowserWindow(url, titleText, windowWidth, windowHeight);
             return cs;
         }
     }
 
     /** Đường lùi: mượn Edge/Chrome của máy làm khung (chế độ --app). */
-    private Process moCuaSoMuonTrinhDuyet(String url, String tieuDe, int rong, int cao) throws Exception {
-        String trinhDuyet = timTrinhDuyetApp();
-        if (trinhDuyet == null) {
+    private Process openBorrowedBrowserWindow(String url, String titleText, int windowWidth, int windowHeight) throws Exception {
+        String browserObj = findAppBrowser();
+        if (browserObj == null) {
             throw new RuntimeException("Khong dung duoc Chromium nhung, ma may cung khong co "
                     + "Microsoft Edge hay Google Chrome de lam khung cua so.");
         }
@@ -4069,29 +4069,29 @@ public class Interpreter {
         // Thu muc ho so RIENG. Thieu no thi Edge nhap cua so nay vao ho so Edge
         // nguoi dung dang mo: tien trinh vua sinh ra da thoat ngay (vi ban giao
         // cho Edge cu) nen appCho() tra ve tuc thi va app tat lien.
-        java.io.File hoSo = new java.io.File("hql_app_cuaso/"
-                + tieuDe.replaceAll("[^a-zA-Z0-9]", "_"));
-        hoSo.mkdirs();
+        java.io.File profileDir = new java.io.File("hql_app_cuaso/"
+                + titleText.replaceAll("[^a-zA-Z0-9]", "_"));
+        profileDir.mkdirs();
 
-        List<String> lenh = new ArrayList<>();
-        lenh.add(trinhDuyet);
-        lenh.add("--app=" + url);
-        lenh.add("--user-data-dir=" + hoSo.getAbsolutePath());
-        lenh.add("--window-size=" + rong + "," + cao);
-        lenh.add("--no-first-run");
-        lenh.add("--no-default-browser-check");
-        lenh.add("--disable-features=Translate,AutofillServerCommunication");
+        List<String> commandText = new ArrayList<>();
+        commandText.add(browserObj);
+        commandText.add("--app=" + url);
+        commandText.add("--user-data-dir=" + profileDir.getAbsolutePath());
+        commandText.add("--window-size=" + windowWidth + "," + windowHeight);
+        commandText.add("--no-first-run");
+        commandText.add("--no-default-browser-check");
+        commandText.add("--disable-features=Translate,AutofillServerCommunication");
 
-        ProcessBuilder pb = new ProcessBuilder(lenh);
+        ProcessBuilder pb = new ProcessBuilder(commandText);
         pb.redirectErrorStream(true);
         pb.redirectOutput(ProcessBuilder.Redirect.DISCARD);
         return pb.start();
     }
 
     /** Có ai đang nghe ở cổng này trên máy mình không. */
-    private boolean congCoAiGiu(int cong) {
+    private boolean portInUse(int portNumber) {
         try (java.net.Socket s = new java.net.Socket()) {
-            s.connect(new java.net.InetSocketAddress("127.0.0.1", cong), 400);
+            s.connect(new java.net.InetSocketAddress("127.0.0.1", portNumber), 400);
             return true;
         } catch (java.io.IOException e) {
             return false;
@@ -4102,15 +4102,15 @@ public class Interpreter {
      * Tìm Edge hoặc Chrome để làm khung cửa sổ. Ưu tiên Edge vì Windows 10/11
      * nào cũng có sẵn, không phải cài thêm gì.
      */
-    private String timTrinhDuyetApp() {
-        String[] ung = {
+    private String findAppBrowser() {
+        String[] appFiles = {
                 System.getenv("ProgramFiles(x86)") + "\\Microsoft\\Edge\\Application\\msedge.exe",
                 System.getenv("ProgramFiles")      + "\\Microsoft\\Edge\\Application\\msedge.exe",
                 System.getenv("ProgramFiles")      + "\\Google\\Chrome\\Application\\chrome.exe",
                 System.getenv("ProgramFiles(x86)") + "\\Google\\Chrome\\Application\\chrome.exe",
                 System.getenv("LOCALAPPDATA")      + "\\Google\\Chrome\\Application\\chrome.exe",
         };
-        for (String d : ung) {
+        for (String d : appFiles) {
             if (d == null || d.startsWith("null")) { continue; }
             if (new java.io.File(d).isFile()) { return d; }
         }
@@ -4118,18 +4118,18 @@ public class Interpreter {
     }
 
     /** Thư viện hql.game (tách riêng khỏi executeBuiltin vì quá dài). */
-    private Object thuVienGame(String name, List<Object> args) {
+    private Object gameLibrary(String name, List<Object> args) {
         try {
             switch (name) {
                 // --- NHÓM 1: CỬA SỔ GAME ---
                 case "gameWindow": {
-                    taoCuaSoGame(stringify(args.get(0)), (int) toDouble(args.get(1)), (int) toDouble(args.get(2)), false);
+                    createGameWindow(stringify(args.get(0)), (int) toDouble(args.get(1)), (int) toDouble(args.get(2)), false);
                     return null;
                 }
                 case "gameWindowFull": {
                     // Cửa sổ chiếm trọn màn hình, không viền (như bấm F11)
                     Dimension mh = Toolkit.getDefaultToolkit().getScreenSize();
-                    taoCuaSoGame(stringify(args.get(0)), mh.width, mh.height, true);
+                    createGameWindow(stringify(args.get(0)), mh.width, mh.height, true);
                     return null;
                 }
                 case "screenW": return (double) Toolkit.getDefaultToolkit().getScreenSize().width;
@@ -4138,87 +4138,87 @@ public class Interpreter {
                 // ---- NHÓM BẢN ĐỒ LƯỚI & TẦM NHÌN (dùng cho game bắn súng góc nhìn từ trên xuống) ----
                 case "mapNap": {
                     // mapNap(danhSachHang, kichThuocO, kyTuChanNhin, kyTuChanDan)
-                    List<?> hang = (List<?>) args.get(0);
-                    banDoLuoi = new char[hang.size()][];
-                    for (int i = 0; i < hang.size(); i++) banDoLuoi[i] = stringify(hang.get(i)).toCharArray();
-                    banDoOKichThuoc = args.size() > 1 ? (int) toDouble(args.get(1)) : 32;
-                    if (args.size() > 2) banDoChanNhin = stringify(args.get(2));
-                    if (args.size() > 3) banDoChanDan = stringify(args.get(3));
-                    danhSachKhoi.clear();
-                    return (double) banDoLuoi.length;
+                    List<?> rowList = (List<?>) args.get(0);
+                    mapGrid = new char[rowList.size()][];
+                    for (int i = 0; i < rowList.size(); i++) mapGrid[i] = stringify(rowList.get(i)).toCharArray();
+                    mapCellSize = args.size() > 1 ? (int) toDouble(args.get(1)) : 32;
+                    if (args.size() > 2) mapViewBlockers = stringify(args.get(2));
+                    if (args.size() > 3) mapBulletBlockers = stringify(args.get(3));
+                    smokePuffs.clear();
+                    return (double) mapGrid.length;
                 }
                 case "mapO": {
                     // mapO(cot, hang) -> ký tự
                     int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
-                    if (banDoLuoi == null || h < 0 || h >= banDoLuoi.length || c < 0 || c >= banDoLuoi[h].length) return "#";
-                    return String.valueOf(banDoLuoi[h][c]);
+                    if (mapGrid == null || h < 0 || h >= mapGrid.length || c < 0 || c >= mapGrid[h].length) return "#";
+                    return String.valueOf(mapGrid[h][c]);
                 }
-                case "mapOTai": return String.valueOf(oTaiDiem(toDouble(args.get(0)), toDouble(args.get(1))));
-                case "mapSoCot": return banDoLuoi == null ? 0.0 : (double) banDoLuoi[0].length;
-                case "mapSoHang": return banDoLuoi == null ? 0.0 : (double) banDoLuoi.length;
-                case "mapKichThuocO": return (double) banDoOKichThuoc;
+                case "mapOTai": return String.valueOf(tileAtPoint(toDouble(args.get(0)), toDouble(args.get(1))));
+                case "mapSoCot": return mapGrid == null ? 0.0 : (double) mapGrid[0].length;
+                case "mapSoHang": return mapGrid == null ? 0.0 : (double) mapGrid.length;
+                case "mapKichThuocO": return (double) mapCellSize;
                 case "mapDatO": {
                     // mapDatO(cot, hang, kyTu) - dùng để mở/đóng cửa, phá tường...
                     int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
                     String k = stringify(args.get(2));
-                    if (banDoLuoi != null && h >= 0 && h < banDoLuoi.length && c >= 0 && c < banDoLuoi[h].length && !k.isEmpty()) {
-                        banDoLuoi[h][c] = k.charAt(0);
+                    if (mapGrid != null && h >= 0 && h < mapGrid.length && c >= 0 && c < mapGrid[h].length && !k.isEmpty()) {
+                        mapGrid[h][c] = k.charAt(0);
                     }
                     return null;
                 }
                 case "mapThayDuoc": {
                     // mapThayDuoc(x1,y1,x2,y2) -> hai điểm có nhìn thấy nhau không
-                    return doTiaNhin(toDouble(args.get(0)), toDouble(args.get(1)),
+                    return viewRayLength(toDouble(args.get(0)), toDouble(args.get(1)),
                             toDouble(args.get(2)), toDouble(args.get(3))) < 0;
                 }
                 case "banTia": {
                     // banTia(x, y, gocDo, tamXa) -> [xTrung, yTrung, kyTuTuong, khoangCach]
                     // Dùng cho đường đạn: trả về điểm chạm tường CHẶN ĐẠN đầu tiên.
                     double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
-                    double goc = Math.toRadians(toDouble(args.get(2)));
-                    double tam = toDouble(args.get(3));
-                    double cx = Math.cos(goc), cy = Math.sin(goc);
-                    double buoc = Math.max(2.0, banDoOKichThuoc / 10.0);
+                    double angleVal = Math.toRadians(toDouble(args.get(2)));
+                    double rangeLen = toDouble(args.get(3));
+                    double cx = Math.cos(angleVal), cy = Math.sin(angleVal);
+                    double stepSize = Math.max(2.0, mapCellSize / 10.0);
                     double t = 0;
-                    while (t < tam) {
-                        t += buoc;
+                    while (t < rangeLen) {
+                        t += stepSize;
                         double px = bx + cx * t, py = by + cy * t;
-                        char k = oTaiDiem(px, py);
-                        if (banDoChanDan.indexOf(k) >= 0) {
+                        char k = tileAtPoint(px, py);
+                        if (mapBulletBlockers.indexOf(k) >= 0) {
                             return new ArrayList<>(Arrays.asList(px, py, String.valueOf(k), t));
                         }
                     }
-                    return new ArrayList<>(Arrays.asList(bx + cx * tam, by + cy * tam, " ", tam));
+                    return new ArrayList<>(Arrays.asList(bx + cx * rangeLen, by + cy * rangeLen, " ", rangeLen));
                 }
                 case "veBanDo": {
                     // veBanDo(anhSan, anhTuong, anhGo, anhThung, anhSite)
                     // Vẽ toàn bộ ô đang lọt vào khung nhìn - chạy trong Java nên nhanh gấp trăm lần
                     // so với việc lặp từng ô bằng kịch bản HQL.
-                    if (gameGraphics == null || banDoLuoi == null) return null;
-                    Image aSan = loadGameImage(stringify(args.get(0)));
-                    Image aTuong = loadGameImage(stringify(args.get(1)));
-                    Image aGo = args.size() > 2 ? loadGameImage(stringify(args.get(2))) : aTuong;
-                    Image aThung = args.size() > 3 ? loadGameImage(stringify(args.get(3))) : aTuong;
-                    Image aSite = args.size() > 4 ? loadGameImage(stringify(args.get(4))) : null;
+                    if (gameGraphics == null || mapGrid == null) return null;
+                    Image floorImg = loadGameImage(stringify(args.get(0)));
+                    Image wallImg = loadGameImage(stringify(args.get(1)));
+                    Image woodImg = args.size() > 2 ? loadGameImage(stringify(args.get(2))) : wallImg;
+                    Image crateImg = args.size() > 3 ? loadGameImage(stringify(args.get(3))) : wallImg;
+                    Image siteImg = args.size() > 4 ? loadGameImage(stringify(args.get(4))) : null;
 
                     int dx = camOffX(), dy = camOffY();
-                    int cotDau = Math.max(0, dx / banDoOKichThuoc - 1);
-                    int hangDau = Math.max(0, dy / banDoOKichThuoc - 1);
-                    int cotCuoi = (dx + gameBuffer.getWidth()) / banDoOKichThuoc + 1;
-                    int hangCuoi = (dy + gameBuffer.getHeight()) / banDoOKichThuoc + 1;
+                    int firstColumn = Math.max(0, dx / mapCellSize - 1);
+                    int firstRowIndex = Math.max(0, dy / mapCellSize - 1);
+                    int lastColumn = (dx + gameBuffer.getWidth()) / mapCellSize + 1;
+                    int lastRowIndex = (dy + gameBuffer.getHeight()) / mapCellSize + 1;
 
-                    for (int h = hangDau; h <= hangCuoi && h < banDoLuoi.length; h++) {
-                        for (int c = cotDau; c <= cotCuoi && c < banDoLuoi[h].length; c++) {
-                            char k = banDoLuoi[h][c];
-                            int px = c * banDoOKichThuoc - dx;
-                            int py = h * banDoOKichThuoc - dy;
-                            Image anh = aSan;
-                            if (k == '#') anh = aTuong;
-                            else if (k == 'W') anh = aGo;
-                            else if (k == 'B') anh = aThung;
-                            gameGraphics.drawImage(anh, px, py, banDoOKichThuoc, banDoOKichThuoc, null);
-                            if (aSite != null && (k == 'A' || k == 'b' || k == 'C')) {
-                                gameGraphics.drawImage(aSite, px, py, banDoOKichThuoc, banDoOKichThuoc, null);
+                    for (int h = firstRowIndex; h <= lastRowIndex && h < mapGrid.length; h++) {
+                        for (int c = firstColumn; c <= lastColumn && c < mapGrid[h].length; c++) {
+                            char k = mapGrid[h][c];
+                            int px = c * mapCellSize - dx;
+                            int py = h * mapCellSize - dy;
+                            Image tileImage = floorImg;
+                            if (k == '#') tileImage = wallImg;
+                            else if (k == 'W') tileImage = woodImg;
+                            else if (k == 'B') tileImage = crateImg;
+                            gameGraphics.drawImage(tileImage, px, py, mapCellSize, mapCellSize, null);
+                            if (siteImg != null && (k == 'A' || k == 'b' || k == 'C')) {
+                                gameGraphics.drawImage(siteImg, px, py, mapCellSize, mapCellSize, null);
                             }
                         }
                     }
@@ -4227,68 +4227,68 @@ public class Interpreter {
                 // ================= NHÓM 2.5D NHÌN CHÉO (ISOMETRIC) =================
                 case "isoCaiDat": {
                     // isoCaiDat(rongO, caoO) - mặc định 64 x 32 (góc chéo 45 độ, tỉ lệ 2:1)
-                    isoRong = toDouble(args.get(0));
-                    isoCao = toDouble(args.get(1));
+                    isoWidth = toDouble(args.get(0));
+                    isoHeight = toDouble(args.get(1));
                     return null;
                 }
-                case "isoX": return isoTruc_X(toDouble(args.get(0)), toDouble(args.get(1)));
-                case "isoY": return isoTruc_Y(toDouble(args.get(0)), toDouble(args.get(1)));
-                case "isoManHinhX": return (double) isoManHinhX(toDouble(args.get(0)), toDouble(args.get(1)));
-                case "isoManHinhY": return (double) isoManHinhY(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoX": return isoAxisX(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoY": return isoAxisY(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoManHinhX": return (double) isoScreenX(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoManHinhY": return (double) isoScreenY(toDouble(args.get(0)), toDouble(args.get(1)));
                 case "isoNguocVeTheGioi": {
                     // isoNguocVeTheGioi(sxManHinh, syManHinh) -> [wx, wy]
                     // Dùng để biết con trỏ chuột đang trỏ vào điểm nào trên mặt đất.
                     double sx = toDouble(args.get(0)) + camOffX();
                     double sy = toDouble(args.get(1)) + camOffY();
-                    double a = sx / (isoRong / 2.0);
-                    double b = sy / (isoCao / 2.0);
+                    double a = sx / (isoWidth / 2.0);
+                    double b = sy / (isoHeight / 2.0);
                     double tx = (a + b) / 2.0;
                     double ty = (b - a) / 2.0;
-                    return new ArrayList<>(Arrays.asList(tx * banDoOKichThuoc, ty * banDoOKichThuoc));
+                    return new ArrayList<>(Arrays.asList(tx * mapCellSize, ty * mapCellSize));
                 }
                 case "isoVeBanDo": {
                     // isoVeBanDo(caoTuong, mauSan, mauSanToi, mauSite,
                     //            mauTuongTren, mauTuongTrai, mauTuongPhai,
                     //            mauGoTren, mauGoTrai, mauGoPhai,
                     //            mauThungTren, mauThungTrai, mauThungPhai)
-                    if (gameGraphics == null || banDoLuoi == null) return null;
-                    double caoTuong = toDouble(args.get(0));
-                    Color mSan = parseColor(stringify(args.get(1)));
-                    Color mSanToi = parseColor(stringify(args.get(2)));
-                    Color mSite = parseColor(stringify(args.get(3)));
+                    if (gameGraphics == null || mapGrid == null) return null;
+                    double wallHeight = toDouble(args.get(0));
+                    Color floorColor = parseColor(stringify(args.get(1)));
+                    Color darkFloorColor = parseColor(stringify(args.get(2)));
+                    Color siteItem = parseColor(stringify(args.get(3)));
                     Color tT = parseColor(stringify(args.get(4)));
                     Color tL = parseColor(stringify(args.get(5)));
                     Color tR = parseColor(stringify(args.get(6)));
                     Color gT = parseColor(stringify(args.get(7)));
                     Color gL = parseColor(stringify(args.get(8)));
                     Color gR = parseColor(stringify(args.get(9)));
-                    Color thT = parseColor(stringify(args.get(10)));
-                    Color thL = parseColor(stringify(args.get(11)));
-                    Color thR = parseColor(stringify(args.get(12)));
+                    Color sideTopColor = parseColor(stringify(args.get(10)));
+                    Color sideLeftColor = parseColor(stringify(args.get(11)));
+                    Color sideRightColor = parseColor(stringify(args.get(12)));
 
-                    double nuaR = isoRong / 2.0, nuaC = isoCao / 2.0;
+                    double halfR = isoWidth / 2.0, halfC = isoHeight / 2.0;
                     int W = gameBuffer.getWidth(), H = gameBuffer.getHeight();
 
                     // Vẽ từ xa tới gần (theo tổng hàng+cột) để khối che nhau đúng thứ tự
-                    int tongMax = banDoLuoi.length + banDoLuoi[0].length;
-                    for (int tong = 0; tong < tongMax; tong++) {
-                        for (int h = 0; h <= tong && h < banDoLuoi.length; h++) {
-                            int c = tong - h;
-                            if (c < 0 || c >= banDoLuoi[h].length) continue;
-                            double wx = c * banDoOKichThuoc, wy = h * banDoOKichThuoc;
-                            int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
-                            if (sx < -isoRong * 2 || sx > W + isoRong * 2) continue;
-                            if (sy < -isoCao * 6 || sy > H + isoCao * 6) continue;
+                    int sumMax = mapGrid.length + mapGrid[0].length;
+                    for (int diagSum = 0; diagSum < sumMax; diagSum++) {
+                        for (int h = 0; h <= diagSum && h < mapGrid.length; h++) {
+                            int c = diagSum - h;
+                            if (c < 0 || c >= mapGrid[h].length) continue;
+                            double wx = c * mapCellSize, wy = h * mapCellSize;
+                            int sx = isoScreenX(wx, wy), sy = isoScreenY(wx, wy);
+                            if (sx < -isoWidth * 2 || sx > W + isoWidth * 2) continue;
+                            if (sy < -isoHeight * 6 || sy > H + isoHeight * 6) continue;
 
-                            char k = banDoLuoi[h][c];
-                            if (k == '#') { veKhoiIso(wx, wy, caoTuong, tT, tL, tR); }
-                            else if (k == 'W') { veKhoiIso(wx, wy, caoTuong * 0.75, gT, gL, gR); }
-                            else if (k == 'B') { veKhoiIso(wx, wy, caoTuong * 0.5, thT, thL, thR); }
+                            char k = mapGrid[h][c];
+                            if (k == '#') { drawIsoBlock(wx, wy, wallHeight, tT, tL, tR); }
+                            else if (k == 'W') { drawIsoBlock(wx, wy, wallHeight * 0.75, gT, gL, gR); }
+                            else if (k == 'B') { drawIsoBlock(wx, wy, wallHeight * 0.5, sideTopColor, sideLeftColor, sideRightColor); }
                             else {
-                                Color m = (((c + h) % 2) == 0) ? mSan : mSanToi;
-                                if (k == 'A' || k == 'b' || k == 'C') m = mSite;
-                                int[] px = { sx, (int) (sx + nuaR), sx, (int) (sx - nuaR) };
-                                int[] py = { sy, (int) (sy + nuaC), (int) (sy + isoCao), (int) (sy + nuaC) };
+                                Color m = (((c + h) % 2) == 0) ? floorColor : darkFloorColor;
+                                if (k == 'A' || k == 'b' || k == 'C') m = siteItem;
+                                int[] px = { sx, (int) (sx + halfR), sx, (int) (sx - halfR) };
+                                int[] py = { sy, (int) (sy + halfC), (int) (sy + isoHeight), (int) (sy + halfC) };
                                 gameGraphics.setColor(m);
                                 gameGraphics.fillPolygon(px, py, 4);
                             }
@@ -4300,20 +4300,20 @@ public class Interpreter {
                     // isoVeAnhNen(duongDanAnhBanDo)
                     // Vẽ NGUYÊN tấm ảnh bản đồ thật, chiếu chéo 45 độ cho khớp lưới va chạm.
                     // Ảnh được coi là phủ đúng toàn bộ lưới đã nạp bằng mapNap().
-                    if (gameGraphics == null || banDoLuoi == null) return null;
-                    Image anh = loadGameImage(stringify(args.get(0)));
-                    int rongAnh = anh.getWidth(null);
-                    if (rongAnh <= 0) return null;
-                    double theGioiRong = banDoLuoi[0].length * (double) banDoOKichThuoc;
-                    double s = theGioiRong / rongAnh;            // 1 điểm ảnh = bao nhiêu đơn vị thế giới
-                    double a = s * isoRong / (2.0 * banDoOKichThuoc);
-                    double b = s * isoCao / (2.0 * banDoOKichThuoc);
+                    if (gameGraphics == null || mapGrid == null) return null;
+                    Image spriteImage = loadGameImage(stringify(args.get(0)));
+                    int imageWidthPx = spriteImage.getWidth(null);
+                    if (imageWidthPx <= 0) return null;
+                    double worldWide = mapGrid[0].length * (double) mapCellSize;
+                    double s = worldWide / imageWidthPx;            // 1 điểm ảnh = bao nhiêu đơn vị thế giới
+                    double a = s * isoWidth / (2.0 * mapCellSize);
+                    double b = s * isoHeight / (2.0 * mapCellSize);
                     AffineTransform tx = new AffineTransform(a, b, -a, b, -camOffX(), -camOffY());
-                    Object cuNoiSuy = gameGraphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
+                    Object oldInterpolation = gameGraphics.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
                     gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
                             RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-                    gameGraphics.drawImage(anh, tx, null);
-                    if (cuNoiSuy != null) gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, cuNoiSuy);
+                    gameGraphics.drawImage(spriteImage, tx, null);
+                    if (oldInterpolation != null) gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldInterpolation);
                     return null;
                 }
                 case "isoVeAnh": {
@@ -4322,10 +4322,10 @@ public class Interpreter {
                     Image img = loadGameImage(stringify(args.get(0)));
                     double wx = toDouble(args.get(1)), wy = toDouble(args.get(2));
                     double rw = toDouble(args.get(3)), rh = toDouble(args.get(4));
-                    double nhac = args.size() > 5 ? toDouble(args.get(5)) : 0;
-                    int sx = isoManHinhX(wx, wy);
-                    int sy = isoManHinhY(wx, wy);
-                    gameGraphics.drawImage(img, (int) (sx - rw / 2), (int) (sy + isoCao / 2 - rh - nhac),
+                    double liftAmount = args.size() > 5 ? toDouble(args.get(5)) : 0;
+                    int sx = isoScreenX(wx, wy);
+                    int sy = isoScreenY(wx, wy);
+                    gameGraphics.drawImage(img, (int) (sx - rw / 2), (int) (sy + isoHeight / 2 - rh - liftAmount),
                             (int) rw, (int) rh, null);
                     return null;
                 }
@@ -4334,30 +4334,30 @@ public class Interpreter {
                     double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
                     gameGraphics.setColor(parseColor(stringify(args.get(3))));
-                    double rx = bk * (isoRong / banDoOKichThuoc);
-                    double ry = bk * (isoCao / banDoOKichThuoc);
-                    int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
-                    gameGraphics.fillOval((int) (sx - rx), (int) (sy + isoCao / 2 - ry), (int) (rx * 2), (int) (ry * 2));
+                    double rx = bk * (isoWidth / mapCellSize);
+                    double ry = bk * (isoHeight / mapCellSize);
+                    int sx = isoScreenX(wx, wy), sy = isoScreenY(wx, wy);
+                    gameGraphics.fillOval((int) (sx - rx), (int) (sy + isoHeight / 2 - ry), (int) (rx * 2), (int) (ry * 2));
                     return null;
                 }
                 case "isoVeVienElip": {
                     double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
                     gameGraphics.setColor(parseColor(stringify(args.get(3))));
-                    double rx = bk * (isoRong / banDoOKichThuoc);
-                    double ry = bk * (isoCao / banDoOKichThuoc);
-                    int sx = isoManHinhX(wx, wy), sy = isoManHinhY(wx, wy);
-                    gameGraphics.drawOval((int) (sx - rx), (int) (sy + isoCao / 2 - ry), (int) (rx * 2), (int) (ry * 2));
+                    double rx = bk * (isoWidth / mapCellSize);
+                    double ry = bk * (isoHeight / mapCellSize);
+                    int sx = isoScreenX(wx, wy), sy = isoScreenY(wx, wy);
+                    gameGraphics.drawOval((int) (sx - rx), (int) (sy + isoHeight / 2 - ry), (int) (rx * 2), (int) (ry * 2));
                     return null;
                 }
                 case "isoVeDuong": {
                     // isoVeDuong(wx1, wy1, wx2, wy2, mau, nhacLen)
-                    double nhac = args.size() > 5 ? toDouble(args.get(5)) : 0;
+                    double liftAmount = args.size() > 5 ? toDouble(args.get(5)) : 0;
                     gameGraphics.setColor(parseColor(stringify(args.get(4))));
-                    gameGraphics.drawLine(isoManHinhX(toDouble(args.get(0)), toDouble(args.get(1))),
-                            (int) (isoManHinhY(toDouble(args.get(0)), toDouble(args.get(1))) + isoCao / 2 - nhac),
-                            isoManHinhX(toDouble(args.get(2)), toDouble(args.get(3))),
-                            (int) (isoManHinhY(toDouble(args.get(2)), toDouble(args.get(3))) + isoCao / 2 - nhac));
+                    gameGraphics.drawLine(isoScreenX(toDouble(args.get(0)), toDouble(args.get(1))),
+                            (int) (isoScreenY(toDouble(args.get(0)), toDouble(args.get(1))) + isoHeight / 2 - liftAmount),
+                            isoScreenX(toDouble(args.get(2)), toDouble(args.get(3))),
+                            (int) (isoScreenY(toDouble(args.get(2)), toDouble(args.get(3))) + isoHeight / 2 - liftAmount));
                     return null;
                 }
                 case "isoVeSuongMu": {
@@ -4365,24 +4365,24 @@ public class Interpreter {
                     if (gameGraphics == null || gameBuffer == null) return null;
                     double x = toDouble(args.get(0)), y = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
-                    int soTia = args.size() > 3 ? (int) toDouble(args.get(3)) : 160;
-                    Color mauToi = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
-                    float doToi = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.8f;
+                    int rayCount = args.size() > 3 ? (int) toDouble(args.get(3)) : 160;
+                    Color darkColor = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
+                    float darknessLevel = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.8f;
 
-                    Polygon theGioi = dungDaGiacTamNhin(x, y, bk, soTia);
-                    Polygon manHinh = new Polygon();
-                    for (int i = 0; i < theGioi.npoints; i++) {
-                        manHinh.addPoint(isoManHinhX(theGioi.xpoints[i], theGioi.ypoints[i]),
-                                (int) (isoManHinhY(theGioi.xpoints[i], theGioi.ypoints[i]) + isoCao / 2));
+                    Polygon worldPolygon = buildViewPolygon(x, y, bk, rayCount);
+                    Polygon screenArea = new Polygon();
+                    for (int i = 0; i < worldPolygon.npoints; i++) {
+                        screenArea.addPoint(isoScreenX(worldPolygon.xpoints[i], worldPolygon.ypoints[i]),
+                                (int) (isoScreenY(worldPolygon.xpoints[i], worldPolygon.ypoints[i]) + isoHeight / 2));
                     }
-                    Area toi = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
-                    toi.subtract(new Area(manHinh));
-                    Composite cu = gameGraphics.getComposite();
+                    Area darkArea = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
+                    darkArea.subtract(new Area(screenArea));
+                    Composite previousValue = gameGraphics.getComposite();
                     gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                            Math.max(0f, Math.min(1f, doToi))));
-                    gameGraphics.setColor(mauToi);
-                    gameGraphics.fill(toi);
-                    gameGraphics.setComposite(cu);
+                            Math.max(0f, Math.min(1f, darknessLevel))));
+                    gameGraphics.setColor(darkColor);
+                    gameGraphics.fill(darkArea);
+                    gameGraphics.setComposite(previousValue);
                     return null;
                 }
 
@@ -4392,11 +4392,11 @@ public class Interpreter {
                     if (gameCanvas != null && gameWindow != null) {
                         boolean an = args.isEmpty() || toBoolean(args.get(0));
                         if (an) {
-                            Cursor troTrong = Toolkit.getDefaultToolkit().createCustomCursor(
+                            Cursor blankCursor = Toolkit.getDefaultToolkit().createCustomCursor(
                                     new BufferedImage(16, 16, BufferedImage.TYPE_INT_ARGB),
                                     new Point(0, 0), "khongCoTro");
-                            gameCanvas.setCursor(troTrong);
-                            gameWindow.setCursor(troTrong);
+                            gameCanvas.setCursor(blankCursor);
+                            gameWindow.setCursor(blankCursor);
                         } else {
                             gameCanvas.setCursor(Cursor.getDefaultCursor());
                             gameWindow.setCursor(Cursor.getDefaultCursor());
@@ -4406,44 +4406,44 @@ public class Interpreter {
                 }
                 case "layChuVuaGo": {
                     // Trả về các ký tự người chơi vừa gõ (dùng cho ô chat), rồi xoá đi.
-                    String s = chuDaGo.toString();
-                    chuDaGo.setLength(0);
+                    String s = typedText.toString();
+                    typedText.setLength(0);
                     return s;
                 }
-                case "xoaChuVuaGo": chuDaGo.setLength(0); return null;
+                case "xoaChuVuaGo": typedText.setLength(0); return null;
 
                 case "veBanDoNho": {
                     // veBanDoNho(x, y, tyLe, mauSan, mauTuong, mauSite) - vẽ minimap
-                    if (gameGraphics == null || banDoLuoi == null) return null;
+                    if (gameGraphics == null || mapGrid == null) return null;
                     double mx = toDouble(args.get(0)), my = toDouble(args.get(1));
                     double ty = toDouble(args.get(2));
-                    Color mSan = parseColor(stringify(args.get(3)));
-                    Color mTuong = parseColor(stringify(args.get(4)));
-                    Color mSite = args.size() > 5 ? parseColor(stringify(args.get(5))) : Color.YELLOW;
-                    int o = Math.max(1, (int) Math.round(banDoOKichThuoc * ty));
-                    for (int h = 0; h < banDoLuoi.length; h++) {
-                        for (int c = 0; c < banDoLuoi[h].length; c++) {
-                            char k = banDoLuoi[h][c];
-                            Color m = mSan;
-                            if (k == '#' || k == 'B' || k == 'W') m = mTuong;
-                            else if (k == 'A' || k == 'b' || k == 'C') m = mSite;
+                    Color floorColor = parseColor(stringify(args.get(3)));
+                    Color wallColor = parseColor(stringify(args.get(4)));
+                    Color siteItem = args.size() > 5 ? parseColor(stringify(args.get(5))) : Color.YELLOW;
+                    int o = Math.max(1, (int) Math.round(mapCellSize * ty));
+                    for (int h = 0; h < mapGrid.length; h++) {
+                        for (int c = 0; c < mapGrid[h].length; c++) {
+                            char k = mapGrid[h][c];
+                            Color m = floorColor;
+                            if (k == '#' || k == 'B' || k == 'W') m = wallColor;
+                            else if (k == 'A' || k == 'b' || k == 'C') m = siteItem;
                             gameGraphics.setColor(m);
-                            gameGraphics.fillRect((int) (mx + c * banDoOKichThuoc * ty),
-                                    (int) (my + h * banDoOKichThuoc * ty), o, o);
+                            gameGraphics.fillRect((int) (mx + c * mapCellSize * ty),
+                                    (int) (my + h * mapCellSize * ty), o, o);
                         }
                     }
                     return null;
                 }
                 case "themKhoi": {
-                    QuaKhoi q = new QuaKhoi();
+                    SmokePuff q = new SmokePuff();
                     q.x = toDouble(args.get(0)); q.y = toDouble(args.get(1)); q.r = toDouble(args.get(2));
-                    danhSachKhoi.add(q);
+                    smokePuffs.add(q);
                     return null;
                 }
-                case "xoaKhoiHet": danhSachKhoi.clear(); return null;
+                case "xoaKhoiHet": smokePuffs.clear(); return null;
                 case "trongKhoi": {
                     double px = toDouble(args.get(0)), py = toDouble(args.get(1));
-                    for (QuaKhoi q : danhSachKhoi) {
+                    for (SmokePuff q : smokePuffs) {
                         if (Math.hypot(px - q.x, py - q.y) <= q.r) return true;
                     }
                     return false;
@@ -4454,39 +4454,39 @@ public class Interpreter {
                     if (gameGraphics == null || gameBuffer == null) return null;
                     double x = toDouble(args.get(0)), y = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
-                    int soTia = args.size() > 3 ? (int) toDouble(args.get(3)) : 180;
-                    Color mauToi = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
-                    float doToi = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.88f;
+                    int rayCount = args.size() > 3 ? (int) toDouble(args.get(3)) : 180;
+                    Color darkColor = args.size() > 4 ? parseColor(stringify(args.get(4))) : Color.BLACK;
+                    float darknessLevel = args.size() > 5 ? (float) toDouble(args.get(5)) : 0.88f;
 
-                    Polygon nhinThay = dungDaGiacTamNhin(x, y, bk, soTia);
+                    Polygon visibleShape = buildViewPolygon(x, y, bk, rayCount);
                     // Đổi sang toạ độ màn hình
-                    AffineTransform dich = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
-                    Shape vungSang = dich.createTransformedShape(nhinThay);
+                    AffineTransform translateTx = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
+                    Shape litArea = translateTx.createTransformedShape(visibleShape);
 
-                    Area toi = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
-                    toi.subtract(new Area(vungSang));
+                    Area darkArea = new Area(new Rectangle(0, 0, gameBuffer.getWidth(), gameBuffer.getHeight()));
+                    darkArea.subtract(new Area(litArea));
 
-                    Composite cu = gameGraphics.getComposite();
+                    Composite previousValue = gameGraphics.getComposite();
                     gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
-                            Math.max(0f, Math.min(1f, doToi))));
-                    gameGraphics.setColor(mauToi);
-                    gameGraphics.fill(toi);
-                    gameGraphics.setComposite(cu);
+                            Math.max(0f, Math.min(1f, darknessLevel))));
+                    gameGraphics.setColor(darkColor);
+                    gameGraphics.fill(darkArea);
+                    gameGraphics.setComposite(previousValue);
                     return null;
                 }
                 case "veVungNhin": {
                     // veVungNhin(x, y, banKinh, soTia, mau, doMo) - tô sáng vùng nhìn thấy
                     if (gameGraphics == null) return null;
-                    Polygon p = dungDaGiacTamNhin(toDouble(args.get(0)), toDouble(args.get(1)),
+                    Polygon p = buildViewPolygon(toDouble(args.get(0)), toDouble(args.get(1)),
                             toDouble(args.get(2)), args.size() > 3 ? (int) toDouble(args.get(3)) : 120);
-                    AffineTransform dich = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
-                    Shape hinh = dich.createTransformedShape(p);
-                    Composite cu = gameGraphics.getComposite();
+                    AffineTransform translateTx = AffineTransform.getTranslateInstance(-camOffX(), -camOffY());
+                    Shape shapeObj = translateTx.createTransformedShape(p);
+                    Composite previousValue = gameGraphics.getComposite();
                     gameGraphics.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER,
                             args.size() > 5 ? (float) toDouble(args.get(5)) : 0.15f));
                     gameGraphics.setColor(parseColor(args.size() > 4 ? stringify(args.get(4)) : "white"));
-                    gameGraphics.fill(hinh);
-                    gameGraphics.setComposite(cu);
+                    gameGraphics.fill(shapeObj);
+                    gameGraphics.setComposite(previousValue);
                     return null;
                 }
 
@@ -4568,11 +4568,11 @@ public class Interpreter {
                     double iw = toDouble(args.get(3));
                     double ih = toDouble(args.get(4));
                     boolean lat = args.size() > 5 && toBoolean(args.get(5));
-                    double goc = args.size() > 6 ? toDouble(args.get(6)) : 0;
+                    double angleVal = args.size() > 6 ? toDouble(args.get(6)) : 0;
 
                     AffineTransform oldTx = gameGraphics.getTransform();
                     gameGraphics.translate(ix + iw / 2.0, iy + ih / 2.0);
-                    if (goc != 0) gameGraphics.rotate(Math.toRadians(goc));
+                    if (angleVal != 0) gameGraphics.rotate(Math.toRadians(angleVal));
                     if (lat) gameGraphics.scale(-1, 1);
                     gameGraphics.drawImage(img, (int) (-iw / 2), (int) (-ih / 2), (int) iw, (int) ih, null);
                     gameGraphics.setTransform(oldTx);
@@ -4599,16 +4599,16 @@ public class Interpreter {
                 }
                 case "fillRoundRect": {
                     gameGraphics.setColor(parseColor(stringify(args.get(5))));
-                    int bo = (int)toDouble(args.get(4));
+                    int byteOut = (int)toDouble(args.get(4));
                     gameGraphics.fillRoundRect((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), bo, bo);
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), byteOut, byteOut);
                     return null;
                 }
                 case "drawRoundRect": {
                     gameGraphics.setColor(parseColor(stringify(args.get(5))));
-                    int bo = (int)toDouble(args.get(4));
+                    int byteOut = (int)toDouble(args.get(4));
                     gameGraphics.drawRoundRect((int)toDouble(args.get(0)) - camOffX(), (int)toDouble(args.get(1)) - camOffY(),
-                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), bo, bo);
+                            (int)toDouble(args.get(2)), (int)toDouble(args.get(3)), byteOut, byteOut);
                     return null;
                 }
                 case "fillArc": {
@@ -4663,9 +4663,9 @@ public class Interpreter {
                     // drawTextCenter(chu, tamX, y, coChu, mau)
                     gameGraphics.setColor(parseColor(stringify(args.get(4))));
                     gameGraphics.setFont(new Font(gameFontName, gameFontBold ? Font.BOLD : Font.PLAIN, (int)toDouble(args.get(3))));
-                    String chu = stringify(args.get(0));
-                    int rong = gameGraphics.getFontMetrics().stringWidth(chu);
-                    gameGraphics.drawString(chu, (int)toDouble(args.get(1)) - rong / 2, (int)toDouble(args.get(2)));
+                    String textValue = stringify(args.get(0));
+                    int measuredTextWidth = gameGraphics.getFontMetrics().stringWidth(textValue);
+                    gameGraphics.drawString(textValue, (int)toDouble(args.get(1)) - measuredTextWidth / 2, (int)toDouble(args.get(2)));
                     return null;
                 }
                 case "textWidth": {
@@ -4712,17 +4712,17 @@ public class Interpreter {
                 }
 
                 // --- NHÓM 4: ĐIỀU KHIỂN ---
-                case "isKeyDown": return keysDown.contains(chuanHoaTenPhim(stringify(args.get(0))));
-                case "isKeyPressed": return keysPressed.contains(chuanHoaTenPhim(stringify(args.get(0))));
+                case "isKeyDown": return keysDown.contains(normalizeKeyName(stringify(args.get(0))));
+                case "isKeyPressed": return keysPressed.contains(normalizeKeyName(stringify(args.get(0))));
                 // Giả lập bấm/nhả phím bằng mã lệnh: tiện làm màn hình demo tự chạy hoặc kiểm thử game
                 case "pressKey": {
-                    String p = chuanHoaTenPhim(stringify(args.get(0)));
+                    String p = normalizeKeyName(stringify(args.get(0)));
                     if (!keysDown.contains(p)) keysPressed.add(p);
                     keysDown.add(p);
                     return null;
                 }
                 case "releaseKey": {
-                    keysDown.remove(chuanHoaTenPhim(stringify(args.get(0))));
+                    keysDown.remove(normalizeKeyName(stringify(args.get(0))));
                     return null;
                 }
                 case "mouseX": return (double) mouseX;
@@ -4744,8 +4744,8 @@ public class Interpreter {
 
                     isGameRunning = true;
                     long lastTimeNano = System.nanoTime();
-                    long fpsMocThoiGian = System.nanoTime();
-                    int fpsDem = 0;
+                    long fpsTimeMark = System.nanoTime();
+                    int fpsCounter = 0;
                     double delta = 0;
 
                     while (isGameRunning) {
@@ -4787,14 +4787,14 @@ public class Interpreter {
 
                             if (gameCanvas != null) gameCanvas.repaint();
                             frameCount++;
-                            fpsDem++;
+                            fpsCounter++;
                             delta--;
 
                             // Đo FPS thực tế mỗi giây
-                            if (now - fpsMocThoiGian >= 1000000000L) {
-                                measuredFPS = fpsDem;
-                                fpsDem = 0;
-                                fpsMocThoiGian = now;
+                            if (now - fpsTimeMark >= 1000000000L) {
+                                measuredFPS = fpsCounter;
+                                fpsCounter = 0;
+                                fpsTimeMark = now;
                             }
                         }
                         Thread.sleep(1); // Giảm tải CPU
@@ -4878,8 +4878,8 @@ public class Interpreter {
                 case "camX": return cameraX;
                 case "camY": return cameraY;
                 // Bật/tắt chế độ vẽ giao diện: giữa beginUI() và endUI() thì camera bị bỏ qua
-                case "beginUI": cheDoGiaoDien = true; return null;
-                case "endUI": cheDoGiaoDien = false; return null;
+                case "beginUI": uiMode = true; return null;
+                case "endUI": uiMode = false; return null;
                 case "saveScreenshot": {
                     // Chụp đúng khung hình đang hiện ra file PNG (tiện làm ảnh bìa / kiểm thử)
                     try {
@@ -4914,22 +4914,22 @@ public class Interpreter {
                 case "burst": {
                     // burst(x, y, soHat, mau, tocDo, kichThuoc, tuoiTho, trongLuc)
                     double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
-                    int soHat = (int) toDouble(args.get(2));
-                    Color mau = parseColor(stringify(args.get(3)));
-                    double tocDo = args.size() > 4 ? toDouble(args.get(4)) : 4;
-                    double kt = args.size() > 5 ? toDouble(args.get(5)) : 4;
-                    double tho = args.size() > 6 ? toDouble(args.get(6)) : 25;
-                    double tl = args.size() > 7 ? toDouble(args.get(7)) : 0.12;
-                    for (int i = 0; i < soHat; i++) {
+                    int particleCount = (int) toDouble(args.get(2));
+                    Color colorValue = parseColor(stringify(args.get(3)));
+                    double speedValue = args.size() > 4 ? toDouble(args.get(4)) : 4;
+                    double sizeFactor = args.size() > 5 ? toDouble(args.get(5)) : 4;
+                    double rawText = args.size() > 6 ? toDouble(args.get(6)) : 25;
+                    double gravityArg = args.size() > 7 ? toDouble(args.get(7)) : 0.12;
+                    for (int i = 0; i < particleCount; i++) {
                         if (gameParticles.size() >= 1200) break;
                         GameParticle p = new GameParticle();
-                        double goc = Math.random() * Math.PI * 2;
-                        double v = tocDo * (0.35 + Math.random() * 0.85);
+                        double angleVal = Math.random() * Math.PI * 2;
+                        double v = speedValue * (0.35 + Math.random() * 0.85);
                         p.x = bx; p.y = by;
-                        p.vx = Math.cos(goc) * v; p.vy = Math.sin(goc) * v;
-                        p.size = kt * (0.5 + Math.random());
-                        p.life = tho * (0.6 + Math.random() * 0.7); p.maxLife = p.life;
-                        p.color = mau; p.gravity = tl;
+                        p.vx = Math.cos(angleVal) * v; p.vy = Math.sin(angleVal) * v;
+                        p.size = sizeFactor * (0.5 + Math.random());
+                        p.life = rawText * (0.6 + Math.random() * 0.7); p.maxLife = p.life;
+                        p.color = colorValue; p.gravity = gravityArg;
                         gameParticles.add(p);
                     }
                     return null;
@@ -4983,13 +4983,13 @@ public class Interpreter {
                 case "playSfx": {
                     // playSfx(duongDan, amLuong): có cache nên bắn liên tục không giật
                     try {
-                        String duongDan = stringify(args.get(0));
-                        Clip c = gameSfxCache.get(duongDan);
+                        String pathString = stringify(args.get(0));
+                        Clip c = gameSfxCache.get(pathString);
                         if (c == null) {
-                            AudioInputStream ais = AudioSystem.getAudioInputStream(new File(duongDan));
+                            AudioInputStream ais = AudioSystem.getAudioInputStream(new File(pathString));
                             c = AudioSystem.getClip();
                             c.open(ais);
-                            gameSfxCache.put(duongDan, c);
+                            gameSfxCache.put(pathString, c);
                         }
                         c.stop();
                         c.setFramePosition(0);
@@ -5028,32 +5028,32 @@ public class Interpreter {
             throw new RuntimeException("Lỗi HQL.Game: " + e.getMessage());
         }
 
-        return CHUA_XU_LY;
+        return NOT_HANDLED;
     }
 
     /** Thư viện hql.mang - mạng cho game nhiều người chơi (tách riêng cho nhẹ executeBuiltin). */
-    private Object thuVienMang(String name, List<Object> args) {
+    private Object networkLibrary(String name, List<Object> args) {
         try {
             switch (name) {
                 // ---------------- PHÍA MÁY CHỦ ----------------
                 case "mangMoServer": {
-                    int cong = (int) toDouble(args.get(0));
-                    if (mangServerSocket != null) { try { mangServerSocket.close(); } catch (Exception ignored) {} }
-                    mangServerSocket = new ServerSocket(cong);
-                    mangServerDangChay = true;
+                    int portNumber = (int) toDouble(args.get(0));
+                    if (netServerSocket != null) { try { netServerSocket.close(); } catch (Exception ignored) {} }
+                    netServerSocket = new ServerSocket(portNumber);
+                    netServerRunning = true;
                     Thread t = new Thread(() -> {
-                        while (mangServerDangChay) {
+                        while (netServerRunning) {
                             try {
-                                Socket kh = mangServerSocket.accept();
+                                Socket kh = netServerSocket.accept();
                                 kh.setTcpNoDelay(true);
-                                String id = "K" + (++mangDemId);
-                                mangKhach.put(id, kh);
-                                mangGhiKhach.put(id, new BufferedWriter(
+                                String id = "K" + (++netIdCounter);
+                                netGuests.put(id, kh);
+                                netWriteGuest.put(id, new BufferedWriter(
                                         new OutputStreamWriter(kh.getOutputStream(), StandardCharsets.UTF_8)));
-                                mangHopThu.offer(new String[]{id, "@VAO"});
-                                moLuongDoc(kh, id, true);
+                                netInbox.offer(new String[]{id, "@VAO"});
+                                startReaderThread(kh, id, true);
                             } catch (Exception e) {
-                                if (!mangServerDangChay) break;
+                                if (!netServerRunning) break;
                             }
                         }
                     });
@@ -5063,86 +5063,86 @@ public class Interpreter {
                 }
                 case "mangNhan": {
                     // Trả về [idKhach, noiDung] hoặc mảng rỗng nếu chưa có tin nào.
-                    String[] tin = mangHopThu.poll();
-                    if (tin == null) return new ArrayList<>();
-                    return new ArrayList<>(Arrays.asList(tin[0], tin[1]));
+                    String[] lowerMessage = netInbox.poll();
+                    if (lowerMessage == null) return new ArrayList<>();
+                    return new ArrayList<>(Arrays.asList(lowerMessage[0], lowerMessage[1]));
                 }
                 case "mangGui": {
-                    mangGuiChoKhach(stringify(args.get(0)), stringify(args.get(1)));
+                    netSendToGuest(stringify(args.get(0)), stringify(args.get(1)));
                     return null;
                 }
                 case "mangPhat": {
-                    String noiDung = stringify(args.get(0));
-                    for (String id : mangGhiKhach.keySet()) mangGuiChoKhach(id, noiDung);
+                    String bodyContent = stringify(args.get(0));
+                    for (String id : netWriteGuest.keySet()) netSendToGuest(id, bodyContent);
                     return null;
                 }
                 case "mangDanhSachKhach": {
-                    ArrayList<Object> ds = new ArrayList<>(mangKhach.keySet());
+                    ArrayList<Object> ds = new ArrayList<>(netGuests.keySet());
                     return ds;
                 }
-                case "mangSoKhach": return (double) mangKhach.size();
+                case "mangSoKhach": return (double) netGuests.size();
                 case "mangDuoiKhach": {
                     String id = stringify(args.get(0));
-                    Socket s2 = mangKhach.remove(id);
-                    mangGhiKhach.remove(id);
+                    Socket s2 = netGuests.remove(id);
+                    netWriteGuest.remove(id);
                     if (s2 != null) try { s2.close(); } catch (Exception ignored) {}
                     return null;
                 }
                 case "mangDongServer": {
-                    mangServerDangChay = false;
-                    for (Socket s2 : mangKhach.values()) try { s2.close(); } catch (Exception ignored) {}
-                    mangKhach.clear();
-                    mangGhiKhach.clear();
-                    if (mangServerSocket != null) try { mangServerSocket.close(); } catch (Exception ignored) {}
-                    mangServerSocket = null;
+                    netServerRunning = false;
+                    for (Socket s2 : netGuests.values()) try { s2.close(); } catch (Exception ignored) {}
+                    netGuests.clear();
+                    netWriteGuest.clear();
+                    if (netServerSocket != null) try { netServerSocket.close(); } catch (Exception ignored) {}
+                    netServerSocket = null;
                     return null;
                 }
 
                 // ---------------- PHÍA NGƯỜI CHƠI ----------------
                 case "mangKetNoi": {
                     String host = stringify(args.get(0));
-                    int cong = (int) toDouble(args.get(1));
-                    int cho = args.size() > 2 ? (int) toDouble(args.get(2)) : 4000;
+                    int portNumber = (int) toDouble(args.get(1));
+                    int connectTimeoutMs = args.size() > 2 ? (int) toDouble(args.get(2)) : 4000;
                     try {
                         Socket s2 = new Socket();
-                        s2.connect(new InetSocketAddress(host, cong), cho);
+                        s2.connect(new InetSocketAddress(host, portNumber), connectTimeoutMs);
                         s2.setTcpNoDelay(true);
-                        mangSocketToiServer = s2;
-                        mangGhiToiServer = new BufferedWriter(
+                        netSocketToServer = s2;
+                        netWriteToServer = new BufferedWriter(
                                 new OutputStreamWriter(s2.getOutputStream(), StandardCharsets.UTF_8));
-                        mangDaNoiToiServer = true;
-                        mangHopThuKhach.clear();
-                        moLuongDoc(s2, "SERVER", false);
+                        netConnectedToServer = true;
+                        netGuestInbox.clear();
+                        startReaderThread(s2, "SERVER", false);
                         return true;
                     } catch (Exception e) {
-                        mangDaNoiToiServer = false;
+                        netConnectedToServer = false;
                         return false;
                     }
                 }
                 case "mangGuiServer": {
-                    if (mangGhiToiServer == null) return false;
+                    if (netWriteToServer == null) return false;
                     try {
-                        synchronized (mangGhiToiServer) {
-                            mangGhiToiServer.write(stringify(args.get(0)));
-                            mangGhiToiServer.write("\n");
-                            mangGhiToiServer.flush();
+                        synchronized (netWriteToServer) {
+                            netWriteToServer.write(stringify(args.get(0)));
+                            netWriteToServer.write("\n");
+                            netWriteToServer.flush();
                         }
                         return true;
                     } catch (Exception e) {
-                        mangDaNoiToiServer = false;
+                        netConnectedToServer = false;
                         return false;
                     }
                 }
                 case "mangNhanServer": {
-                    String tin = mangHopThuKhach.poll();
-                    return tin == null ? "" : tin;
+                    String lowerMessage = netGuestInbox.poll();
+                    return lowerMessage == null ? "" : lowerMessage;
                 }
-                case "mangDaNoi": return mangDaNoiToiServer;
+                case "mangDaNoi": return netConnectedToServer;
                 case "mangNgatKetNoi": {
-                    mangDaNoiToiServer = false;
-                    if (mangSocketToiServer != null) try { mangSocketToiServer.close(); } catch (Exception ignored) {}
-                    mangSocketToiServer = null;
-                    mangGhiToiServer = null;
+                    netConnectedToServer = false;
+                    if (netSocketToServer != null) try { netSocketToServer.close(); } catch (Exception ignored) {}
+                    netSocketToServer = null;
+                    netWriteToServer = null;
                     return null;
                 }
                 case "mangIpMay": {
@@ -5154,7 +5154,7 @@ public class Interpreter {
             throw new RuntimeException("Lỗi HQL.Mang: " + e.getMessage());
         }
 
-        return CHUA_XU_LY;
+        return NOT_HANDLED;
     }
 
     private Object executeBuiltin(String name, List<List<Token>> argGroups) {
@@ -5297,14 +5297,14 @@ public class Interpreter {
                     ArrayList<?> yList = (ArrayList<?>) args.get(1);
                     if (xList.size() != yList.size()) throw new RuntimeException("Hai mang phai cung do dai.");
                     double mx = meanHelper(xList), my = meanHelper(yList);
-                    double num = 0, den = 0;
+                    double num = 0, toVal = 0;
                     for (int i = 0; i < xList.size(); i++) {
                         double dx = toDouble(xList.get(i)) - mx;
                         double dy = toDouble(yList.get(i)) - my;
                         num += dx * dy;
-                        den += dx * dx;
+                        toVal += dx * dx;
                     }
-                    double slope = num / den;
+                    double slope = num / toVal;
                     double intercept = my - slope * mx;
                     ArrayList<Double> result = new ArrayList<>();
                     result.add(slope); result.add(intercept);
@@ -5557,30 +5557,30 @@ public class Interpreter {
                      */
                     case "httpPostFile": {
                         String urlF   = stringify(args.get(0));
-                        String phanJs = args.size() > 1 ? stringify(args.get(1)) : "{}";
-                        Path tepF     = Paths.get(stringify(args.get(2)));
-                        String tenGui = args.size() > 3 && !stringify(args.get(3)).isEmpty()
-                                ? stringify(args.get(3)) : tepF.getFileName().toString();
+                        String jsPart = args.size() > 1 ? stringify(args.get(1)) : "{}";
+                        Path fileHandle     = Paths.get(stringify(args.get(2)));
+                        String senderName = args.size() > 3 && !stringify(args.get(3)).isEmpty()
+                                ? stringify(args.get(3)) : fileHandle.getFileName().toString();
                         String mime   = args.size() > 4 && !stringify(args.get(4)).isEmpty()
                                 ? stringify(args.get(4)) : "application/octet-stream";
 
-                        if (!Files.exists(tepF)) throw new RuntimeException("Không thấy tệp: " + tepF);
+                        if (!Files.exists(fileHandle)) throw new RuntimeException("Không thấy tệp: " + fileHandle);
 
-                        String ranh = "----hql" + System.currentTimeMillis();
+                        String boundary = "----hql" + System.currentTimeMillis();
                         String xd = "\r\n";
-                        byte[] duLieu = Files.readAllBytes(tepF);
+                        byte[] payloadBytes = Files.readAllBytes(fileHandle);
 
-                        ByteArrayOutputStream than = new ByteArrayOutputStream();
-                        than.write(("--" + ranh + xd
+                        ByteArrayOutputStream bodyBytes = new ByteArrayOutputStream();
+                        bodyBytes.write(("--" + boundary + xd
                                 + "Content-Disposition: form-data; name=\"payload_json\"" + xd
                                 + "Content-Type: application/json" + xd + xd
-                                + phanJs + xd).getBytes(StandardCharsets.UTF_8));
-                        than.write(("--" + ranh + xd
+                                + jsPart + xd).getBytes(StandardCharsets.UTF_8));
+                        bodyBytes.write(("--" + boundary + xd
                                 + "Content-Disposition: form-data; name=\"files[0]\"; filename=\""
-                                + tenGui.replace("\"", "") + "\"" + xd
+                                + senderName.replace("\"", "") + "\"" + xd
                                 + "Content-Type: " + mime + xd + xd).getBytes(StandardCharsets.UTF_8));
-                        than.write(duLieu);
-                        than.write((xd + "--" + ranh + "--" + xd).getBytes(StandardCharsets.UTF_8));
+                        bodyBytes.write(payloadBytes);
+                        bodyBytes.write((xd + "--" + boundary + "--" + xd).getBytes(StandardCharsets.UTF_8));
 
                         HttpRequest.Builder bF = HttpRequest.newBuilder().uri(URI.create(urlF));
                         for (Map.Entry<String, String> e : netHeaders.entrySet()) {
@@ -5588,17 +5588,18 @@ public class Interpreter {
                             if (!e.getKey().equalsIgnoreCase("Content-Type")) bF.header(e.getKey(), e.getValue());
                         }
                         if (netCookie != null) bF.header("Cookie", netCookie);
-                        bF.header("Content-Type", "multipart/form-data; boundary=" + ranh);
-                        bF.POST(HttpRequest.BodyPublishers.ofByteArray(than.toByteArray()));
+                        bF.header("Content-Type", "multipart/form-data; boundary=" + boundary);
+                        bF.POST(HttpRequest.BodyPublishers.ofByteArray(bodyBytes.toByteArray()));
 
-                        HttpResponse<String> traF = buildHttpClient().send(bF.build(),
+                        HttpResponse<String> fileResponse = buildHttpClient().send(bF.build(),
                                 HttpResponse.BodyHandlers.ofString());
-                        updateNetState(traF);
-                        return traF.body();
+                        updateNetState(fileResponse);
+                        return fileResponse.body();
                     }
                     // GIAI ĐOẠN 1: KẾT NỐI CHÍNH
                     case "httpGet":
                     case "httpPost":
+                    case "httpQuery":
                     case "download":
                         String url = stringify(args.get(0));
                         HttpRequest.Builder reqBuilder = HttpRequest.newBuilder().uri(URI.create(url));
@@ -5609,6 +5610,9 @@ public class Interpreter {
 
                         if (name.equals("httpPost")) {
                             reqBuilder.POST(HttpRequest.BodyPublishers.ofString(stringify(args.get(1))));
+                        } else if (name.equals("httpQuery")) {
+                            // HTTP QUERY method: a safe request that carries a body (server side: doQuery())
+                            reqBuilder.method("QUERY", HttpRequest.BodyPublishers.ofString(stringify(args.get(1))));
                         } else {
                             reqBuilder.GET();
                         }
@@ -5884,29 +5888,29 @@ public class Interpreter {
                 switch (name) {
                     // --- NHÓM 1: QUICK DIALOGS ---
                     case "alert": {
-                        String aTitle = args.size() > 1 ? stringify(args.get(0)) : "Thông báo";
+                        String aTitle = args.size() > 1 ? stringify(args.get(0)) : "Notice";
                         String aMsg = args.size() > 1 ? stringify(args.get(1)) : stringify(args.get(0));
                         JOptionPane.showMessageDialog(null, aMsg, aTitle, JOptionPane.INFORMATION_MESSAGE);
                         return null;
                     }
                     case "confirm": {
-                        String cTitle = args.size() > 1 ? stringify(args.get(0)) : "Xác nhận";
+                        String cTitle = args.size() > 1 ? stringify(args.get(0)) : "Confirm";
                         String cMsg = args.size() > 1 ? stringify(args.get(1)) : stringify(args.get(0));
                         return JOptionPane.showConfirmDialog(null, cMsg, cTitle, JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
                     }
                     case "prompt": {
-                        String pTitle = args.size() > 1 ? stringify(args.get(0)) : "Nhập liệu";
+                        String pTitle = args.size() > 1 ? stringify(args.get(0)) : "Input";
                         String pMsg = args.size() > 1 ? stringify(args.get(1)) : stringify(args.get(0));
                         String result = JOptionPane.showInputDialog(null, pMsg, pTitle, JOptionPane.QUESTION_MESSAGE);
                         return result != null ? result : "";
                     }
                     case "chooseFile": {
                         JFileChooser fileChooser = new JFileChooser();
-                        fileChooser.setDialogTitle("Chọn tệp tin");
+                        fileChooser.setDialogTitle("Choose file");
                         return fileChooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION ? fileChooser.getSelectedFile().getAbsolutePath() : "";
                     }
                     case "chooseColor": {
-                        Color color = JColorChooser.showDialog(null, "Chọn màu sắc", Color.WHITE);
+                        Color color = JColorChooser.showDialog(null, "Choose color", Color.WHITE);
                         return color != null ? String.format("#%02x%02x%02x", color.getRed(), color.getGreen(), color.getBlue()) : "";
                     }
 
@@ -6262,10 +6266,10 @@ public class Interpreter {
                 switch (name) {
                     // --- 1. QUẢN LÝ KẾT NỐI (bể kết nối, an toàn khi nhiều luồng) ---
                     case "connect": {
-                        dbDongBe();                      // đóng bể cũ trước khi mở bể mới (tránh rò rỉ kết nối)
+                        dbClosePool();                      // đóng bể cũ trước khi mở bể mới (tránh rò rỉ kết nối)
                         lastDbError = "";
                         try {
-                            dbMoBe(resolveDbTarget(args));
+                            dbOpenPool(resolveDbTarget(args));
                             return true;
                         } catch (Exception e) {
                             lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
@@ -6277,10 +6281,10 @@ public class Interpreter {
                     }
                     case "connectEnv": {
                         // Nối theo tệp .henv: DB_URL, hoặc DB_TYPE / DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD
-                        dbDongBe();
+                        dbClosePool();
                         lastDbError = "";
                         try {
-                            dbMoBe(dbTargetTuHenv());
+                            dbOpenPool(dbTargetFromHenv());
                             return true;
                         } catch (Exception e) {
                             lastDbError = e.getMessage() == null ? e.toString() : e.getMessage();
@@ -6296,10 +6300,10 @@ public class Interpreter {
                     }
                     case "dbPoolStats": {
                         HqlDbPool p = dbPool;
-                        return p == null ? "Chưa kết nối" : p.stats();
+                        return p == null ? "Not connected" : p.stats();
                     }
                     case "dbError": return lastDbError;
-                    case "closeDB": { dbHuyGiaoDichBoQuen(); dbDongBe(); return null; }
+                    case "closeDB": { dbRollbackForgottenTx(); dbClosePool(); return null; }
                     case "isOpen": { HqlDbPool p = dbPool; return p != null && !p.isClosed(); }
 
                     // --- 2. TRUY VẤN DỮ LIỆU ---
@@ -6356,9 +6360,9 @@ public class Interpreter {
                                     ? dbCon.prepareStatement(dbSql, Statement.RETURN_GENERATED_KEYS)
                                     : dbCon.prepareStatement(dbSql)) {
                                 bindSqlParams(pstmt, dbPrm);
-                                int soDong = pstmt.executeUpdate();
-                                if (laInsert) dbGhiNhoKhoaVuaSinh(pstmt);
-                                return (double) soDong;
+                                int lineCount = pstmt.executeUpdate();
+                                if (laInsert) dbRememberGeneratedKey(pstmt);
+                                return (double) lineCount;
                             }
                         });
                     }
@@ -6370,25 +6374,25 @@ public class Interpreter {
                         }
                         final List<?> dbRows = (List<?>) args.get(1);
                         return this.<Object>dbRun(dbCon -> {
-                            boolean tuQuanLy = dbCon.getAutoCommit();      // đang trong beginTransaction thì để nguyên
-                            if (tuQuanLy) dbCon.setAutoCommit(false);
+                            boolean selfManaged = dbCon.getAutoCommit();      // đang trong beginTransaction thì để nguyên
+                            if (selfManaged) dbCon.setAutoCommit(false);
                             try (PreparedStatement pstmt = dbCon.prepareStatement(dbSql)) {
-                                for (Object dong : dbRows) { bindSqlParams(pstmt, dong); pstmt.addBatch(); }
-                                int[] kq = pstmt.executeBatch();
-                                if (tuQuanLy) dbCon.commit();
-                                double tong = 0;
-                                for (int x : kq) if (x > 0) tong += x;     // SUCCESS_NO_INFO (-2) không đếm được
-                                return tong;
+                                for (Object paramRow : dbRows) { bindSqlParams(pstmt, paramRow); pstmt.addBatch(); }
+                                int[] resultList = pstmt.executeBatch();
+                                if (selfManaged) dbCon.commit();
+                                double totalValue = 0;
+                                for (int x : resultList) if (x > 0) totalValue += x;     // SUCCESS_NO_INFO (-2) không đếm được
+                                return totalValue;
                             } catch (SQLException ex) {
-                                if (tuQuanLy) { try { dbCon.rollback(); } catch (SQLException ignore) { } }
+                                if (selfManaged) { try { dbCon.rollback(); } catch (SQLException ignore) { } }
                                 throw ex;
                             }
                         });
                     }
                     case "identity": {
-                        Double ghiNho = dbLastIdentity.get();
-                        if (ghiNho != null) return ghiNho;
-                        if (!dbSanSang()) return 0.0;
+                        Double rememberedId = dbLastIdentity.get();
+                        if (rememberedId != null) return rememberedId;
+                        if (!dbReady()) return 0.0;
                         return this.<Object>dbRun(dbCon -> {
                             // Dự phòng khi đang trong giao dịch mà lệnh INSERT không trả khoá (SCOPE_IDENTITY chuẩn hơn @@IDENTITY)
                             for (String sqlId : new String[]{"SELECT SCOPE_IDENTITY()", "SELECT @@IDENTITY", "SELECT LAST_INSERT_ID()"}) {
@@ -6457,7 +6461,7 @@ public class Interpreter {
 
                     // --- 6. KHÁM PHÁ HỆ THỐNG & XUẤT CSV ---
                     case "tables": {
-                        if (!dbSanSang()) return new ArrayList<>();
+                        if (!dbReady()) return new ArrayList<>();
                         return this.<Object>dbRun(dbCon -> {
                             ArrayList<String> tableList = new ArrayList<>();
                             // Chỉ lấy bảng của ĐÚNG database đang kết nối, bỏ qua bảng hệ thống
@@ -6472,7 +6476,7 @@ public class Interpreter {
                         });
                     }
                     case "columns": {
-                        if (!dbSanSang()) return new ArrayList<>();
+                        if (!dbReady()) return new ArrayList<>();
                         final String tableName = stringify(args.get(0));
                         return this.<Object>dbRun(dbCon -> {
                             DatabaseMetaData md = dbCon.getMetaData();
@@ -6685,12 +6689,12 @@ public class Interpreter {
             }
         }
         if (usedLibraries.contains("hql.game")) {
-            Object ketQuaGame = thuVienGame(name, args);
-            if (ketQuaGame != CHUA_XU_LY) return ketQuaGame;
+            Object gameResult = gameLibrary(name, args);
+            if (gameResult != NOT_HANDLED) return gameResult;
         }
         if (usedLibraries.contains("hql.app")) {
-            Object ketQuaApp = thuVienApp(name, args);
-            if (ketQuaApp != CHUA_XU_LY) return ketQuaApp;
+            Object appResult = appLibrary(name, args);
+            if (appResult != NOT_HANDLED) return appResult;
         }
         if (usedLibraries.contains("hql.pc")) {
             try {
@@ -7138,32 +7142,32 @@ public class Interpreter {
                     // anhRaFile(chuoi, "avatar.png") -> ghi chuỗi base64 trở lại thành file ảnh
                     case "anhRaFile":
                     case "imageBase64ToFile": {
-                        byte[] raw = anhGiaiMa(stringify(args.get(0)));
+                        byte[] raw = imageDecode(stringify(args.get(0)));
                         Files.write(Paths.get(stringify(args.get(1))), raw);
                         return (double) raw.length;
                     }
 
                     // anhLamSach("data:image/png;base64,AAA") -> "AAA"  (bỏ phần đầu data URI)
                     case "anhLamSach":
-                    case "imageBase64Clean": return anhBoTienTo(stringify(args.get(0)));
+                    case "imageBase64Clean": return imageStripPrefix(stringify(args.get(0)));
 
                     // anhKieu(chuoi) -> "image/png" | "image/jpeg" | "image/gif" | "image/webp"
                     case "anhKieu":
-                    case "imageBase64Mime": return anhDoanMime(anhBoTienTo(stringify(args.get(0))));
+                    case "imageBase64Mime": return imageGuessMime(imageStripPrefix(stringify(args.get(0))));
 
                     // anhDataUri(chuoi[, kieu]) -> "data:image/png;base64,AAA"  (dán thẳng vào <img src>)
                     case "anhDataUri":
                     case "imageBase64Uri": {
-                        String b64 = anhBoTienTo(stringify(args.get(0)));
+                        String b64 = imageStripPrefix(stringify(args.get(0)));
                         if (b64.isEmpty()) return "";
-                        String mime = args.size() > 1 ? stringify(args.get(1)) : anhDoanMime(b64);
+                        String mime = args.size() > 1 ? stringify(args.get(1)) : imageGuessMime(b64);
                         return "data:" + mime + ";base64," + b64;
                     }
 
                     // anhDungLuong(chuoi) -> số byte thật của ảnh
                     case "anhDungLuong":
                     case "imageBase64Size": {
-                        String b64 = anhBoTienTo(stringify(args.get(0)));
+                        String b64 = imageStripPrefix(stringify(args.get(0)));
                         if (b64.isEmpty()) return 0.0;
                         return (double) ((b64.length() * 3L) / 4L
                                 - (b64.endsWith("==") ? 2 : (b64.endsWith("=") ? 1 : 0)));
@@ -7173,7 +7177,7 @@ public class Interpreter {
                     case "anhHopLe":
                     case "imageBase64Valid": {
                         try {
-                            byte[] raw = anhGiaiMa(stringify(args.get(0)));
+                            byte[] raw = imageDecode(stringify(args.get(0)));
                             if (raw.length == 0) return false;
                             return ImageIO.read(new ByteArrayInputStream(raw)) != null;
                         } catch (Exception e) { return false; }
@@ -7182,25 +7186,25 @@ public class Interpreter {
                     // anhRong(chuoi) / anhCao(chuoi) -> kích thước điểm ảnh
                     case "anhRong":
                     case "imageBase64Width": {
-                        BufferedImage bi = ImageIO.read(new ByteArrayInputStream(anhGiaiMa(stringify(args.get(0)))));
+                        BufferedImage bi = ImageIO.read(new ByteArrayInputStream(imageDecode(stringify(args.get(0)))));
                         return bi == null ? 0.0 : (double) bi.getWidth();
                     }
                     case "anhCao":
                     case "imageBase64Height": {
-                        BufferedImage bi = ImageIO.read(new ByteArrayInputStream(anhGiaiMa(stringify(args.get(0)))));
+                        BufferedImage bi = ImageIO.read(new ByteArrayInputStream(imageDecode(stringify(args.get(0)))));
                         return bi == null ? 0.0 : (double) bi.getHeight();
                     }
 
                     // anhThongTin(chuoi) -> bảng { rong, cao, kieu, dung_luong }
                     case "anhThongTin":
                     case "imageBase64Info": {
-                        String b64 = anhBoTienTo(stringify(args.get(0)));
-                        byte[] raw = anhGiaiMa(b64);
+                        String b64 = imageStripPrefix(stringify(args.get(0)));
+                        byte[] raw = imageDecode(b64);
                         BufferedImage bi = raw.length == 0 ? null : ImageIO.read(new ByteArrayInputStream(raw));
                         LinkedHashMap<String, Object> info = new LinkedHashMap<>();
                         info.put("rong", bi == null ? 0.0 : (double) bi.getWidth());
                         info.put("cao", bi == null ? 0.0 : (double) bi.getHeight());
-                        info.put("kieu", anhDoanMime(b64));
+                        info.put("kieu", imageGuessMime(b64));
                         info.put("dung_luong", (double) raw.length);
                         info.put("hop_le", bi != null);
                         return info;
@@ -7210,28 +7214,28 @@ public class Interpreter {
                     // Giữ đúng tỷ lệ, ảnh nhỏ hơn mức yêu cầu thì giữ nguyên.
                     case "anhThuNho":
                     case "imageBase64Resize": {
-                        String b64 = anhBoTienTo(stringify(args.get(0)));
+                        String b64 = imageStripPrefix(stringify(args.get(0)));
                         int maxW = args.size() > 1 ? (int) toDouble(args.get(1)) : 512;
                         int maxH = args.size() > 2 ? (int) toDouble(args.get(2)) : maxW;
-                        return anhThuNhoBase64(b64, maxW, maxH);
+                        return imageThumbBase64(b64, maxW, maxH);
                     }
 
                     // anhCatVuong(chuoi, canh) -> cắt giữa thành ảnh vuông (dùng cho avatar)
                     case "anhCatVuong":
                     case "imageBase64Square": {
-                        byte[] raw = anhGiaiMa(stringify(args.get(0)));
+                        byte[] raw = imageDecode(stringify(args.get(0)));
                         BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));
                         if (src == null) return "";
-                        int canh = args.size() > 1 ? (int) toDouble(args.get(1)) : 256;
-                        int nho = Math.min(src.getWidth(), src.getHeight());
-                        BufferedImage vuong = src.getSubimage((src.getWidth() - nho) / 2, (src.getHeight() - nho) / 2, nho, nho);
-                        BufferedImage ra = new BufferedImage(canh, canh, BufferedImage.TYPE_INT_RGB);
+                        int sideLength = args.size() > 1 ? (int) toDouble(args.get(1)) : 256;
+                        int smallSide = Math.min(src.getWidth(), src.getHeight());
+                        BufferedImage squareImage = src.getSubimage((src.getWidth() - smallSide) / 2, (src.getHeight() - smallSide) / 2, smallSide, smallSide);
+                        BufferedImage ra = new BufferedImage(sideLength, sideLength, BufferedImage.TYPE_INT_RGB);
                         Graphics2D g = ra.createGraphics();
                         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
                         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
                         g.setColor(Color.WHITE);
-                        g.fillRect(0, 0, canh, canh);
-                        g.drawImage(vuong, 0, 0, canh, canh, null);
+                        g.fillRect(0, 0, sideLength, sideLength);
+                        g.drawImage(squareImage, 0, 0, sideLength, sideLength, null);
                         g.dispose();
                         ByteArrayOutputStream bos = new ByteArrayOutputStream();
                         ImageIO.write(ra, "jpg", bos);
@@ -7337,14 +7341,14 @@ public class Interpreter {
                     case "envFiles": return new ArrayList<Object>(HqlEnv.loadedFiles());
                     case "envRequire": {
                         // envRequire("DB_HOST", "DB_PASSWORD") — thiếu khoá nào thì dừng chương trình và nói rõ thiếu khoá nào
-                        ArrayList<String> thieu = new ArrayList<>();
+                        ArrayList<String> missingList = new ArrayList<>();
                         for (Object k : args) {
                             String key = stringify(k);
                             String v = HqlEnv.get(key, null);
-                            if (v == null || v.isEmpty()) thieu.add(key);
+                            if (v == null || v.isEmpty()) missingList.add(key);
                         }
-                        if (!thieu.isEmpty()) {
-                            throw new RuntimeException("Thiếu cấu hình bắt buộc trong tệp .henv: " + String.join(", ", thieu));
+                        if (!missingList.isEmpty()) {
+                            throw new RuntimeException("Thiếu cấu hình bắt buộc trong tệp .henv: " + String.join(", ", missingList));
                         }
                         return true;
                     }
@@ -7996,8 +8000,8 @@ public class Interpreter {
         //  nên nhét thẳng vào vòng lặp game 60 khung hình/giây được.
         // ==========================================================================
         if (usedLibraries.contains("hql.mang")) {
-            Object ketQuaMang = thuVienMang(name, args);
-            if (ketQuaMang != CHUA_XU_LY) return ketQuaMang;
+            Object networkResult = networkLibrary(name, args);
+            if (networkResult != NOT_HANDLED) return networkResult;
         }
 
         if (usedLibraries.contains("hql.socket")) {
@@ -8446,8 +8450,8 @@ public class Interpreter {
                      * Me truoc no loi thi khung goi ham co tinh duoc giu lai (cho
                      * bao loi in duoc duong di), khong xoa la no dinh sang me sau.
                      */
-                    vet().nganXep.clear();
-                    vet().cuoi = null;
+                    trace().callStack.clear();
+                    trace().lastToken = null;
 
                     try {
                         executeFunctionCall(task.funcName, new ArrayList<>());
@@ -8473,11 +8477,11 @@ public class Interpreter {
                          * khong biet hong o file nao, dong nao. In ca file + dong + trich
                          * doan ma nguon nhu moi loi khac moi lan ra duoc.
                          */
-                        Throwable goc = BaoLoi.goc(e);
-                        printLog("error", "Task " + task.name + " failed: " + goc.getMessage());
-                        System.err.println(BaoLoi.banChu(goc, vet().cuoi, vet().nganXep, true));
-                        vet().nganXep.clear();
-                        vet().cuoi = null;
+                        Throwable rootErr = ErrorReport.rootCauseOf(e);
+                        printLog("error", "Task " + task.name + " failed: " + rootErr.getMessage());
+                        System.err.println(ErrorReport.textReport(rootErr, trace().lastToken, trace().callStack, true));
+                        trace().callStack.clear();
+                        trace().lastToken = null;
                         if (task.onFailureFunc != null) {
                             try { executeFunctionCall(task.onFailureFunc, new ArrayList<>()); } catch (Exception ex) {}
                         }
@@ -8581,7 +8585,7 @@ public class Interpreter {
                             if (checkCron.test(cron, testTime)) return testTime.toString();
                             testTime = testTime.plusMinutes(1);
                         }
-                        return "Không xác định";
+                        return "Unknown";
                     }
 
                     // ==========================================
@@ -8792,7 +8796,7 @@ public class Interpreter {
                         String leaf = path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
                         if (leaf.indexOf('.') < 0) path = path + "." + kind;
                         Map<String, Object> opt = HqlExport.parseOptions(args.size() > 2 ? args.get(2) : null);
-                        Object data = exportDuLieu(args.get(0), opt);
+                        Object data = exportData(args.get(0), opt);
                         HqlExport.to(kind, data, path, opt);
                         return true;
                     }
@@ -8820,7 +8824,7 @@ public class Interpreter {
                         }
                         if (webContainerMode) {
                             // Trong Tomcat thì máy chủ đã có sẵn, tên project lấy theo thư mục trong webapps/
-                            System.out.println("[HQL.WEB] Đang chạy trong Tomcat — bỏ qua webStart(), giữ nguyên thư mục webapp.");
+                            System.out.println("[HQL.WEB] Running inside Tomcat - skipping webStart(), keeping the webapp folder as is.");
                             return true;
                         }
                         webAppContext = ctxName;
@@ -8843,7 +8847,7 @@ public class Interpreter {
                         startWsServer((int) toDouble(args.get(0)));
                         return true;
                     }
-                    case "wsGuiTatCa": return (double) wsGuiTatCa(stringify(args.get(0)));
+                    case "wsGuiTatCa": return (double) wsBroadcast(stringify(args.get(0)));
                     case "wsSoKetNoi": return (double) wsClients.size();
                     case "wsStop":     stopWsServer(); return null;
 
@@ -8918,8 +8922,8 @@ public class Interpreter {
                      * Báo cáo đầy đủ vẫn luôn được in ra nhật ký máy chủ.
                      */
                     case "webHienLoiChiTiet": {
-                        webHienLoiChiTiet = args.isEmpty() || toBoolean(args.get(0));
-                        return webHienLoiChiTiet;
+                        webShowDetailedErrors = args.isEmpty() || toBoolean(args.get(0));
+                        return webShowDetailedErrors;
                     }
 
                     /*
@@ -8930,15 +8934,15 @@ public class Interpreter {
                      */
                     case "webBaoLoi": {
                         WebContext c = requireWeb("webBaoLoi");
-                        RuntimeException loi = new RuntimeException(stringify(args.get(0)));
-                        System.err.println(BaoLoi.banChu(loi, vet().cuoi, vet().nganXep, true));
+                        RuntimeException failure = new RuntimeException(stringify(args.get(0)));
+                        System.err.println(ErrorReport.textReport(failure, trace().lastToken, trace().callStack, true));
                         c.status = 500;
                         c.rawOut = null;
                         c.out.setLength(0);
                         c.contentType = "text/html; charset=UTF-8";
-                        c.out.append(webHienLoiChiTiet
-                                ? BaoLoi.banHtml(loi, vet().cuoi, vet().nganXep, c.path)
-                                : BaoLoi.banHtmlGon(loi));
+                        c.out.append(webShowDetailedErrors
+                                ? ErrorReport.htmlReport(failure, trace().lastToken, trace().callStack, c.path)
+                                : ErrorReport.htmlReportCompact(failure));
                         return null;
                     }
                     case "webType": requireWeb("webType").contentType = stringify(args.get(0)); return null;
@@ -8974,10 +8978,10 @@ public class Interpreter {
                     case "webAnh":
                     case "webImage": {
                         WebContext ctx = requireWeb("webAnh");
-                        String b64 = anhBoTienTo(stringify(args.get(0)));
-                        byte[] raw = anhGiaiMa(b64);
+                        String b64 = imageStripPrefix(stringify(args.get(0)));
+                        byte[] raw = imageDecode(b64);
                         ctx.contentType = args.size() > 1 && !stringify(args.get(1)).isEmpty()
-                                ? stringify(args.get(1)) : anhDoanMime(b64);
+                                ? stringify(args.get(1)) : imageGuessMime(b64);
                         ctx.resHeaders.put("Cache-Control", "public, max-age=86400");
                         ctx.rawOut = raw;
                         return (double) raw.length;
@@ -8986,7 +8990,7 @@ public class Interpreter {
                     case "webNhiPhan":
                     case "webBinary": {
                         WebContext ctx = requireWeb("webNhiPhan");
-                        byte[] raw = anhGiaiMa(stringify(args.get(0)));
+                        byte[] raw = imageDecode(stringify(args.get(0)));
                         ctx.contentType = args.size() > 1 ? stringify(args.get(1)) : "application/octet-stream";
                         if (args.size() > 2) {
                             ctx.resHeaders.put("Content-Disposition",
@@ -9003,7 +9007,7 @@ public class Interpreter {
                         String kind = HqlExport.kindOfPath(fileName);
                         if (kind.isEmpty()) throw new RuntimeException("webExport: tên tệp phải có đuôi .xlsx, .docx, .pdf hoặc .csv (đang là '" + fileName + "').");
                         Map<String, Object> opt = HqlExport.parseOptions(args.size() > 2 ? args.get(2) : null);
-                        Object data = exportDuLieu(args.get(0), opt);
+                        Object data = exportData(args.get(0), opt);
                         byte[] bytes = HqlExport.build(kind, data, opt);
                         ctx.contentType = HqlExport.mimeOf(kind);
                         String safe = fileName.replaceAll("[^A-Za-z0-9_.-]", "_");
@@ -9083,16 +9087,16 @@ public class Interpreter {
                 }
                 case "mailConfigEnv": {
                     // Cấu hình theo tệp .henv: MAIL_EMAIL, MAIL_PASSWORD, MAIL_HOST, MAIL_PORT, MAIL_NAME
-                    return mailApDungHenv();
+                    return mailApplyHenv();
                 }
                 case "mailWarmUp": {
                     // Mở sẵn kết nối SMTP ở luồng nền (gọi 1 lần khi khởi động) → thư đầu tiên gửi ngay, không chờ bắt tay TLS
-                    mailTuHenvNeuChuaCoCauHinh();
+                    mailFromHenvIfNotConfigured();
                     mailer.warmUp();
                     return null;
                 }
                 case "mailSenderName": mailSenderName = stringify(args.get(0)); mailer.setSenderName(mailSenderName); return null;
-                case "mailIsConfigured": mailTuHenvNeuChuaCoCauHinh(); return mailer.isConfigured();
+                case "mailIsConfigured": mailFromHenvIfNotConfigured(); return mailer.isConfigured();
                 case "mailError": return mailer.lastError();
 
                 // --- 2. TỆP ĐÍNH KÈM ---
@@ -9101,25 +9105,25 @@ public class Interpreter {
 
                 // --- 3. TIỆN ÍCH ---
                 case "mailOtp": {
-                    int soChuSo = args.isEmpty() ? 6 : (int) toDouble(args.get(0));
-                    if (soChuSo < 1 || soChuSo > 12) soChuSo = 6;
+                    int digitCount = args.isEmpty() ? 6 : (int) toDouble(args.get(0));
+                    if (digitCount < 1 || digitCount > 12) digitCount = 6;
                     SecureRandom rnd = new SecureRandom();
                     StringBuilder sb = new StringBuilder();
-                    for (int i = 0; i < soChuSo; i++) sb.append(rnd.nextInt(10));
+                    for (int i = 0; i < digitCount; i++) sb.append(rnd.nextInt(10));
                     return sb.toString();
                 }
                 case "mailPassword": {
                     // Sinh mật khẩu ngẫu nhiên dễ đọc (có chữ hoa, chữ thường và số)
-                    int doDai = args.isEmpty() ? 8 : (int) toDouble(args.get(0));
-                    if (doDai < 6) doDai = 6;
-                    String chuHoa = "ABCDEFGHJKLMNPQRSTUVWXYZ", chuThuong = "abcdefghijkmnpqrstuvwxyz", so = "23456789";
-                    String tatCa = chuHoa + chuThuong + so;
+                    int lengthArg = args.isEmpty() ? 8 : (int) toDouble(args.get(0));
+                    if (lengthArg < 6) lengthArg = 6;
+                    String upperChars = "ABCDEFGHJKLMNPQRSTUVWXYZ", lowerChars = "abcdefghijkmnpqrstuvwxyz", digitChars = "23456789";
+                    String allChars = upperChars + lowerChars + digitChars;
                     SecureRandom rnd = new SecureRandom();
                     StringBuilder sb = new StringBuilder();
-                    sb.append(chuHoa.charAt(rnd.nextInt(chuHoa.length())));
-                    sb.append(chuThuong.charAt(rnd.nextInt(chuThuong.length())));
-                    sb.append(so.charAt(rnd.nextInt(so.length())));
-                    for (int i = 3; i < doDai; i++) sb.append(tatCa.charAt(rnd.nextInt(tatCa.length())));
+                    sb.append(upperChars.charAt(rnd.nextInt(upperChars.length())));
+                    sb.append(lowerChars.charAt(rnd.nextInt(lowerChars.length())));
+                    sb.append(digitChars.charAt(rnd.nextInt(digitChars.length())));
+                    for (int i = 3; i < lengthArg; i++) sb.append(allChars.charAt(rnd.nextInt(allChars.length())));
                     return sb.toString();
                 }
                 case "mailIsValid": return stringify(args.get(0)).trim()
@@ -9150,11 +9154,11 @@ public class Interpreter {
     // ==========================================================================================
 
     /** Bỏ phần đầu "data:image/png;base64," và mọi ký tự xuống dòng/khoảng trắng thừa. */
-    private String anhBoTienTo(String s) {
+    private String imageStripPrefix(String s) {
         if (s == null) return "";
         String t = s.trim();
-        int dau = t.indexOf("base64,");
-        if (t.startsWith("data:") && dau > 0) t = t.substring(dau + 7);
+        int headerText = t.indexOf("base64,");
+        if (t.startsWith("data:") && headerText > 0) t = t.substring(headerText + 7);
         StringBuilder sb = new StringBuilder(t.length());
         for (int i = 0; i < t.length(); i++) {
             char c = t.charAt(i);
@@ -9164,8 +9168,8 @@ public class Interpreter {
     }
 
     /** Chuỗi base64 (có hoặc không có data URI) -> mảng byte gốc của ảnh. */
-    private byte[] anhGiaiMa(String s) {
-        String b64 = anhBoTienTo(s);
+    private byte[] imageDecode(String s) {
+        String b64 = imageStripPrefix(s);
         if (b64.isEmpty()) return new byte[0];
         try {
             return Base64.getDecoder().decode(b64);
@@ -9175,8 +9179,8 @@ public class Interpreter {
     }
 
     /** Nhận dạng định dạng ảnh bằng vài byte đầu tiên (magic number). */
-    private String anhDoanMime(String base64) {
-        byte[] b = anhGiaiMa(base64);
+    private String imageGuessMime(String base64) {
+        byte[] b = imageDecode(base64);
         if (b.length >= 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') return "image/png";
         if (b.length >= 3 && (b[0] & 0xFF) == 0xFF && (b[1] & 0xFF) == 0xD8) return "image/jpeg";
         if (b.length >= 6 && b[0] == 'G' && b[1] == 'I' && b[2] == 'F') return "image/gif";
@@ -9188,32 +9192,32 @@ public class Interpreter {
     }
 
     /** Thu nhỏ ảnh về trong khung rongToiDa x caoToiDa, giữ nguyên tỷ lệ. */
-    private String anhThuNhoBase64(String base64, int maxW, int maxH) throws IOException {
-        byte[] raw = anhGiaiMa(base64);
+    private String imageThumbBase64(String base64, int maxW, int maxH) throws IOException {
+        byte[] raw = imageDecode(base64);
         if (raw.length == 0) return "";
         BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));
-        if (src == null) return anhBoTienTo(base64);
+        if (src == null) return imageStripPrefix(base64);
         if (maxW < 1) maxW = 1;
         if (maxH < 1) maxH = 1;
         int w = src.getWidth(), h = src.getHeight();
-        if (w <= maxW && h <= maxH) return anhBoTienTo(base64);   // Đã đủ nhỏ, khỏi động vào
+        if (w <= maxW && h <= maxH) return imageStripPrefix(base64);   // Đã đủ nhỏ, khỏi động vào
 
         double ty = Math.min((double) maxW / w, (double) maxH / h);
         int nw = Math.max(1, (int) Math.round(w * ty));
         int nh = Math.max(1, (int) Math.round(h * ty));
 
-        boolean coNenTrong = src.getColorModel().hasAlpha();
-        BufferedImage ra = new BufferedImage(nw, nh, coNenTrong ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
+        boolean hasAlphaChannel = src.getColorModel().hasAlpha();
+        BufferedImage ra = new BufferedImage(nw, nh, hasAlphaChannel ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB);
         Graphics2D g = ra.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
         g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        if (!coNenTrong) { g.setColor(Color.WHITE); g.fillRect(0, 0, nw, nh); }
+        if (!hasAlphaChannel) { g.setColor(Color.WHITE); g.fillRect(0, 0, nw, nh); }
         g.drawImage(src, 0, 0, nw, nh, null);
         g.dispose();
 
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
-        ImageIO.write(ra, coNenTrong ? "png" : "jpg", bos);
+        ImageIO.write(ra, hasAlphaChannel ? "png" : "jpg", bos);
         return Base64.getEncoder().encodeToString(bos.toByteArray());
     }
 
@@ -9228,7 +9232,7 @@ public class Interpreter {
     private final ArrayList<String> mailAttachments = new ArrayList<>();
 
     /** Lấy danh sách tệp đính kèm đang chờ rồi xoá (đính kèm chỉ áp dụng cho MỘT lần gửi kế tiếp). */
-    private List<String> mailLayTepDinhKem() {
+    private List<String> mailGetAttachments() {
         synchronized (mailAttachments) {
             ArrayList<String> ds = new ArrayList<>(mailAttachments);
             mailAttachments.clear();
@@ -9237,13 +9241,13 @@ public class Interpreter {
     }
 
     /** Chưa gọi mailConfig mà .henv có MAIL_EMAIL / MAIL_PASSWORD thì tự cấu hình theo .henv. */
-    private synchronized void mailTuHenvNeuChuaCoCauHinh() {
+    private synchronized void mailFromHenvIfNotConfigured() {
         if (mailer.isConfigured()) return;
-        mailApDungHenv();
+        mailApplyHenv();
     }
 
     /** Đọc MAIL_* (hoặc khoá kiểu mail.sender.email) trong .henv. Trả về true nếu có đủ email + mật khẩu. */
-    private synchronized boolean mailApDungHenv() {
+    private synchronized boolean mailApplyHenv() {
         String email = HqlEnv.first(null, "MAIL_EMAIL", "MAIL_USER", "mail.sender.email");
         String pass  = HqlEnv.first(null, "MAIL_PASSWORD", "mail.sender.password");
         if (email == null || pass == null) return false;
@@ -9253,21 +9257,21 @@ public class Interpreter {
         if (portText != null) { try { port = Integer.parseInt(portText.trim()); } catch (NumberFormatException ignore) { } }
         mailer.configure(email, pass, host, port);
 
-        String ten = HqlEnv.first(null, "MAIL_NAME", "mail.sender.name");
-        if (ten != null) { mailSenderName = ten; mailer.setSenderName(ten); }
+        String nameText = HqlEnv.first(null, "MAIL_NAME", "mail.sender.name");
+        if (nameText != null) { mailSenderName = nameText; mailer.setSenderName(nameText); }
         return true;
     }
 
     /** Gửi 1 email. Trả về true nếu thành công, false nếu lỗi (xem chi tiết bằng mailError()). */
     private boolean sendHqlMail(String toEmail, String subject, String content, boolean isHtml) {
-        mailTuHenvNeuChuaCoCauHinh();
-        return mailer.send(toEmail, subject, content, isHtml, mailLayTepDinhKem());
+        mailFromHenvIfNotConfigured();
+        return mailer.send(toEmail, subject, content, isHtml, mailGetAttachments());
     }
 
     /** Xếp thư vào hàng đợi gửi nền, trả về ngay (true = đã nhận vào hàng đợi). */
     private boolean sendHqlMailAsync(String toEmail, String subject, String content, boolean isHtml) {
-        mailTuHenvNeuChuaCoCauHinh();
-        return mailer.sendAsync(toEmail, subject, content, isHtml, mailLayTepDinhKem());
+        mailFromHenvIfNotConfigured();
+        return mailer.sendAsync(toEmail, subject, content, isHtml, mailGetAttachments());
     }
 
     /** Lấy tham số thứ i dạng chữ; thiếu tham số thì coi như chuỗi rỗng (cho phép thư không tiêu đề / không nội dung). */
@@ -9323,8 +9327,8 @@ public class Interpreter {
      * (Không cắt nếu ngay sau '}' là else / catch / finally vì chúng thuộc cùng một câu lệnh.)
      */
     private List<List<Token>> splitCommands(List<Token> tokens) {
-        List<List<Token>> ketQua = new ArrayList<>();
-        List<Token> cauLenh = new ArrayList<>();
+        List<List<Token>> resultValue = new ArrayList<>();
+        List<Token> statementText = new ArrayList<>();
         int paren = 0, bracket = 0, brace = 0;
 
         for (int i = 0; i < tokens.size(); i++) {
@@ -9350,49 +9354,49 @@ public class Interpreter {
                 // --- CHO PHÉP VIẾT MỘT BIỂU THỨC TRẢI TRÊN NHIỀU DÒNG ---
                 // Nếu câu lệnh đang dở (kết thúc bằng toán tử) hoặc dòng kế tiếp mở đầu
                 // bằng toán tử (+ - * / . && ...) thì KHÔNG cắt, coi như còn tiếp.
-                boolean conTiep = false;
-                if (!cauLenh.isEmpty()) {
-                    Token cuoi = cauLenh.get(cauLenh.size() - 1);
-                    if (cuoi.type.equals("OPERATOR") || cuoi.type.equals("COMPARE")
-                            || cuoi.type.equals("LOGIC") || cuoi.type.equals("COMMA")
-                            || cuoi.type.equals("ASSIGN") || cuoi.type.equals("ASSIGN_OP")
-                            || cuoi.type.equals("DOT")) {
-                        conTiep = true;
+                boolean keepGoing = false;
+                if (!statementText.isEmpty()) {
+                    Token lastToken = statementText.get(statementText.size() - 1);
+                    if (lastToken.type.equals("OPERATOR") || lastToken.type.equals("COMPARE")
+                            || lastToken.type.equals("LOGIC") || lastToken.type.equals("COMMA")
+                            || lastToken.type.equals("ASSIGN") || lastToken.type.equals("ASSIGN_OP")
+                            || lastToken.type.equals("DOT")) {
+                        keepGoing = true;
                     }
                 }
-                if (!conTiep) {
+                if (!keepGoing) {
                     int j2 = i + 1;
                     while (j2 < tokens.size() && tokens.get(j2).type.equals("END")) j2++;
                     if (j2 < tokens.size()) {
-                        Token sau = tokens.get(j2);
-                        if (sau.type.equals("OPERATOR") || sau.type.equals("COMPARE")
-                                || sau.type.equals("LOGIC") || sau.type.equals("DOT")) {
+                        Token afterVal = tokens.get(j2);
+                        if (afterVal.type.equals("OPERATOR") || afterVal.type.equals("COMPARE")
+                                || afterVal.type.equals("LOGIC") || afterVal.type.equals("DOT")) {
                             // Dấu +/- đứng đầu dòng chỉ là "nối tiếp" khi câu lệnh trước đó chưa trọn vẹn
-                            if (!cauLenh.isEmpty()) conTiep = true;
+                            if (!statementText.isEmpty()) keepGoing = true;
                         }
                     }
                 }
-                if (conTiep) continue;
+                if (keepGoing) continue;
 
-                ketQua.add(new ArrayList<>(cauLenh));
-                cauLenh.clear();
+                resultValue.add(new ArrayList<>(statementText));
+                statementText.clear();
                 continue;
             }
 
-            cauLenh.add(t);
+            statementText.add(t);
 
             if (t.type.equals("R_BRACE") && brace == 0 && paren == 0 && bracket == 0) {
                 int j = i + 1;
                 while (j < tokens.size() && tokens.get(j).type.equals("END")) j++;
-                String keTiep = (j < tokens.size()) ? tokens.get(j).value : "";
-                if (!keTiep.equals("else") && !keTiep.equals("catch") && !keTiep.equals("finally")) {
-                    ketQua.add(new ArrayList<>(cauLenh));
-                    cauLenh.clear();
+                String nextOne = (j < tokens.size()) ? tokens.get(j).value : "";
+                if (!nextOne.equals("else") && !nextOne.equals("catch") && !nextOne.equals("finally")) {
+                    resultValue.add(new ArrayList<>(statementText));
+                    statementText.clear();
                 }
             }
         }
-        if (!cauLenh.isEmpty()) ketQua.add(cauLenh);
-        return ketQua;
+        if (!statementText.isEmpty()) resultValue.add(statementText);
+        return resultValue;
     }
 
     private Object getObjectValue(Token token) {
@@ -9508,19 +9512,19 @@ public class Interpreter {
      * Kiểm tra dấu +/- tại vị trí i có phải DẤU MỘT NGÔI hay không (ví dụ số -1 trong "x * -1").
      * Nguyên tắc: nếu ngay trước nó không có toán hạng nào kết thúc thì nó là dấu của con số.
      */
-    private boolean laDauMotNgoi(List<Token> tokens, int i) {
+    private boolean isUnaryOperator(List<Token> tokens, int i) {
         if (i == 0) return true;
-        Token truoc = tokens.get(i - 1);
-        switch (truoc.type) {
+        Token previousToken = tokens.get(i - 1);
+        switch (previousToken.type) {
             case "OPERATOR": case "COMPARE": case "LOGIC": case "NOT":
             case "L_PAREN": case "L_BRACKET": case "L_BRACE":
             case "COMMA": case "ASSIGN": case "ASSIGN_OP":
             case "COLON": case "TERNARY_Q": case "END": case "RANGE": case "DOT":
                 return true;
         }
-        if (truoc.type.equals("KEYWORD")) {
+        if (previousToken.type.equals("KEYWORD")) {
             return Arrays.asList("return", "new", "not", "and", "or", "in", "to", "print",
-                    "if", "while", "case", "throw").contains(truoc.value);
+                    "if", "while", "case", "throw").contains(previousToken.value);
         }
         return false;
     }
@@ -9542,7 +9546,7 @@ public class Interpreter {
 
             if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0
                     && token.type.equals("OPERATOR") && values.contains(token.value)) {
-                if (!laDauMotNgoi(tokens, i)) return i;
+                if (!isUnaryOperator(tokens, i)) return i;
             }
         }
         return -1;
@@ -10254,13 +10258,13 @@ public class Interpreter {
     @SuppressWarnings("unchecked")
     private ArrayList<ArrayList<Double>> convertToMatrix(Object obj) {
         ArrayList<ArrayList<?>> input = (ArrayList<ArrayList<?>>) obj;
-        ArrayList<ArrayList<Double>> mat = new ArrayList<>();
+        ArrayList<ArrayList<Double>> matrixData = new ArrayList<>();
         for (ArrayList<?> row : input) {
             ArrayList<Double> newRow = new ArrayList<>();
             for (Object o : row) newRow.add(toDouble(o));
-            mat.add(newRow);
+            matrixData.add(newRow);
         }
-        return mat;
+        return matrixData;
     }
 
     private double determinantHelper(ArrayList<ArrayList<Double>> M) {

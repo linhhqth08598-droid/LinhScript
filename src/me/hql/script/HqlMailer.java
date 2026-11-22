@@ -166,8 +166,8 @@ public final class HqlMailer {
                     msg = build(to, subject, content, html, attachments);
                     sendOnce(msg);
                 }
-                System.out.println("[HQL.MAIL] Đã gửi tới " + to + " (" + (System.currentTimeMillis() - t0) + " ms"
-                        + " | dựng thư " + msBuild + " | nối SMTP " + msConnect + " | gửi " + msSend + ")");
+                System.out.println("[HQL.MAIL] Sent to " + to + " (" + (System.currentTimeMillis() - t0) + " ms"
+                        + " | build " + msBuild + " | SMTP connect " + msConnect + " | send " + msSend + ")");
                 return null;
             } catch (Exception e) {
                 String err = e.getMessage() == null ? e.toString() : e.getMessage();

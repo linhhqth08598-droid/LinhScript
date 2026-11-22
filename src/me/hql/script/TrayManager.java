@@ -35,20 +35,20 @@ public class TrayManager {
         popup.add(sep);
 
         // 3. Nút Toggle (Bật / Tắt)
-        JMenuItem toggleItem = createRiotMenuItem("Đang dừng", null);
+        JMenuItem toggleItem = createRiotMenuItem("Stopped", null);
         toggleItem.addActionListener(e -> {
-            if (toggleItem.getText().equals("Đang chạy")) {
+            if (toggleItem.getText().equals("Running")) {
                 interpreter.executeFunctionCall(offFunc, new ArrayList<>());
-                toggleItem.setText("Đang dừng");
+                toggleItem.setText("Stopped");
             } else {
                 interpreter.executeFunctionCall(onFunc, new ArrayList<>());
-                toggleItem.setText("Đang chạy");
+                toggleItem.setText("Running");
             }
         });
         popup.add(toggleItem);
 
         // 4. Nút Thoát
-        JMenuItem exitItem = createRiotMenuItem("Thoát", null);
+        JMenuItem exitItem = createRiotMenuItem("Exit", null);
         exitItem.addActionListener(e -> {
             interpreter.executeFunctionCall(exitFunc, new ArrayList<>());
             System.exit(0);

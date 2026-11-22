@@ -39,24 +39,24 @@ import java.util.List;
  *  Cùng một báo cáo ấy được in ra HAI CHỖ: cửa sổ dòng lệnh (dạng chữ) và
  *  trình duyệt (dạng HTML), nên xem ở đâu cũng thấy như nhau.
  */
-public final class BaoLoi {
+public final class ErrorReport {
 
-    private BaoLoi() { }
+    private ErrorReport() { }
 
     // ----------------------------------------------------------------------
     //  MỘT KHUNG TRONG NGĂN XẾP GỌI HÀM
     // ----------------------------------------------------------------------
 
     /** Một lượt gọi hàm đang dở: tên hàm, và chỗ đã gọi nó. */
-    public static class Khung {
-        public final String tenHam;
+    public static class StackFrame {
+        public final String fnName;
         public final String file;
-        public final int dong;
+        public final int lineNo;
 
-        public Khung(String tenHam, String file, int dong) {
-            this.tenHam = tenHam;
+        public StackFrame(String fnName, String file, int lineNo) {
+            this.fnName = fnName;
             this.file = file;
-            this.dong = dong;
+            this.lineNo = lineNo;
         }
 
         /**
@@ -68,10 +68,10 @@ public final class BaoLoi {
          */
         @Override
         public String toString() {
-            if (file == null || file.isEmpty() || dong <= 0) {
-                return tenHam + "()  — điểm vào của request";
+            if (file == null || file.isEmpty() || lineNo <= 0) {
+                return fnName + "()  — điểm vào của request";
             }
-            return tenHam + "()  — được gọi tại " + duongDanGon(file) + ":" + dong;
+            return fnName + "()  — được gọi tại " + shortPathString(file) + ":" + lineNo;
         }
     }
 
@@ -83,18 +83,18 @@ public final class BaoLoi {
     //  buổi. Nên bước đầu tiên luôn là gọi đúng tên cái hỏng.
     // ----------------------------------------------------------------------
 
-    public static final String LOAI_MANG    = "MẤT KẾT NỐI MẠNG";
-    public static final String LOAI_CSDL    = "LỖI CƠ SỞ DỮ LIỆU";
-    public static final String LOAI_API     = "MÁY CHỦ DỮ LIỆU TRẢ VỀ LỖI";
-    public static final String LOAI_THIEU   = "THIẾU DỮ LIỆU";
-    public static final String LOAI_MA_NGUON = "LỖI TRONG MÃ NGUỒN HQL";
-    public static final String LOAI_CU_PHAP = "LỖI CÚ PHÁP";
-    public static final String LOAI_KHAC    = "LỖI KHÔNG RÕ NGUYÊN NHÂN";
+    public static final String KIND_NETWORK    = "MẤT KẾT NỐI MẠNG";
+    public static final String KIND_DATABASE    = "LỖI CƠ SỞ DỮ LIỆU";
+    public static final String KIND_API     = "MÁY CHỦ DỮ LIỆU TRẢ VỀ LỖI";
+    public static final String KIND_MISSING   = "THIẾU DỮ LIỆU";
+    public static final String KIND_SOURCE = "LỖI TRONG MÃ NGUỒN HQL";
+    public static final String KIND_SYNTAX = "LỖI CÚ PHÁP";
+    public static final String KIND_OTHER    = "LỖI KHÔNG RÕ NGUYÊN NHÂN";
 
-    public static String loai(Throwable loi) {
-        if (loi == null) { return LOAI_KHAC; }
+    public static String errorKind(Throwable failure) {
+        if (failure == null) { return KIND_OTHER; }
 
-        String ten = loi.getClass().getName();
+        String nameText = failure.getClass().getName();
 
         /*
          * PHẢI XÉT CẢ CHUỖI getMessage() LẪN TÊN LỚP.
@@ -105,94 +105,94 @@ public final class BaoLoi {
          * mạng rành rành — lại bị xếp thành "lỗi trong mã nguồn HQL", rồi gợi ý
          * bảo người dùng đi đọc mã. Sai địa chỉ hoàn toàn.
          */
-        String tin = ((loi.getMessage() == null ? "" : loi.getMessage()) + " " + ten).toLowerCase();
+        String lowerMessage = ((failure.getMessage() == null ? "" : failure.getMessage()) + " " + nameText).toLowerCase();
 
         // --- Mạng ---
-        if (ten.contains("UnknownHostException")
-         || ten.contains("UnresolvedAddressException")   // DNS không phân giải được
-         || ten.contains("ConnectException")
-         || ten.contains("HttpConnectTimeoutException")
-         || ten.contains("HttpTimeoutException")
-         || ten.contains("NoRouteToHostException")
-         || ten.contains("PortUnreachableException")
-         || ten.contains("SocketTimeoutException")
-         || ten.contains("SocketException")
-         || ten.contains("ClosedChannelException")
-         || ten.contains("SSLException")
-         || ten.contains("SSLHandshakeException")
-         || tin.contains("connection refused")
-         || tin.contains("connection reset")
-         || tin.contains("connection timed out")
-         || tin.contains("network is unreachable")
-         || tin.contains("no such host")
-         || tin.contains("không kết nối được ra internet")) {
-            return LOAI_MANG;
+        if (nameText.contains("UnknownHostException")
+         || nameText.contains("UnresolvedAddressException")   // DNS không phân giải được
+         || nameText.contains("ConnectException")
+         || nameText.contains("HttpConnectTimeoutException")
+         || nameText.contains("HttpTimeoutException")
+         || nameText.contains("NoRouteToHostException")
+         || nameText.contains("PortUnreachableException")
+         || nameText.contains("SocketTimeoutException")
+         || nameText.contains("SocketException")
+         || nameText.contains("ClosedChannelException")
+         || nameText.contains("SSLException")
+         || nameText.contains("SSLHandshakeException")
+         || lowerMessage.contains("connection refused")
+         || lowerMessage.contains("connection reset")
+         || lowerMessage.contains("connection timed out")
+         || lowerMessage.contains("network is unreachable")
+         || lowerMessage.contains("no such host")
+         || lowerMessage.contains("không kết nối được ra internet")) {
+            return KIND_NETWORK;
         }
 
         // --- Cơ sở dữ liệu ---
-        if (ten.contains("SQLException")
-         || ten.contains("SQLServerException")
-         || tin.contains("chưa kết nối database")
-         || tin.contains("không kết nối được cơ sở dữ liệu")
-         || tin.contains("invalid object name")
-         || tin.contains("invalid column name")
-         || tin.contains("login failed")) {
-            return LOAI_CSDL;
+        if (nameText.contains("SQLException")
+         || nameText.contains("SQLServerException")
+         || lowerMessage.contains("chưa kết nối database")
+         || lowerMessage.contains("không kết nối được cơ sở dữ liệu")
+         || lowerMessage.contains("invalid object name")
+         || lowerMessage.contains("invalid column name")
+         || lowerMessage.contains("login failed")) {
+            return KIND_DATABASE;
         }
 
         // --- Máy chủ dữ liệu bên ngoài ---
-        if (tin.contains("khoá api")
-         || tin.contains("máy chủ dữ liệu trả về mã")
-         || tin.contains("gọi quá nhanh")
-         || tin.contains("henrikdev")) {
-            return LOAI_API;
+        if (lowerMessage.contains("khoá api")
+         || lowerMessage.contains("máy chủ dữ liệu trả về mã")
+         || lowerMessage.contains("gọi quá nhanh")
+         || lowerMessage.contains("henrikdev")) {
+            return KIND_API;
         }
 
         // --- Thiếu dữ liệu ---
-        if (tin.contains("chưa được khởi tạo")
-         || tin.contains("không tìm thấy biến")
-         || tin.contains("nằm ngoài mảng")
-         || tin.contains("nằm ngoài phạm vi")
-         || ten.contains("NullPointerException")
-         || ten.contains("IndexOutOfBoundsException")) {
-            return LOAI_THIEU;
+        if (lowerMessage.contains("chưa được khởi tạo")
+         || lowerMessage.contains("không tìm thấy biến")
+         || lowerMessage.contains("nằm ngoài mảng")
+         || lowerMessage.contains("nằm ngoài phạm vi")
+         || nameText.contains("NullPointerException")
+         || nameText.contains("IndexOutOfBoundsException")) {
+            return KIND_MISSING;
         }
 
         // --- Cú pháp ---
-        if (tin.contains("lỗi cú pháp")
-         || tin.contains("thiếu dấu")
-         || tin.contains("dư toán tử")
-         || tin.contains("không hợp lệ")) {
-            return LOAI_CU_PHAP;
+        if (lowerMessage.contains("lỗi cú pháp")
+         || lowerMessage.contains("thiếu dấu")
+         || lowerMessage.contains("dư toán tử")
+         || lowerMessage.contains("không hợp lệ")) {
+            return KIND_SYNTAX;
         }
 
-        return LOAI_MA_NGUON;
+        return KIND_SOURCE;
     }
 
     /**
      * Gợi ý việc cần làm, viết theo kiểu chỉ tay chứ không nói chung chung.
      * Người đang bí thì cần biết BẤM VÀO ĐÂU, không cần nghe giảng.
      */
-    public static String goiY(Throwable loi) {
-        String l = loai(loi);
-        String tin = loi == null || loi.getMessage() == null ? "" : loi.getMessage().toLowerCase();
+    public static String hintText(Throwable failure) {
+        String l = errorKind(failure);
+        String lowerMessage = failure == null || failure.getMessage() == null ? "" : failure.getMessage().toLowerCase();
 
         switch (l) {
-            case LOAI_MANG:
+            case KIND_NETWORK:
                 return "Máy không ra được Internet, hoặc máy chủ bên kia đang sập.\n"
                      + "  · Thử mở một trang web bất kỳ xem mạng còn không.\n"
                      + "  · Nếu đang gọi API Riot: máy chủ henrikdev hay sập vài phút rồi tự lên lại.\n"
                      + "  · Phần dữ liệu ĐÃ NẠP trong cơ sở dữ liệu vẫn xem được bình thường,\n"
                      + "    chỉ mỗi phần đồng bộ mới là phải chờ.";
 
-            case LOAI_CSDL:
-                if (tin.contains("invalid object name")) {
+            case KIND_DATABASE:
+                if (lowerMessage.contains("invalid object name")) {
                     return "Câu truy vấn gọi tới một BẢNG CHƯA TỒN TẠI.\n"
                          + "  · Mở SQL Server Management Studio, chạy các file trong thư mục SQL\\\n"
                          + "    theo đúng thứ tự: VN_Tracker.sql -> VN_Tracker_DuLieuMau.sql -> rồi các file bổ sung.\n"
                          + "  · Tên bảng nằm ngay trong câu báo lỗi ở trên.";
                 }
-                if (tin.contains("login failed")) {
+                if (lowerMessage.contains("login failed")) {
                     return "Sai tài khoản hoặc mật khẩu SQL Server.\n"
                          + "  · Sửa khối cấu hình DB_USER / DB_PASS ở đầu file main.hql.\n"
                          + "  · Kiểm tra SQL Server có đang bật chế độ đăng nhập hỗn hợp (Mixed Mode) không.";
@@ -202,20 +202,20 @@ public final class BaoLoi {
                      + "  · Kiểm tra DB_HOST / DB_PORT / DB_NAME ở đầu file main.hql.\n"
                      + "  · Cổng 1433 có thể đang bị tường lửa chặn.";
 
-            case LOAI_API:
+            case KIND_API:
                 return "Máy chủ dữ liệu Riot từ chối lời gọi.\n"
                      + "  · Vào trang /DongBo xem khoá API còn đúng không (khoá henrikdev dài đúng 41 ký tự).\n"
                      + "  · Dính mã 429 nghĩa là gọi quá dày — chờ khoảng một phút rồi thử lại.\n"
                      + "  · Mã 500/502/503 là hỏng ở phía họ, khoá của mình vẫn tốt.";
 
-            case LOAI_THIEU:
+            case KIND_MISSING:
                 return "Mã nguồn đọc một thứ chưa có giá trị.\n"
                      + "  · Biến chưa gán mà đã dùng, hoặc truy vấn không trả về dòng nào\n"
                      + "    mà mã vẫn đọc thẳng r.tenCot.\n"
                      + "  · Cách vá: kiểm tra len(danhSach) > 0 trước khi đọc, hoặc dùng\n"
                      + "    fetchOne() rồi so sánh khác null trước khi lấy cột.";
 
-            case LOAI_CU_PHAP:
+            case KIND_SYNTAX:
                 return "Câu lệnh viết sai quy tắc của HQL.\n"
                      + "  · Xem lại dấu ngoặc, dấu chấm phẩy và toán tử ở đúng dòng ghi bên trên.\n"
                      + "  · Nhắc lại một bẫy hay dính: nối mảng phải dùng .push(), dấu + giữa hai\n"
@@ -232,15 +232,15 @@ public final class BaoLoi {
     // ----------------------------------------------------------------------
 
     /** Một dòng mã trong đoạn trích: số dòng, nội dung, và có phải dòng lỗi không. */
-    public static class DongMa {
-        public final int so;
-        public final String chu;
-        public final boolean laDongLoi;
+    public static class CodeLine {
+        public final int lineNo;
+        public final String lineText;
+        public final boolean isErrorLine;
 
-        DongMa(int so, String chu, boolean laDongLoi) {
-            this.so = so;
-            this.chu = chu;
-            this.laDongLoi = laDongLoi;
+        CodeLine(int lineNo, String lineText, boolean isErrorLine) {
+            this.lineNo = lineNo;
+            this.lineText = lineText;
+            this.isErrorLine = isErrorLine;
         }
     }
 
@@ -248,28 +248,28 @@ public final class BaoLoi {
      * Lấy vài dòng quanh dòng lỗi. Trả về danh sách rỗng nếu không đọc được file
      * — báo lỗi thì không bao giờ được phép ném ra lỗi mới.
      */
-    public static List<DongMa> trichDoan(String file, int dongLoi, int banKinh) {
-        List<DongMa> kq = new ArrayList<>();
-        if (file == null || file.isEmpty() || dongLoi <= 0) { return kq; }
+    public static List<CodeLine> excerpt(String file, int errorLine, int contextRadius) {
+        List<CodeLine> resultList = new ArrayList<>();
+        if (file == null || file.isEmpty() || errorLine <= 0) { return resultList; }
 
         try {
             Path p = Paths.get(file);
-            if (!Files.exists(p)) { return kq; }
+            if (!Files.exists(p)) { return resultList; }
 
-            List<String> dong = Files.readAllLines(p, StandardCharsets.UTF_8);
-            int tu = Math.max(1, dongLoi - banKinh);
-            int den = Math.min(dong.size(), dongLoi + banKinh);
-            for (int i = tu; i <= den; i++) {
-                kq.add(new DongMa(i, dong.get(i - 1), i == dongLoi));
+            List<String> lineNo = Files.readAllLines(p, StandardCharsets.UTF_8);
+            int fromLine = Math.max(1, errorLine - contextRadius);
+            int endLine = Math.min(lineNo.size(), errorLine + contextRadius);
+            for (int i = fromLine; i <= endLine; i++) {
+                resultList.add(new CodeLine(i, lineNo.get(i - 1), i == errorLine));
             }
         } catch (IOException | RuntimeException e) {
             // Đọc không được thì thôi, phần còn lại của báo cáo vẫn có ích
         }
-        return kq;
+        return resultList;
     }
 
     /** Đường dẫn tuyệt đối để bấm được trong IDE; hỏng thì trả nguyên đường dẫn cũ. */
-    public static String duongDanDay(String file) {
+    public static String fullPathString(String file) {
         if (file == null || file.isEmpty()) { return "(không rõ file)"; }
         try {
             return Paths.get(file).toAbsolutePath().normalize().toString();
@@ -279,17 +279,17 @@ public final class BaoLoi {
     }
 
     /** Chỉ lấy tên file cho gọn, dùng trong ngăn xếp gọi hàm. */
-    public static String duongDanGon(String file) {
+    public static String shortPathString(String file) {
         if (file == null || file.isEmpty()) { return "(không rõ file)"; }
         int vt = Math.max(file.lastIndexOf('/'), file.lastIndexOf('\\'));
         return vt >= 0 ? file.substring(vt + 1) : file;
     }
 
     /** Lột hết lớp bọc để lấy đúng lỗi gốc. */
-    public static Throwable goc(Throwable loi) {
-        Throwable r = loi;
+    public static Throwable rootCauseOf(Throwable failure) {
+        Throwable r = failure;
         while (r != null && r.getCause() != null && r.getCause() != r) { r = r.getCause(); }
-        return r == null ? loi : r;
+        return r == null ? failure : r;
     }
 
     /**
@@ -300,30 +300,30 @@ public final class BaoLoi {
      * "java.nio.channels.UnresolvedAddressException". Bảng dưới dịch mấy cái
      * hay gặp nhất sang câu tiếng Việt nói đúng chuyện gì đã xảy ra.
      */
-    public static String cauBao(Throwable loi) {
-        Throwable r = goc(loi);
+    public static String errorSentence(Throwable failure) {
+        Throwable r = rootCauseOf(failure);
         if (r == null) { return "(không có mô tả)"; }
 
         String m = r.getMessage();
         if (m != null && !m.isEmpty()) { return m; }
 
-        String ten = r.getClass().getSimpleName();
-        switch (ten) {
+        String nameText = r.getClass().getSimpleName();
+        switch (nameText) {
             case "UnresolvedAddressException":
                 return "Không phân giải được tên miền của máy chủ — máy không ra được Internet, "
-                     + "hoặc DNS đang hỏng. (" + ten + ")";
+                     + "hoặc DNS đang hỏng. (" + nameText + ")";
             case "UnknownHostException":
-                return "Không tìm thấy máy chủ theo tên miền đã cho. (" + ten + ")";
+                return "Không tìm thấy máy chủ theo tên miền đã cho. (" + nameText + ")";
             case "ConnectException":
-                return "Máy chủ từ chối kết nối, hoặc không với tới được. (" + ten + ")";
+                return "Máy chủ từ chối kết nối, hoặc không với tới được. (" + nameText + ")";
             case "SocketTimeoutException":
             case "HttpConnectTimeoutException":
             case "HttpTimeoutException":
-                return "Chờ quá lâu mà máy chủ không trả lời. (" + ten + ")";
+                return "Chờ quá lâu mà máy chủ không trả lời. (" + nameText + ")";
             case "ClosedChannelException":
-                return "Kết nối bị đóng giữa chừng. (" + ten + ")";
+                return "Kết nối bị đóng giữa chừng. (" + nameText + ")";
             case "NullPointerException":
-                return "Đọc một giá trị đang rỗng (null). (" + ten + ")";
+                return "Đọc một giá trị đang rỗng (null). (" + nameText + ")";
             default:
                 return r.toString();
         }
@@ -334,9 +334,9 @@ public final class BaoLoi {
     // ----------------------------------------------------------------------
 
     private static final String DO = "\u001B[31m";
-    private static final String VANG = "\u001B[33m";
-    private static final String XAM = "\u001B[90m";
-    private static final String THOI = "\u001B[0m";
+    private static final String ANSI_YELLOW_CODE = "\u001B[33m";
+    private static final String ANSI_GRAY_CODE = "\u001B[90m";
+    private static final String ANSI_RESET_CODE = "\u001B[0m";
 
     /**
      * ==================================================================
@@ -355,7 +355,7 @@ public final class BaoLoi {
      *      không. Không nổi thì tự BỎ DẤU và đổi khung sang ký tự ASCII.
      *      Nhờ vậy chạy ở IDE, ở cmd hay ở nhật ký Tomcat đều đọc được.
      */
-    private static boolean consoleDocDuocTiengViet() {
+    private static boolean consoleSupportsUnicode() {
         try {
             java.nio.charset.Charset cs = System.err.charset();
             return cs.newEncoder().canEncode("Lỗi mã nguồn — ►");
@@ -365,75 +365,75 @@ public final class BaoLoi {
     }
 
     /** Bỏ dấu tiếng Việt: "Lỗi mã nguồn" -> "Loi ma nguon". */
-    public static String boDau(String s) {
+    public static String stripAccents(String s) {
         if (s == null) { return ""; }
         String t = java.text.Normalizer.normalize(s, java.text.Normalizer.Form.NFD)
                        .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
         return t.replace('đ', 'd').replace('Đ', 'D');
     }
 
-    public static String banChu(Throwable loi, Token viTri, Deque<Khung> nganXep, boolean mauSac) {
-        String s = dungBanChu(loi, viTri, nganXep, mauSac);
-        return consoleDocDuocTiengViet() ? s : boDau(s);
+    public static String textReport(Throwable failure, Token tokenPos, Deque<StackFrame> callStack, boolean useColor) {
+        String s = buildTextReport(failure, tokenPos, callStack, useColor);
+        return consoleSupportsUnicode() ? s : stripAccents(s);
     }
 
-    private static String dungBanChu(Throwable loi, Token viTri, Deque<Khung> nganXep, boolean mauSac) {
-        String do_ = mauSac ? DO : "";
-        String vang = mauSac ? VANG : "";
-        String xam = mauSac ? XAM : "";
-        String thoi = mauSac ? THOI : "";
+    private static String buildTextReport(Throwable failure, Token tokenPos, Deque<StackFrame> callStack, boolean useColor) {
+        String do_ = useColor ? DO : "";
+        String yellowCode = useColor ? ANSI_YELLOW_CODE : "";
+        String grayCode = useColor ? ANSI_GRAY_CODE : "";
+        String resetCode = useColor ? ANSI_RESET_CODE : "";
 
         // Khung kẻ bằng ASCII: ký tự ╔═╗ cũng vỡ y như chữ có dấu trên cmd.exe
-        String ngang = "======================================================================";
+        String ruleLine = "======================================================================";
 
         StringBuilder sb = new StringBuilder();
-        String luc = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        String timestampText = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
 
-        sb.append(do_).append("\n+").append(ngang).append("\n");
-        sb.append("|  ").append(loai(loi)).append("\n");
-        sb.append("|  ").append(luc).append("\n");
-        sb.append("+").append(ngang).append("\n");
-        sb.append("|  ").append(cauBao(loi)).append("\n");
-        sb.append("+").append(ngang).append(thoi).append("\n");
+        sb.append(do_).append("\n+").append(ruleLine).append("\n");
+        sb.append("|  ").append(errorKind(failure)).append("\n");
+        sb.append("|  ").append(timestampText).append("\n");
+        sb.append("+").append(ruleLine).append("\n");
+        sb.append("|  ").append(errorSentence(failure)).append("\n");
+        sb.append("+").append(ruleLine).append(resetCode).append("\n");
 
         // --- Vị trí ---
-        if (viTri != null) {
-            sb.append("\n").append(vang).append("VỊ TRÍ:").append(thoi).append("\n");
-            sb.append("  ").append(duongDanDay(viTri.file)).append(":").append(viTri.line).append("\n");
+        if (tokenPos != null) {
+            sb.append("\n").append(yellowCode).append("VỊ TRÍ:").append(resetCode).append("\n");
+            sb.append("  ").append(fullPathString(tokenPos.file)).append(":").append(tokenPos.line).append("\n");
 
-            List<DongMa> doan = trichDoan(viTri.file, viTri.line, 3);
-            if (!doan.isEmpty()) {
-                sb.append("\n").append(vang).append("MÃ NGUỒN:").append(thoi).append("\n");
-                for (DongMa d : doan) {
-                    if (d.laDongLoi) {
-                        sb.append(do_).append(String.format("  >> %4d | %s", d.so, d.chu)).append(thoi).append("\n");
+            List<CodeLine> chunkText = excerpt(tokenPos.file, tokenPos.line, 3);
+            if (!chunkText.isEmpty()) {
+                sb.append("\n").append(yellowCode).append("MÃ NGUỒN:").append(resetCode).append("\n");
+                for (CodeLine d : chunkText) {
+                    if (d.isErrorLine) {
+                        sb.append(do_).append(String.format("  >> %4d | %s", d.lineNo, d.lineText)).append(resetCode).append("\n");
                     } else {
-                        sb.append(xam).append(String.format("    %4d | %s", d.so, d.chu)).append(thoi).append("\n");
+                        sb.append(grayCode).append(String.format("    %4d | %s", d.lineNo, d.lineText)).append(resetCode).append("\n");
                     }
                 }
             }
         } else {
-            sb.append("\n").append(vang).append("VỊ TRÍ:").append(thoi)
+            sb.append("\n").append(yellowCode).append("VỊ TRÍ:").append(resetCode)
               .append(" không xác định được (lỗi nổ ra ngoài phần thân chương trình).\n");
         }
 
         // --- Ngăn xếp gọi hàm ---
-        if (nganXep != null && !nganXep.isEmpty()) {
-            sb.append("\n").append(vang).append("ĐƯỜNG ĐI TỚI CHỖ LỖI:").append(thoi).append("\n");
+        if (callStack != null && !callStack.isEmpty()) {
+            sb.append("\n").append(yellowCode).append("ĐƯỜNG ĐI TỚI CHỖ LỖI:").append(resetCode).append("\n");
             int i = 0;
-            for (Khung k : nganXep) {
+            for (StackFrame k : callStack) {
                 sb.append("  ").append(i == 0 ? "* đang trong  " : "  ^ nằm trong ").append(k).append("\n");
                 i++;
             }
         }
 
         // --- Gợi ý ---
-        sb.append("\n").append(vang).append("NÊN LÀM GÌ:").append(thoi).append("\n");
-        for (String d : goiY(loi).split("\n")) { sb.append("  ").append(d).append("\n"); }
+        sb.append("\n").append(yellowCode).append("NÊN LÀM GÌ:").append(resetCode).append("\n");
+        for (String d : hintText(failure).split("\n")) { sb.append("  ").append(d).append("\n"); }
 
         // --- Dòng chuẩn cho IDE bấm được ---
-        if (viTri != null) {
-            sb.append("\n\tat ").append(duongDanDay(viTri.file)).append(":").append(viTri.line).append("\n");
+        if (tokenPos != null) {
+            sb.append("\n\tat ").append(fullPathString(tokenPos.file)).append(":").append(tokenPos.line).append("\n");
         }
         return sb.toString();
     }
@@ -442,13 +442,13 @@ public final class BaoLoi {
     //  BÁO CÁO DẠNG HTML — hiện thẳng trên trình duyệt
     // ----------------------------------------------------------------------
 
-    public static String banHtml(Throwable loi, Token viTri, Deque<Khung> nganXep, String duongDanTrang) {
-        String luc = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"));
+    public static String htmlReport(Throwable failure, Token tokenPos, Deque<StackFrame> callStack, String pagePathString) {
+        String timestampText = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"));
 
         StringBuilder sb = new StringBuilder(4096);
         sb.append("<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\">")
           .append("<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">")
-          .append("<title>Lỗi HQL — ").append(esc(loai(loi))).append("</title><style>")
+          .append("<title>Lỗi HQL — ").append(esc(errorKind(failure))).append("</title><style>")
           .append("*{box-sizing:border-box}")
           .append("body{margin:0;padding:32px;background:#0f172a;color:#e2e8f0;")
           .append("font-family:'Segoe UI',system-ui,sans-serif;line-height:1.6}")
@@ -484,45 +484,45 @@ public final class BaoLoi {
           .append("</style></head><body><div class=\"hop\">");
 
         // --- Đầu trang ---
-        sb.append("<div class=\"dau\"><h1>⛔ ").append(esc(loai(loi))).append("</h1>")
-          .append("<div class=\"luc\">Động cơ HQL · ").append(esc(luc));
-        if (duongDanTrang != null && !duongDanTrang.isEmpty()) {
-            sb.append(" · trang <code>").append(esc(duongDanTrang)).append("</code>");
+        sb.append("<div class=\"dau\"><h1>⛔ ").append(esc(errorKind(failure))).append("</h1>")
+          .append("<div class=\"luc\">Động cơ HQL · ").append(esc(timestampText));
+        if (pagePathString != null && !pagePathString.isEmpty()) {
+            sb.append(" · trang <code>").append(esc(pagePathString)).append("</code>");
         }
         sb.append("</div></div>");
 
-        sb.append("<div class=\"tin\">").append(esc(cauBao(loi))).append("</div>");
+        sb.append("<div class=\"tin\">").append(esc(errorSentence(failure))).append("</div>");
 
         // --- Vị trí + trích đoạn mã ---
-        if (viTri != null) {
+        if (tokenPos != null) {
             sb.append("<h2>Hỏng ở đâu</h2>")
-              .append("<div class=\"vitri\">").append(esc(duongDanDay(viTri.file)))
-              .append(" <b style=\"color:#f87171\">: dòng ").append(viTri.line).append("</b></div>");
+              .append("<div class=\"vitri\">").append(esc(fullPathString(tokenPos.file)))
+              .append(" <b style=\"color:#f87171\">: dòng ").append(tokenPos.line).append("</b></div>");
 
-            List<DongMa> doan = trichDoan(viTri.file, viTri.line, 4);
-            if (!doan.isEmpty()) {
+            List<CodeLine> chunkText = excerpt(tokenPos.file, tokenPos.line, 4);
+            if (!chunkText.isEmpty()) {
                 sb.append("<h2>Mã nguồn quanh chỗ đó</h2><table class=\"ma\">");
-                for (DongMa d : doan) {
-                    sb.append("<tr").append(d.laDongLoi ? " class=\"loi\"" : "").append(">")
-                      .append("<td class=\"so\">").append(d.laDongLoi ? "►" : "").append(d.so).append("</td>")
-                      .append("<td>").append(esc(d.chu)).append("</td></tr>");
+                for (CodeLine d : chunkText) {
+                    sb.append("<tr").append(d.isErrorLine ? " class=\"loi\"" : "").append(">")
+                      .append("<td class=\"so\">").append(d.isErrorLine ? "►" : "").append(d.lineNo).append("</td>")
+                      .append("<td>").append(esc(d.lineText)).append("</td></tr>");
                 }
                 sb.append("</table>");
             }
         }
 
         // --- Ngăn xếp gọi hàm ---
-        if (nganXep != null && !nganXep.isEmpty()) {
+        if (callStack != null && !callStack.isEmpty()) {
             sb.append("<h2>Đường đi tới chỗ lỗi</h2><ul class=\"xep\">");
             int i = 0;
-            for (Khung k : nganXep) {
+            for (StackFrame k : callStack) {
                 sb.append("<li>").append(i == 0 ? "└─ đang trong " : "↑ nằm trong ")
-                  .append("<b>").append(esc(k.tenHam)).append("()</b>");
-                if (k.file == null || k.file.isEmpty() || k.dong <= 0) {
+                  .append("<b>").append(esc(k.fnName)).append("()</b>");
+                if (k.file == null || k.file.isEmpty() || k.lineNo <= 0) {
                     sb.append(" <span style=\"color:#64748b\">— điểm vào của request</span>");
                 } else {
                     sb.append(" — được gọi tại ")
-                      .append(esc(duongDanGon(k.file))).append(":").append(k.dong);
+                      .append(esc(shortPathString(k.file))).append(":").append(k.lineNo);
                 }
                 sb.append("</li>");
                 i++;
@@ -531,7 +531,7 @@ public final class BaoLoi {
         }
 
         // --- Gợi ý ---
-        sb.append("<h2>Nên làm gì</h2><div class=\"goi\">").append(esc(goiY(loi))).append("</div>");
+        sb.append("<h2>Nên làm gì</h2><div class=\"goi\">").append(esc(hintText(failure))).append("</div>");
 
         sb.append("<a class=\"nut\" href=\"javascript:location.reload()\">↻ Thử lại</a>");
         sb.append("<div class=\"chan\">Báo cáo này chỉ hiện khi chạy ở máy nhà. "
@@ -543,24 +543,24 @@ public final class BaoLoi {
     }
 
     /** Bản rút gọn cho người dùng cuối: không lộ file, không lộ mã nguồn. */
-    public static String banHtmlGon(Throwable loi) {
+    public static String htmlReportCompact(Throwable failure) {
         return "<!doctype html><html lang=\"vi\"><head><meta charset=\"utf-8\">"
              + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
              + "<title>Trang đang gặp sự cố</title></head>"
              + "<body style=\"margin:0;padding:48px;background:#0f172a;color:#e2e8f0;"
              + "font-family:'Segoe UI',system-ui,sans-serif;text-align:center\">"
              + "<h1 style=\"color:#f87171\">Trang đang gặp sự cố</h1>"
-             + "<p style=\"color:#94a3b8\">" + esc(nhanHienNhe(loi)) + "</p>"
+             + "<p style=\"color:#94a3b8\">" + esc(lightLabel(failure)) + "</p>"
              + "<p><a href=\"javascript:location.reload()\" style=\"color:#38bdf8\">↻ Thử lại</a></p>"
              + "</body></html>";
     }
 
     /** Câu ngắn cho người dùng cuối đọc, không kèm chi tiết kỹ thuật. */
-    public static String nhanHienNhe(Throwable loi) {
-        switch (loai(loi)) {
-            case LOAI_MANG: return "Máy chủ đang không ra được Internet. Thử lại sau ít phút.";
-            case LOAI_CSDL: return "Không đọc được cơ sở dữ liệu. Người quản trị đã được ghi nhận lỗi này.";
-            case LOAI_API:  return "Máy chủ dữ liệu Riot đang bận. Thử lại sau ít phút.";
+    public static String lightLabel(Throwable failure) {
+        switch (errorKind(failure)) {
+            case KIND_NETWORK: return "Máy chủ đang không ra được Internet. Thử lại sau ít phút.";
+            case KIND_DATABASE: return "Không đọc được cơ sở dữ liệu. Người quản trị đã được ghi nhận lỗi này.";
+            case KIND_API:  return "Máy chủ dữ liệu Riot đang bận. Thử lại sau ít phút.";
             default:        return "Đã có lỗi xảy ra. Người quản trị đã được ghi nhận lỗi này.";
         }
     }
