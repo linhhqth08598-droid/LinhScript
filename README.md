@@ -23,56 +23,27 @@ xuất Excel/Word/PDF, gửi email, lập lịch, socket...) nên viết đượ
 
 ## 1. Cài đặt & chạy chương trình
 
-**Yêu cầu:** JDK 21. Thư mục `lib/` chứa các file `.jar` (JDBC driver, `jakarta.mail`, `jakarta.activation`, `servlet-api` nếu chạy Tomcat).
+Bộ cài đặt chính thức đã đóng gói sẵn toàn bộ môi trường chạy (không cần cài thêm JDK hay cấu hình thủ công).
 
-**Cấu trúc dự án**
+### Bước 1: Tải bộ cài đặt
+👉 **[Tải về LinhScript-Setup-1.0.0.exe (Windows 64-bit)](https://github.com)**
 
-```
-LinhScript/
-├── src/me/hql/script/
-│   ├── Lexer.java            # tách chữ (token)
-│   ├── Interpreter.java      # trình thông dịch + toàn bộ thư viện
-│   ├── LinhScriptRunner.java # điểm vào: chạy file .hql, cầu nối Tomcat
-│   ├── HqlEnv.java           # đọc tệp .henv
-│   ├── HqlDbPool.java        # bể kết nối database
-│   ├── HqlMailer.java        # gửi email SMTP
-│   ├── HqlExport.java        # xuất XLSX/DOCX/PDF/CSV
-│   ├── BaoLoi.java           # báo lỗi có dòng + ngăn xếp gọi hàm
-│   └── TrayManager.java      # biểu tượng khay hệ thống
-├── docs/                     # tài liệu chi tiết từng phần
-├── hrun.bat                  # chạy nhanh: hrun ten_file
-└── .henv.example             # mẫu cấu hình môi trường
-```
+### Bước 2: Cài đặt vào máy
+1. Mở file **`LinhScript-Setup-1.0.0.exe`** vừa tải về.
+2. Tích chọn **"Add LinhScript to PATH (Khuyên dùng)"** rồi bấm **Next → Install**.
+3. Chương trình sẽ tự động cài đặt gọn gàng vào thư mục `C:\Users\<Tên_Bạn>\AppData\Local\Programs\LinhScript` và cấu hình sẵn lệnh hệ thống.
 
-**Biên dịch**
-
-```bat
-javac -encoding UTF-8 -cp "lib/*" -d out/production/NgonNguLapTrinhMoi src/me/hql/script/*.java
-```
-
-**Chạy một file `.hql`**
-
-```bat
-java -Dfile.encoding=UTF-8 -cp "out/production/NgonNguLapTrinhMoi;lib/*" me.hql.script.LinhScriptRunner main.hql
-```
-
-Hoặc dùng `hrun.bat` (tự tìm JDK ở `D:\JDK`, tự biên dịch nếu chưa có file `.class`, tự tìm file trong thư mục `hql\`):
-
-```bat
-hrun main            :: chạy hql\main.hql hoặc main.hql ở thư mục hiện tại
-hrun test_export.hql
-```
-
-Sửa file `.hql` thì **không cần biên dịch lại**; chỉ khi sửa file `.java` mới phải biên dịch.
-
-**Chương trình đầu tiên** — file `hello.hql`:
-
-```java
-print("Xin chào LinhScript!");
-var ten = "Linh";
-print("Tôi là " + ten);
-```
-
+### Bước 3: Chạy chương trình đầu tiên
+1. Tạo một file mới tên là **`hello.hql`** với nội dung:
+   ```java
+   print("Xin chào LinhScript!");
+   var ten = "Linh";
+   print("Tôi là " + ten);
+   ```
+2. Mở **Command Prompt (CMD)** hoặc **PowerShell** tại thư mục chứa file và gõ lệnh:
+   ```bash
+   LinhScript hello.hql
+   ```
 ---
 
 ## 2. Cú pháp cơ bản
@@ -364,8 +335,8 @@ Class từ file import **phải** có `@` ở tên class (`class @SanPham`), n�
 | 9   | `hql.time`     | Ngày giờ                                                                 |
 | 10  | `hql.regex`    | Biểu thức chính quy                                                      |
 | 11  | `hql.game`     | Game 2D (đồ họa, sprite, âm thanh, bản đồ lưới, isometric)               |
-| 12  | `hql.app`      | Mở trang web thành cửa sổ app (Edge/Chrome `--app`), chạy tiến trình con |
-| 13  | `hql.mang`     | Mạng cho game: server/khách nhắn tin không chặn luồng                    |
+| 12  | `hql.app`      | Mở trang web thành cửa sổ app (Chromium nhúng JCEF), chạy tiến trình con |
+| 13  | `hql.multiplayer`     | Mạng cho game: server/khách nhắn tin không chặn luồng                    |
 | 14  | `hql.pc`       | Tự động hoá bàn phím, chuột, clipboard, dò pixel                         |
 | 15  | `hql.logging`  | Ghi nhật ký có mức độ                                                    |
 | 16  | `hql.image`    | Xử lý ảnh + mã hoá ảnh thành base64 để lưu database                      |
@@ -789,33 +760,33 @@ grayscaleImage(a);
 saveImage(a, "png", "logo_xam.png");
 ```
 
-**B. Mã hoá ảnh thành chuỗi base64** (để cất vào cột `VARCHAR(MAX)` của database). Mỗi hàm có tên tiếng Việt và tên tiếng Anh tương đương:
+**B. Mã hoá ảnh thành chuỗi base64** (để cất vào cột `VARCHAR(MAX)` của database):
 
-| Tên Việt                            | Tên Anh                   | Công dụng                                           |
-| ----------------------------------- | ------------------------- | --------------------------------------------------- |
-| `anhTuFile(path)`                   | `imageFileToBase64`       | File ảnh → chuỗi base64                             |
-| `anhRaFile(chuoi, path)`            | `imageBase64ToFile`       | Chuỗi → file ảnh (trả số byte)                      |
-| `anhLamSach(chuoi)`                 | `imageBase64Clean`        | Bỏ tiền tố `data:image/png;base64,` và khoảng trắng |
-| `anhKieu(chuoi)`                    | `imageBase64Mime`         | `image/png`, `image/jpeg`...                        |
-| `anhDataUri(chuoi[, kieu])`         | `imageBase64Uri`          | Dùng thẳng trong `<img src>`                        |
-| `anhDungLuong(chuoi)`               | `imageBase64Size`         | Số byte thật                                        |
-| `anhHopLe(chuoi)`                   | `imageBase64Valid`        | Có phải ảnh thật không                              |
-| `anhRong(chuoi)`, `anhCao(chuoi)`   | `imageBase64Width/Height` | Kích thước pixel                                    |
-| `anhThongTin(chuoi)`                | `imageBase64Info`         | Map `{rong, cao, kieu, dung_luong, hop_le}`         |
-| `anhThuNho(chuoi, rongMax, caoMax)` | `imageBase64Resize`       | Thu nhỏ giữ tỉ lệ                                   |
-| `anhCatVuong(chuoi, canh)`          | `imageBase64Square`       | Cắt giữa thành ảnh vuông (avatar)                   |
+| Hàm                                           | Công dụng                                                    |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| `imageFileToBase64(path)`                     | File ảnh → chuỗi base64                                      |
+| `imageBase64ToFile(b64, path)`                | Chuỗi → file ảnh (trả số byte)                               |
+| `imageBase64Clean(b64)`                       | Bỏ tiền tố `data:image/png;base64,` và khoảng trắng          |
+| `imageBase64Mime(b64)`                        | `image/png`, `image/jpeg`...                                 |
+| `imageBase64Uri(b64[, mime])`                 | Dùng thẳng trong `<img src>`                                 |
+| `imageBase64Size(b64)`                        | Số byte thật                                                 |
+| `imageBase64Valid(b64)`                       | Có phải ảnh thật không                                       |
+| `imageBase64Width(b64)`, `imageBase64Height(b64)` | Kích thước pixel                                         |
+| `imageBase64Info(b64)`                        | Map `{width, height, mime, size, valid}`                     |
+| `imageBase64Resize(b64, maxWidth, maxHeight)` | Thu nhỏ giữ tỉ lệ                                            |
+| `imageBase64Square(b64, side)`                | Cắt giữa thành ảnh vuông (avatar)                            |
 
 ```java
 use hql.image;
 use hql.database;
-var b64 = anhTuFile("avatar.png");
-if (anhHopLe(b64)) {
-    var nho = anhThuNho(b64, 512, 512);
+var b64 = imageFileToBase64("avatar.png");
+if (imageBase64Valid(b64)) {
+    var nho = imageBase64Resize(b64, 512, 512);
     executeSafe("INSERT INTO KhoAnh(ten, du_lieu) VALUES (?, ?)", ["avatar", nho]);
 }
 ```
 
-Trả ảnh về trình duyệt bằng `webAnh(chuoi)` (xem `hql.web`). Chi tiết thêm: `docs/HQL_ANH.md`.
+Trả ảnh về trình duyệt bằng `webImage(chuoi)` (xem `hql.web`). Chi tiết thêm: `docs/HQL_ANH.md`.
 
 ### 7.14 `hql.chart` — Biểu đồ
 
@@ -1057,7 +1028,7 @@ print(colorWithOpacity("#FF0000", 0.5));         // #FF00007F
 use hql.socket;
 ```
 
-Mỗi socket là một **id** chuỗi (`@tcp1`, `@server2`, `@client3`, `@udp4`, `@ws5`...). Phần lớn hàm **chặn luồng** (`socketTcpAccept`, `socketTcpReceive`, `socketUdpReceive`) trừ khi đặt timeout. Muốn không chặn, dùng `hql.mang` (mục 7.22).
+Mỗi socket là một **id** chuỗi (`@tcp1`, `@server2`, `@client3`, `@udp4`, `@ws5`...). Phần lớn hàm **chặn luồng** (`socketTcpAccept`, `socketTcpReceive`, `socketUdpReceive`) trừ khi đặt timeout. Muốn không chặn, dùng `hql.multiplayer` (mục 7.22).
 
 | Nhóm               | Hàm                                                                                                                                                                                                                                                                                    |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1092,52 +1063,52 @@ print(socketUdpReceive(u, 100));     // [udp-hi, 127.0.0.1, 9302]
 socketUdpClose(u);
 ```
 
-### 7.22 `hql.mang` — Mạng cho game (không chặn luồng)
+### 7.22 `hql.multiplayer` — Mạng cho game (không chặn luồng)
 
 ```java
-use hql.mang;
+use hql.multiplayer;
 ```
 
-Nhắn tin theo **dòng** (mỗi tin một dòng, UTF-8), có luồng nền nhận tin nên gọi `mangNhan()` / `mangNhanServer()` trong vòng lặp game 60 khung hình/giây không bị đứng.
+Nhắn tin theo **dòng** (mỗi tin một dòng, UTF-8), có luồng nền nhận tin nên gọi `mpReceive()` / `mpReceiveFromServer()` trong vòng lặp game 60 khung hình/giây không bị đứng.
 
 **Phía máy chủ**
 
 | Hàm                                                  | Công dụng                                                                |
 | ---------------------------------------------------- | ------------------------------------------------------------------------ |
-| `mangMoServer(cong)`                                 | Mở server (nhận khách ở luồng nền)                                       |
-| `mangNhan()`                                         | Lấy 1 tin từ hộp thư: `[id_khach, noi_dung]`, hoặc mảng rỗng nếu chưa có |
-| `mangGui(id_khach, noi_dung)` / `mangPhat(noi_dung)` | Gửi cho một khách / cho tất cả                                           |
-| `mangDanhSachKhach()`, `mangSoKhach()`               | Danh sách id / số khách đang nối                                         |
-| `mangDuoiKhach(id_khach)`                            | Đuổi một khách                                                           |
-| `mangDongServer()`                                   | Đóng server                                                              |
+| `mpStartServer(cong)`                                 | Mở server (nhận khách ở luồng nền)                                       |
+| `mpReceive()`                                         | Lấy 1 tin từ hộp thư: `[id_khach, noi_dung]`, hoặc mảng rỗng nếu chưa có |
+| `mpSend(id_khach, noi_dung)` / `mpBroadcast(noi_dung)` | Gửi cho một khách / cho tất cả                                           |
+| `mpClientList()`, `mpClientCount()`               | Danh sách id / số khách đang nối                                         |
+| `mpKickClient(id_khach)`                            | Đuổi một khách                                                           |
+| `mpStopServer()`                                   | Đóng server                                                              |
 
-Tin đặc biệt trong hộp thư server: `@VAO` (khách mới vào) và `@ROI` (khách vừa thoát).
+Tin đặc biệt trong hộp thư server: `@JOIN` (khách mới vào) và `@LEAVE` (khách vừa thoát).
 
 **Phía người chơi**
 
 | Hàm                                | Công dụng                                                                |
 | ---------------------------------- | ------------------------------------------------------------------------ |
-| `mangKetNoi(host, cong[, cho_ms])` | Nối tới server (mặc định chờ 4000 ms) → `true/false`                     |
-| `mangGuiServer(noi_dung)`          | Gửi cho server → `true/false`                                            |
-| `mangNhanServer()`                 | Lấy 1 tin từ server (`""` nếu chưa có); `"@MAT_KET_NOI"` khi mất kết nối |
-| `mangDaNoi()`, `mangNgatKetNoi()`  | Còn nối không / ngắt                                                     |
-| `mangIpMay()`                      | IP của máy này                                                           |
+| `mpConnect(host, cong[, cho_ms])` | Nối tới server (mặc định chờ 4000 ms) → `true/false`                     |
+| `mpSendToServer(noi_dung)`          | Gửi cho server → `true/false`                                            |
+| `mpReceiveFromServer()`                 | Lấy 1 tin từ server (`""` nếu chưa có); `"@DISCONNECTED"` khi mất kết nối |
+| `mpIsConnected()`, `mpDisconnect()`  | Còn nối không / ngắt                                                     |
+| `mpLocalIp()`                      | IP của máy này                                                           |
 
 ```java
-use hql.mang;
+use hql.multiplayer;
 use hql.util;
-mangMoServer(9303);
-print(mangKetNoi("127.0.0.1", 9303));       // true
+mpStartServer(9303);
+print(mpConnect("127.0.0.1", 9303));       // true
 sleep(300);
-print(mangNhan());                          // [K1, @VAO]
-mangGuiServer("CHAT xin chao");
+print(mpReceive());                          // [K1, @JOIN]
+mpSendToServer("CHAT xin chao");
 sleep(300);
-var tin = mangNhan();                       // [K1, CHAT xin chao]
-mangGui(tin[0], "PHAN HOI");
+var tin = mpReceive();                       // [K1, CHAT xin chao]
+mpSend(tin[0], "PHAN HOI");
 sleep(300);
-print(mangNhanServer());                    // PHAN HOI
-mangNgatKetNoi();
-mangDongServer();
+print(mpReceiveFromServer());                    // PHAN HOI
+mpDisconnect();
+mpStopServer();
 ```
 
 ### 7.23 `hql.schedule` — Hẹn giờ, tác vụ lặp, cron
@@ -1261,13 +1232,13 @@ Khi chạy, màn hình in ra toàn bộ đường dẫn (trang, servlet, route, 
 | `webServlet("/duong-dan", "X.hql")`   | Gán servlet cho URL tuỳ ý                      |
 | `webContext()`                        | Tên project, vd `/QuanLyKho`                   |
 | `webExportTomcat("Ten"[, "web.hql"])` | Đóng gói thành thư mục chạy trên Tomcat        |
-| `webHienLoiChiTiet([bool])`           | Bật/tắt hiện lỗi chi tiết trên trang           |
+| `webShowDetailedErrors([bool])`           | Bật/tắt hiện lỗi chi tiết trên trang           |
 
-**WebSocket server:** `wsStart(cong)`, `wsGuiTatCa(chu)` → số khách đã gửi, `wsSoKetNoi()`, `wsStop()`.
+**WebSocket server:** `wsStart(cong)`, `wsBroadcast(chu)` → số khách đã gửi, `wsClientCount()`, `wsStop()`.
 
 **Đọc request:** `param("ten"[, mac_dinh])`, `params()`, `webMethod()`, `webPath()`, `webQuery()`, `webBody()`, `webIP()`, `reqHeader("ten")`, `cookieGet("ten")`.
 
-**Trả response:** `printWeb(x)`, `webStatus(ma)`, `webType(kieu)`, `resHeader(ten, gia_tri)`, `webRedirect(url)`, `cookieSet(ten, gia_tri[, giay])`, `webJson(du_lieu)`, `webJsonText(chuoi_json)`, `webBaoLoi(thong_bao)`, `webInclude(file)`, `webRender(file.hqlsp)` (chạy `.hqlsp` và trả HTML dạng chuỗi), `webExport(...)`, và trả ảnh / file nhị phân: `webAnh(base64[, mime])` (= `webImage`), `webBinary(base64[, mime[, ten_file]])` (= `webNhiPhan`).
+**Trả response:** `printWeb(x)`, `webStatus(ma)`, `webType(kieu)`, `resHeader(ten, gia_tri)`, `webRedirect(url)`, `cookieSet(ten, gia_tri[, giay])`, `webJson(du_lieu)`, `webJsonText(chuoi_json)`, `webError(thong_bao)`, `webInclude(file)`, `webRender(file.hqlsp)` (chạy `.hqlsp` và trả HTML dạng chuỗi), `webExport(...)`, và trả ảnh / file nhị phân: `webImage(base64[, mime])` (= `webImage`), `webBinary(base64[, mime[, ten_file]])` (= `webBinary`).
 
 **Session:** `sessionSet(k, v)`, `sessionGet(k)`, `sessionDel(k)`, `sessionId()`, `sessionKill()`.
 
@@ -1389,7 +1360,7 @@ Cần màn hình (Swing). Toạ độ tính bằng pixel, gốc ở góc trên-t
 
 **Bàn phím & chuột**
 
-`isKeyDown("LEFT")` (đang giữ), `isKeyPressed("SPACE")` (chỉ khung vừa bấm), `pressKey(k)`, `releaseKey(k)` (giả lập), `mouseX()`, `mouseY()`, `isMousePressed("LEFT"/"RIGHT")` (khung vừa bấm), `isMouseDown("LEFT"/"RIGHT")` (đang giữ), `anConTro([bool])`, `layChuVuaGo()` (chữ vừa gõ, dùng cho ô chat, rồi xoá), `xoaChuVuaGo()`. Tên phím: `LEFT RIGHT UP DOWN SPACE ENTER ESC CTRL SHIFT ALT TAB`, hoặc một ký tự như `"A"`, `"5"`.
+`isKeyDown("LEFT")` (đang giữ), `isKeyPressed("SPACE")` (chỉ khung vừa bấm), `pressKey(k)`, `releaseKey(k)` (giả lập), `mouseX()`, `mouseY()`, `isMousePressed("LEFT"/"RIGHT")` (khung vừa bấm), `isMouseDown("LEFT"/"RIGHT")` (đang giữ), `hideCursor([bool])`, `getTypedText()` (chữ vừa gõ, dùng cho ô chat, rồi xoá), `clearTypedText()`. Tên phím: `LEFT RIGHT UP DOWN SPACE ENTER ESC CTRL SHIFT ALT TAB`, hoặc một ký tự như `"A"`, `"5"`.
 
 **Camera & giao diện cố định:** `setCamera(x,y)`, `camX()`, `camY()`; giữa `beginUI()` và `endUI()` nét vẽ bám màn hình, không bị camera kéo (dùng cho HUD).
 
@@ -1403,19 +1374,19 @@ Cần màn hình (Swing). Toạ độ tính bằng pixel, gốc ở góc trên-t
 
 | Hàm                                                                      | Công dụng                                                |
 | ------------------------------------------------------------------------ | -------------------------------------------------------- |
-| `mapNap(mang_hang[, kich_thuoc_o[, ky_tu_chan_nhin[, ky_tu_chan_dan]]])` | Nạp bản đồ (mặc định ô 32 px)                            |
-| `mapO(cot,hang)` / `mapOTai(x,y)`                                        | Ký tự của ô theo chỉ số / theo toạ độ pixel              |
-| `mapDatO(cot,hang,ky_tu)`                                                | Đổi ô (mở cửa, phá tường)                                |
-| `mapSoCot()`, `mapSoHang()`, `mapKichThuocO()`                           | Kích thước bản đồ                                        |
-| `mapThayDuoc(x1,y1,x2,y2)`                                               | Hai điểm có nhìn thấy nhau không                         |
-| `banTia(x,y,goc_do,tam_xa)`                                              | Bắn tia → `[x_trung, y_trung, ky_tu_tuong, khoang_cach]` |
-| `veBanDo(anh_san, anh_tuong[, anh_go[, anh_thung[, anh_site]]])`         | Vẽ phần bản đồ trong khung nhìn                          |
-| `veBanDoNho(x,y,ty_le,mau_san,mau_tuong[,mau_site])`                     | Vẽ minimap                                               |
-| `themKhoi(x,y,r)`, `xoaKhoiHet()`, `trongKhoi(x,y)`                      | Vùng tròn (khói...) chặn tầm nhìn                        |
-| `veSuongMu(x,y,ban_kinh[,so_tia[,mau_toi[,do_toi]]])`                    | Phủ tối phần không nhìn thấy                             |
-| `veVungNhin(x,y,ban_kinh[,so_tia[,mau[,do_mo]]])`                        | Tô sáng vùng nhìn thấy                                   |
+| `mapLoad(mang_hang[, kich_thuoc_o[, ky_tu_chan_nhin[, ky_tu_chan_dan]]])` | Nạp bản đồ (mặc định ô 32 px)                            |
+| `mapCell(cot,hang)` / `mapCellAt(x,y)`                                        | Ký tự của ô theo chỉ số / theo toạ độ pixel              |
+| `mapSetCell(cot,hang,ky_tu)`                                                | Đổi ô (mở cửa, phá tường)                                |
+| `mapCols()`, `mapRows()`, `mapCellSize()`                           | Kích thước bản đồ                                        |
+| `mapCanSee(x1,y1,x2,y2)`                                               | Hai điểm có nhìn thấy nhau không                         |
+| `castRay(x,y,goc_do,tam_xa)`                                              | Bắn tia → `[x_trung, y_trung, ky_tu_tuong, khoang_cach]` |
+| `drawMap(anh_san, anh_tuong[, anh_go[, anh_thung[, anh_site]]])`         | Vẽ phần bản đồ trong khung nhìn                          |
+| `drawMinimap(x,y,ty_le,mau_san,mau_tuong[,mau_site])`                     | Vẽ minimap                                               |
+| `addSmoke(x,y,r)`, `clearSmoke()`, `inSmoke(x,y)`                      | Vùng tròn (khói...) chặn tầm nhìn                        |
+| `drawFog(x,y,ban_kinh[,so_tia[,mau_toi[,do_toi]]])`                    | Phủ tối phần không nhìn thấy                             |
+| `drawVision(x,y,ban_kinh[,so_tia[,mau[,do_mo]]])`                        | Tô sáng vùng nhìn thấy                                   |
 
-**Isometric (góc nhìn chéo 45°, ô mặc định 64×32):** `isoCaiDat(rong_o, cao_o)`, `isoX(wx,wy)`, `isoY(wx,wy)`, `isoManHinhX(wx,wy)`, `isoManHinhY(wx,wy)` (toạ độ thế giới → màn hình), `isoNguocVeTheGioi(sx,sy)` → `[wx,wy]` (con trỏ chuột trỏ vào ô nào), `isoVeBanDo(cao_tuong, mau_san, mau_san_toi, mau_site, tuong_tren, tuong_trai, tuong_phai, go_tren, go_trai, go_phai, thung_tren, thung_trai, thung_phai)`, `isoVeAnhNen(duong_dan)`, `isoVeAnh(duong_dan,wx,wy,rong,cao[,nhac_len])` (ảnh neo ở chân nhân vật), `isoVeElip(wx,wy,ban_kinh,mau)`, `isoVeVienElip(...)`, `isoVeDuong(wx1,wy1,wx2,wy2,mau[,nhac_len])`, `isoVeSuongMu(x,y,ban_kinh[,so_tia[,mau_toi[,do_toi]]])`.
+**Isometric (góc nhìn chéo 45°, ô mặc định 64×32):** `isoSetup(rong_o, cao_o)`, `isoX(wx,wy)`, `isoY(wx,wy)`, `isoScreenX(wx,wy)`, `isoScreenY(wx,wy)` (toạ độ thế giới → màn hình), `isoToWorld(sx,sy)` → `[wx,wy]` (con trỏ chuột trỏ vào ô nào), `isoDrawMap(cao_tuong, mau_san, mau_san_toi, mau_site, tuong_tren, tuong_trai, tuong_phai, go_tren, go_trai, go_phai, thung_tren, thung_trai, thung_phai)`, `isoDrawGroundImage(duong_dan)`, `isoDrawImage(duong_dan,wx,wy,rong,cao[,nhac_len])` (ảnh neo ở chân nhân vật), `isoFillEllipse(wx,wy,ban_kinh,mau)`, `isoDrawEllipseOutline(...)`, `isoDrawLine(wx1,wy1,wx2,wy2,mau[,nhac_len])`, `isoDrawFog(x,y,ban_kinh[,so_tia[,mau_toi[,do_toi]]])`.
 
 ```java
 use hql.game;
@@ -1448,27 +1419,27 @@ gameLoop("capNhat", "ve");
 use hql.app;
 ```
 
-`appCuaSo` nhúng Chromium (JCEF, cần thư viện `jcef-maven` trong `lib/`) thành cửa sổ riêng, có hồ sơ cookie riêng cho từng app.
+`appWindow` nhúng Chromium (JCEF, cần thư viện `jcef-maven` trong `lib/`) thành cửa sổ riêng, có hồ sơ cookie riêng cho từng app.
 
 | Hàm                                                   | Công dụng                                                                                                                   |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `appCoTrinhDuyet()`                                   | Máy có trình duyệt để mở app không                                                                                          |
-| `appCuaSo(url[, tieu_de[, rong[, cao[, anh_icon]]]])` | Mở cửa sổ app (mặc định 1400×900) → **mã** cửa sổ                                                                           |
-| `appDangMo(ma)`, `appCho(ma)`, `appDong(ma)`          | Còn mở không / chờ tới khi đóng / đóng                                                                                      |
-| `appKhay(ma[, anh[, nhan_mo[, nhan_thoat]]])`         | Thu nhỏ xuống khay hệ thống                                                                                                 |
-| `tienTrinhChay(lenh[, thu_muc])`                      | Chạy tiến trình con; `lenh` là **mảng** `["java","-jar","a.jar"]` (nên dùng mảng nếu đường dẫn có dấu cách) → mã tiến trình |
-| `tienTrinhSong(ma)`, `tienTrinhTat(ma)`               | Còn chạy không / tắt (xin tử tế trước, không được mới ép)                                                                   |
-| `congDangMo(cong)`, `choCong(cong[, giay])`           | Cổng đang có ai dùng không / chờ cổng mở (mặc định 30 giây)                                                                 |
-| `sysProp("ten")`, `appThuMucGoc("moc")`               | Thuộc tính hệ thống Java / tìm thư mục cha chứa tệp `moc`                                                                   |
+| `appHasBrowser()`                                   | Máy có trình duyệt để mở app không                                                                                          |
+| `appWindow(url[, tieu_de[, rong[, cao[, anh_icon]]]])` | Mở cửa sổ app (mặc định 1400×900) → **mã** cửa sổ                                                                           |
+| `appIsOpen(ma)`, `appWait(ma)`, `appClose(ma)`          | Còn mở không / chờ tới khi đóng / đóng                                                                                      |
+| `appTray(ma[, anh[, nhan_mo[, nhan_thoat]]])`         | Thu nhỏ xuống khay hệ thống                                                                                                 |
+| `processRun(lenh[, thu_muc])`                      | Chạy tiến trình con; `lenh` là **mảng** `["java","-jar","a.jar"]` (nên dùng mảng nếu đường dẫn có dấu cách) → mã tiến trình |
+| `processAlive(ma)`, `processKill(ma)`               | Còn chạy không / tắt (xin tử tế trước, không được mới ép)                                                                   |
+| `portIsOpen(cong)`, `waitPort(cong[, giay])`           | Cổng đang có ai dùng không / chờ cổng mở (mặc định 30 giây)                                                                 |
+| `sysProp("ten")`, `appRootDir("moc")`               | Thuộc tính hệ thống Java / tìm thư mục cha chứa tệp `moc`                                                                   |
 
 ```java
 use hql.app;
 use hql.web;
 
 webStart(8080, "/App", "web");
-if (choCong(8080, 10)) {
-    var ma = appCuaSo("http://localhost:8080/App/", "Ứng dụng của tôi", 1200, 800);
-    appCho(ma);        // chờ người dùng đóng cửa sổ
+if (waitPort(8080, 10)) {
+    var ma = appWindow("http://localhost:8080/App/", "Ứng dụng của tôi", 1200, 800);
+    appWait(ma);        // chờ người dùng đóng cửa sổ
 }
 webStop();
 ```
@@ -1542,7 +1513,7 @@ Hàm `env("KHOA"[, mac_dinh])` của `hql.sys` cũng đọc được `.henv`.
 - `socketTcpReceive` trả hex; `socketTcpSend` coi chuỗi toàn hex (độ dài chẵn) là byte thô.
 - `fromJson` chỉ đọc mảng đơn giản `[a, b, c]`.
 - `input()` cần bàn phím chuẩn; chạy không có stdin sẽ lỗi.
-- `exec`/`execRead` cắt lệnh theo dấu cách; dùng `tienTrinhChay([...])` khi đường dẫn có dấu cách.
+- `exec`/`execRead` cắt lệnh theo dấu cách; dùng `processRun([...])` khi đường dẫn có dấu cách.
 - Hàm phần cứng của `hql.sys` (nhiệt độ, độ mòn ổ...) chỉ đầy đủ trên Windows.
 - Các hàm giả lập chưa có tác dụng: `taskLoadState`, `taskBroadcastEvent`; `socketRawSend` luôn lỗi.
 
@@ -1561,7 +1532,7 @@ Hàm `env("KHOA"[, mac_dinh])` của `hql.sys` cũng đọc được `.henv`.
 | `Task tồn tại!`                                      | Tên tác vụ bị trùng; `taskCancel(ten)` trước hoặc đổi tên              |
 | Đổi `.henv` mà không thấy tác dụng                   | Biến môi trường hệ điều hành cùng tên đang được ưu tiên hơn tệp        |
 
-**Mức độ kiểm chứng của tài liệu này.** Các ví dụ cho `csv`, `xml`, `binary`, `color`, `config`, `env`, `schedule`, `export`, `socket`, `mang`, `web` (trang `.hqlsp` và servlet) đã được chạy thử thật và kết quả ghi trong chú thích là kết quả thu được. Riêng `hql.game`, `hql.app`, `hql.ui`, `hql.mail`, `hql.database` (cần giao diện, driver hoặc tài khoản thật) được viết theo mã nguồn, chưa chạy thử trong môi trường soạn tài liệu này.
+**Mức độ kiểm chứng của tài liệu này.** Các ví dụ cho `csv`, `xml`, `binary`, `color`, `config`, `env`, `schedule`, `export`, `socket`, `multiplayer`, `web` (trang `.hqlsp` và servlet) đã được chạy thử thật và kết quả ghi trong chú thích là kết quả thu được. Riêng `hql.game`, `hql.app`, `hql.ui`, `hql.mail`, `hql.database` (cần giao diện, driver hoặc tài khoản thật) được viết theo mã nguồn, chưa chạy thử trong môi trường soạn tài liệu này.
 
 ---
 
