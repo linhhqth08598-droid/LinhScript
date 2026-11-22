@@ -10,3 +10,4 @@ lib/
 web/*
 build_exe.bat
 QuanLyKho/*
+hello.hql
