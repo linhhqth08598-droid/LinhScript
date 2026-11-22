@@ -434,6 +434,13 @@ public class Lexer {
         KEYWORDS.put("csvRecordsToJson", "csvRecordsToJson");
         KEYWORDS.put("jsonToCsvRecords", "jsonToCsvRecords");
 
+        // --- THƯ VIỆN XUẤT FILE CÓ ĐỊNH DẠNG (HQL.EXPORT): XLSX / DOCX / PDF / CSV ---
+        KEYWORDS.put("exportXlsx", "exportXlsx");
+        KEYWORDS.put("exportDocx", "exportDocx");
+        KEYWORDS.put("exportPdf", "exportPdf");
+        KEYWORDS.put("exportFile", "exportFile");
+        KEYWORDS.put("webExport", "webExport");
+
         // --- THƯ VIỆN XML (HQL.XML) ---
         KEYWORDS.put("xmlReadFile", "xmlReadFile");
         KEYWORDS.put("xmlWriteFile", "xmlWriteFile");

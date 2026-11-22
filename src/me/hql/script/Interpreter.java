@@ -572,6 +572,65 @@ public class Interpreter {
         return v.toString();
     }
 
+    // ==========================================================================================
+    //   XUẤT FILE XLSX / DOCX / PDF / CSV (HQL.EXPORT) — động cơ nằm ở HqlExport.java
+    // ==========================================================================================
+
+    /** Đổi object/mảng/map của script sang dạng thuần (Map, List) mà HqlExport đọc được. */
+    private Object exportChuanHoa(Object v) {
+        if (v instanceof HqlObject) {
+            HqlObject o = (HqlObject) v;
+            LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+            for (String f : o.hqlClass.fields) m.put(f, exportChuanHoa(o.fields.get(f)));
+            for (Map.Entry<String, Object> e : o.fields.entrySet()) m.putIfAbsent(e.getKey(), exportChuanHoa(e.getValue()));
+            return m;
+        }
+        if (v instanceof List) {
+            ArrayList<Object> l = new ArrayList<>();
+            for (Object x : (List<?>) v) l.add(exportChuanHoa(x));
+            return l;
+        }
+        if (v instanceof Map) {
+            LinkedHashMap<String, Object> m = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) v).entrySet()) m.put(String.valueOf(e.getKey()), exportChuanHoa(e.getValue()));
+            return m;
+        }
+        return v;
+    }
+
+    /**
+     * Lấy dữ liệu để xuất: chuỗi = câu SQL (chạy trên Database đang kết nối, giống exportCSV),
+     * còn lại (mảng bản ghi, mảng các mảng, 1 bản ghi) = dữ liệu có sẵn.
+     * Bảng rỗng vẫn giữ được dòng tiêu đề nhờ nhét "headers" vào tuỳ chọn.
+     */
+    private Object exportDuLieu(Object data, Map<String, Object> opt) throws SQLException {
+        if (data instanceof String) {
+            final String sql = (String) data;
+            if (!dbSanSang()) {
+                throw new RuntimeException("Dữ liệu là chuỗi SQL nên cần kết nối Database (connect(...) / connectEnv()). "
+                        + "Hoặc truyền vào một mảng dữ liệu.");
+            }
+            return this.<Object>dbRun(dbCon -> {
+                try (Statement st = dbCon.createStatement()) {
+                    st.setFetchSize(1000);
+                    try (ResultSet rs = st.executeQuery(sql)) {
+                        ResultSetMetaData meta = rs.getMetaData();
+                        ArrayList<Object> heads = new ArrayList<>();
+                        for (int i = 1; i <= meta.getColumnCount(); i++) {
+                            String label = meta.getColumnLabel(i);
+                            heads.add(label == null || label.isEmpty() ? "col" + i : label);
+                        }
+                        ArrayList<Object> rows = new ArrayList<>();
+                        while (rs.next()) rows.add(readSqlRow(rs));
+                        if (rows.isEmpty() && !opt.containsKey("headers")) opt.put("headers", heads);
+                        return rows;
+                    }
+                }
+            });
+        }
+        return exportChuanHoa(data);
+    }
+
     /** Bọc 1 ô dữ liệu CSV theo chuẩn RFC 4180. */
     private String csvQuote(String s) {
         if (s == null) return "";
@@ -3546,6 +3605,8 @@ public class Interpreter {
                 "mailConfig", "mailSenderName", "mailIsConfigured", "mailError",
                 "mailAttach", "mailClearAttach", "mailOtp", "mailPassword", "mailIsValid",
                 "mailSend", "mailSendText", "mailSendAsync", "mailSendAsyncText", "mailConfigEnv", "mailWarmUp",
+                // --- BỔ SUNG HQL.EXPORT (XUẤT XLSX / DOCX / PDF / CSV CÓ ĐỊNH DẠNG) ---
+                "exportXlsx", "exportDocx", "exportPdf", "exportFile", "webExport",
                 // --- BỔ SUNG HQL.ENV (TỆP CẤU HÌNH .henv) VÀ BỂ KẾT NỐI DATABASE ---
                 "envLoad", "envGet", "envHas", "envSet", "envInt", "envBool", "envAll", "envFiles", "envRequire",
                 "connectEnv", "dbPoolSize", "dbPoolStats", "executeBatch",
@@ -8708,6 +8769,38 @@ public class Interpreter {
                 throw new RuntimeException("Lỗi HQL.SCHEDULE: " + e.getMessage(), e);
             }
         }
+        if (usedLibraries.contains("hql.export")) {
+            try {
+                switch (name) {
+                    // exportXlsx / exportDocx / exportPdf (dữ_liệu, đường_dẫn[, tuỳ_chọn])
+                    // exportFile(dữ_liệu, đường_dẫn[, tuỳ_chọn]) — tự chọn định dạng theo đuôi: .xlsx .docx .pdf .csv
+                    // dữ_liệu: mảng bản ghi / mảng các mảng / chuỗi SQL.  tuỳ_chọn: Map hoặc chuỗi JSON (xem docs/HQL_EXPORT.md)
+                    case "exportXlsx":
+                    case "exportDocx":
+                    case "exportPdf":
+                    case "exportFile": {
+                        if (args.size() < 2) throw new RuntimeException(name + "(dữ_liệu, đường_dẫn[, tuỳ_chọn]) cần ít nhất 2 tham số.");
+                        String path = stringify(args.get(1));
+                        String kind = name.equals("exportXlsx") ? "xlsx"
+                                : name.equals("exportDocx") ? "docx"
+                                : name.equals("exportPdf") ? "pdf"
+                                : HqlExport.kindOfPath(path);
+                        if (kind.isEmpty()) {
+                            throw new RuntimeException("Không đoán được định dạng từ đuôi tệp '" + path + "' (dùng .xlsx, .docx, .pdf hoặc .csv).");
+                        }
+                        // Chưa có đuôi tệp thì tự thêm đúng đuôi
+                        String leaf = path.substring(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1);
+                        if (leaf.indexOf('.') < 0) path = path + "." + kind;
+                        Map<String, Object> opt = HqlExport.parseOptions(args.size() > 2 ? args.get(2) : null);
+                        Object data = exportDuLieu(args.get(0), opt);
+                        HqlExport.to(kind, data, path, opt);
+                        return true;
+                    }
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Lỗi Thư viện HQL.Export: " + (e.getMessage() == null ? e.toString() : e.getMessage()), e);
+            }
+        }
         if (usedLibraries.contains("hql.web")) {
             try {
                 switch (name) {
@@ -8901,6 +8994,23 @@ public class Interpreter {
                         }
                         ctx.rawOut = raw;
                         return (double) raw.length;
+                    }
+                    // webExport(dữ_liệu, "bao-cao.xlsx"[, tuỳ_chọn]) — trả file xlsx/docx/pdf/csv về trình duyệt để tải xuống
+                    case "webExport": {
+                        WebContext ctx = requireWeb("webExport");
+                        if (args.size() < 2) throw new RuntimeException("webExport(dữ_liệu, \"tên.xlsx\"[, tuỳ_chọn]) cần ít nhất 2 tham số.");
+                        String fileName = stringify(args.get(1));
+                        String kind = HqlExport.kindOfPath(fileName);
+                        if (kind.isEmpty()) throw new RuntimeException("webExport: tên tệp phải có đuôi .xlsx, .docx, .pdf hoặc .csv (đang là '" + fileName + "').");
+                        Map<String, Object> opt = HqlExport.parseOptions(args.size() > 2 ? args.get(2) : null);
+                        Object data = exportDuLieu(args.get(0), opt);
+                        byte[] bytes = HqlExport.build(kind, data, opt);
+                        ctx.contentType = HqlExport.mimeOf(kind);
+                        String safe = fileName.replaceAll("[^A-Za-z0-9_.-]", "_");
+                        String enc = URLEncoder.encode(fileName, StandardCharsets.UTF_8).replace("+", "%20");
+                        ctx.resHeaders.put("Content-Disposition", "attachment; filename=\"" + safe + "\"; filename*=UTF-8''" + enc);
+                        ctx.rawOut = bytes;
+                        return (double) bytes.length;
                     }
                     case "webInclude": {
                         requireWeb("webInclude");

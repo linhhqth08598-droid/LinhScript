@@ -175,7 +175,7 @@ Luôn có sẵn không cần `use` thư viện nào:
 * `beginTransaction()`, `commit()`, `rollback()`.
 * `tables()`, `columns("tên_bảng")`: Khám phá cấu trúc DB.
 * `fetchOne(...)`: Lấy 1 dòng.
-* `exportCSV("SELECT...", "file.csv")`: Đổ data ra file Excel nhẹ.
+* `exportCSV("SELECT...", "file.csv")`: Đổ data ra file Excel nhẹ. Muốn **xlsx / docx / pdf có màu, đậm, nghiêng...** thì dùng `hql.export` (mục 21).
 
 ### 9. `hql.time` (Thời gian)
 * `now()`, `today()`, `currentTime()`.
@@ -291,3 +291,9 @@ Luôn có sẵn không cần `use` thư viện nào:
 * **Khoảng cách:** `colorDistance()`, `colorSimilarity()`.
 * **Bộ lọc ảo:** `colorToGreyscale()`, `colorExtractPalette()`.
 * **Tạo màu tự động:** `colorRandomHex()`, `colorRandomRgb()`, `colorRandomPalette()`.
+
+### 21. `hql.export` (Xuất XLSX / DOCX / PDF / CSV có định dạng)
+* `exportXlsx(dữ_liệu, "file.xlsx"[, tuỳ_chọn])`, `exportDocx(...)`, `exportPdf(...)`.
+* `exportFile(dữ_liệu, "file.csv|xlsx|docx|pdf"[, tuỳ_chọn])`: tự chọn định dạng theo đuôi tệp.
+* `webExport(dữ_liệu, "bao-cao.xlsx"[, tuỳ_chọn])` (cần `hql.web`): trả file về trình duyệt để tải xuống.
+* `dữ_liệu` là mảng bản ghi, mảng các mảng, hoặc **chuỗi SQL**; `tuỳ_chọn` là Map hoặc chuỗi JSON (màu, in đậm, nghiêng, gạch chân, phông, luật tô màu...). Xem `docs/HQL_EXPORT.md`.

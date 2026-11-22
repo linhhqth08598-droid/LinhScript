@@ -7,3 +7,6 @@ lib/
 .henv
 .henv.local
 .henv.*.local
+web/*
+build_exe.bat
+QuanLyKho/*
