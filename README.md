@@ -437,7 +437,7 @@ use hql.net;
 | Nhóm         | Hàm                                                                                                                                                                                                     |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Cấu hình     | `addHeader(ten, giaTri)`, `setCookie("a=1")`, `setTimeout(ms)`, `setProxy(host, port)`, `ignoreSSL()`                                                                                                   |
-| Gửi request  | `httpGet(url)` → nội dung trả về; `httpPost(url, body)`; `download(url, duong_dan_luu)` → `true/false`; `httpPostFile(url, json, duong_dan_file[, ten_gui][, mime])` (multipart, ví dụ Discord webhook) |
+| Gửi request  | `httpGet(url)` → nội dung trả về; `httpPost(url, body)`; `httpQuery(url, body)` (phương thức HTTP QUERY, phía server nhận bằng `doQuery()`); `download(url, duong_dan_luu)` → `true/false`; `httpPostFile(url, json, duong_dan_file[, ten_gui][, mime])` (multipart, ví dụ Discord webhook) |
 | Đọc phản hồi | `getStatusCode()`, `getContentType()`, `getResponseHeader(ten)`                                                                                                                                         |
 | Tiện ích     | `isOnline()`, `getIP()`, `getHost()`, `ping(host)` (ms, `-1` nếu thất bại), `checkPort(host, port)`                                                                                                     |
 | Server       | `createServer(cong, "tenHamXuLy")` — hàm không tham số, giá trị `return` là nội dung trang                                                                                                              |
@@ -1272,7 +1272,10 @@ use hql.web;
 func init()   { print("Servlet đã nạp"); }       // chạy 1 lần lúc khởi động
 func doGet()  { printWeb("servlet GET " + param("x", "?")); }   // → servlet GET 5
 func doPost() { printWeb("Đã nhận POST: " + param("ten")); }
+func doQuery() { printWeb("Đã nhận QUERY: " + webBody()); }     // phương thức HTTP QUERY: chỉ đọc như GET nhưng có body
 ```
+
+Bảng hàm xử lý request của servlet: `doGet()` (GET), `doPost()` (POST), `doQuery()` (QUERY), `service()` (dự phòng cho mọi phương thức). Servlet không có `doQuery()` thì request QUERY rơi về `service()` rồi `doGet()`. Phía client gọi bằng `httpQuery(url, body)`; trong servlet, `query("SELECT ...")` vẫn là hàm truy vấn database.
 
 Mỗi servlet có vùng hàm / lớp riêng nên hai servlet cùng có `doGet()` không đụng nhau. Server tự chặn `../` thoát thư mục web và không bao giờ trả mã nguồn `.hql` ra trình duyệt. Chạy trên **Tomcat 10.1**: dùng `webExportTomcat`, lúc đó `webStart`/`webWait` tự vô hiệu. Chi tiết thêm: `docs/HQL_WEB.md`.
 

@@ -149,7 +149,7 @@ public class Lexer {
         // hql.net thư viện Networking
         KEYWORDS.put("httpGet", "httpGet");
         KEYWORDS.put("httpPost", "httpPost");
-        KEYWORDS.put("httpQuery", "httpQuery");
+        KEYWORDS.put("httpQuery", "httpQuery");   // client for the HTTP QUERY method (server side: func doQuery() in a servlet; not a keyword)
         KEYWORDS.put("download", "download");
         KEYWORDS.put("isOnline", "isOnline");
         KEYWORDS.put("addHeader", "addHeader");

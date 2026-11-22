@@ -537,6 +537,7 @@ URL sẽ là <code>/&lt;Tên&gt;</code>. Bên trong viết các hàm giống h�
 <tr><td><code>init()</code></td><td>Đúng 1 lần lúc servlet được nạp vào bộ nhớ</td></tr>
 <tr><td><code>doGet()</code></td><td>Truy cập bằng phương thức GET (gõ URL, bấm link)</td></tr>
 <tr><td><code>doPost()</code></td><td>Truy cập bằng POST (gửi form <code>method="post"</code>)</td></tr>
+<tr><td><code>doQuery()</code></td><td>Truy cập bằng phương thức HTTP QUERY (chỉ đọc như GET nhưng có body; client gọi <code>httpQuery(url, body)</code>)</td></tr>
 <tr><td><code>service()</code></td><td>Dự phòng — chạy nếu không có <code>doGet</code>/<code>doPost</code> tương ứng</td></tr>
 </tbody>
 </table>

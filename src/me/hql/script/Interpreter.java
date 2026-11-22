@@ -1115,7 +1115,8 @@ public class Interpreter {
         loadHqlServlet(file);
         String key = file.getCanonicalPath();
 
-        String verb = "do" + ctx.method.charAt(0) + ctx.method.substring(1).toLowerCase();  // GET -> doGet
+        String verb = "do" + ctx.method.charAt(0) + ctx.method.substring(1).toLowerCase();  // GET -> doGet, POST -> doPost
+        if (ctx.method.equals("QUERY")) verb = "doQuery";   // HTTP QUERY method -> doQuery()
         final String[] candidates = {verb, "service", "doGet", "main"};
 
         withServletScope(key, () -> {
