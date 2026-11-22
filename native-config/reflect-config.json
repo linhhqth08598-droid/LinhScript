@@ -1,0 +1,13 @@
+[
+  { "name": "com.sun.mail.smtp.SMTPTransport", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "com.sun.mail.smtp.SMTPSSLTransport", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "com.sun.mail.handlers.text_plain", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "com.sun.mail.handlers.text_html", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "com.sun.mail.handlers.text_xml", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "com.sun.mail.handlers.multipart_mixed", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "com.sun.mail.handlers.message_rfc822", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "jakarta.activation.MailcapCommandMap", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "jakarta.activation.MimetypesFileTypeMap", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "jakarta.mail.Session", "allDeclaredConstructors": true, "allPublicMethods": true },
+  { "name": "jakarta.mail.internet.MimeMessage", "allDeclaredConstructors": true, "allPublicMethods": true }
+]
