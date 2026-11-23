@@ -25,10 +25,29 @@ public class LinhScriptRunner {
         return null;
     }
 
+    /** Đảm bảo java.home luôn có giá trị hợp lệ trên bản GraalVM Native Image để AWT/FontManager hoạt động. */
+    private static void ensureJavaHomeForNativeImage() {
+        if (System.getProperty("java.home") != null && !System.getProperty("java.home").isBlank()) {
+            return;
+        }
+        String exePath = ProcessHandle.current().info().command().orElse(null);
+        if (exePath != null && !exePath.isBlank()) {
+            java.io.File exeFile = new java.io.File(exePath).getAbsoluteFile();
+            java.io.File parentDir = exeFile.getParentFile();
+            if (parentDir != null) {
+                System.setProperty("java.home", parentDir.getAbsolutePath());
+                return;
+            }
+        }
+        System.setProperty("java.home", new java.io.File(System.getProperty("user.dir", ".")).getAbsolutePath());
+    }
+
     public static final String ANSI_RED = "\u001B[31m";
     public static final String ANSI_RESET = "\u001B[0m";
 
     public static void main(String[] args) {
+        ensureJavaHomeForNativeImage();
+
         // --- ÉP HIỂN THỊ TIẾNG VIỆT CHUẨN UTF-8 TRÊN TERMINAL WINDOWS ---
         if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
             try {

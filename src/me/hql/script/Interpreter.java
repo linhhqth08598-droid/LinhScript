@@ -2387,8 +2387,16 @@ public class Interpreter {
 
             if (isUseCommand(command)) executeUse(command);
             else if (isImportCommand(command)) {
-                if (command.size() >= 2) executeImport(command.get(1).value);
-                else throw new RuntimeException("Lỗi: Thiếu tên file sau lệnh import.");
+                if (command.size() >= 2) {
+                    String importTarget = command.get(1).value;
+                    Path currentParent = Paths.get(filePath).toAbsolutePath().getParent();
+                    if (currentParent != null && Files.exists(currentParent.resolve(importTarget))) {
+                        importTarget = currentParent.resolve(importTarget).toString();
+                    }
+                    executeImport(importTarget);
+                } else {
+                    throw new RuntimeException("Lỗi: Thiếu tên file sau lệnh import.");
+                }
             }
             else if (isFunctionDeclaration(command)) declareFunction(command);
             else if (isClassDeclaration(command)) declareClass(command);

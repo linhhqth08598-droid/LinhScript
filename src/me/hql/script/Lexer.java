@@ -882,6 +882,7 @@ public class Lexer {
                     case "==", "!=", ">=", "<=" -> "COMPARE";
                     case ".." -> "RANGE";
                     case "+=", "-=", "*=", "/=" -> "ASSIGN_OP";
+                    case "++", "--" -> "INC_DEC";
                     default -> "OPERATOR";
                 };
                 tokens.add(new Token(type, op, fileName, currentLine));
