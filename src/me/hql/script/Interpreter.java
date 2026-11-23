@@ -2684,6 +2684,22 @@ public class Interpreter {
                 }
 
                 ((HqlObject) target).fields.put(fieldName, rhsValue);
+            } else if (target instanceof Map) {
+                // Map: bang.khoa = giaTri  (giống bang["khoa"] = giaTri, kể cả += -= *= /=)
+                @SuppressWarnings("unchecked")
+                Map<Object, Object> tableMap = (Map<Object, Object>) target;
+                Object newValueObj = rhsValue;
+                if (!op.equals("=")) {
+                    double previousValue = toDouble(tableMap.get(fieldName));
+                    newValueObj = switch (op) {
+                        case "+=" -> previousValue + toDouble(rhsValue);
+                        case "-=" -> previousValue - toDouble(rhsValue);
+                        case "*=" -> previousValue * toDouble(rhsValue);
+                        case "/=" -> previousValue / toDouble(rhsValue);
+                        default -> throw new RuntimeException("Toán tử gán không hợp lệ: " + op);
+                    };
+                }
+                tableMap.put(fieldName, newValueObj);
             } else {
                 throw new RuntimeException("Lỗi: Không thể gán thuộc tính cho một giá trị không phải đối tượng.");
             }
@@ -2777,7 +2793,7 @@ public class Interpreter {
 
     private boolean isIfCommand(List<Token> t) { return !t.isEmpty() && t.get(0).value.equals("if"); }
     private void executeIf(List<Token> tokens) {
-        int bodyBraceIndex = findTokenIndex(tokens, "L_BRACE", 0);
+        int bodyBraceIndex = findBodyBrace(tokens);
         List<Token> condition = extractCondition(tokens, 1, bodyBraceIndex);
         int bodyEndIndex = findMatchingBrace(tokens, bodyBraceIndex);
 
@@ -2821,7 +2837,7 @@ public class Interpreter {
         }
 
         if (!hasMatchedBranch) {
-            int bodyBraceIndex = findTokenIndex(tokens, "L_BRACE", 0);
+            int bodyBraceIndex = findBodyBrace(tokens);
             int bodyEndIndex = findMatchingBrace(tokens, bodyBraceIndex);
             List<Token> body = tokens.subList(bodyBraceIndex + 1, bodyEndIndex);
             Scope elseScope = scope();
@@ -2838,7 +2854,7 @@ public class Interpreter {
 
     private boolean isWhileCommand(List<Token> t) { return !t.isEmpty() && t.get(0).value.equals("while"); }
     private void executeWhile(List<Token> tokens) {
-        int bodyBraceIndex = findTokenIndex(tokens, "L_BRACE", 0);
+        int bodyBraceIndex = findBodyBrace(tokens);
         List<Token> condition = extractCondition(tokens, 1, bodyBraceIndex);
         int bodyEndIndex = findMatchingBrace(tokens, bodyBraceIndex);
         List<Token> body = tokens.subList(bodyBraceIndex + 1, bodyEndIndex);
@@ -2859,7 +2875,7 @@ public class Interpreter {
 
     private boolean isForCommand(List<Token> t) { return !t.isEmpty() && t.get(0).value.equals("for"); }
     private void executeFor(List<Token> tokens) {
-        int bodyBraceIndex = findTokenIndex(tokens, "L_BRACE", 0);
+        int bodyBraceIndex = findBodyBrace(tokens);
 
         // BƯỚC 1: Lột sạch dấu ngoặc ( ) nếu người dùng có viết (Hỗ trợ cả chuẩn C/Java và Python)
         List<Token> header = trimWrappingParentheses(tokens.subList(1, bodyBraceIndex));
@@ -2907,6 +2923,21 @@ public class Interpreter {
                         } catch (BreakException e) { break; }
                         catch (ContinueException e) { continue; }
                         finally { setScope(listLoopScope); }
+                    }
+                }
+                // Nếu duyệt qua Map: biến lặp nhận từng KHOÁ (chuỗi), theo thứ tự viết.
+                // Lặp trên bản sao danh sách khoá nên sửa map trong thân vòng lặp vẫn an toàn.
+                else if (iterable instanceof Map) {
+                    List<Object> mapKeys = new ArrayList<>(((Map<?, ?>) iterable).keySet());
+                    Scope mapLoopScope = scope();
+                    for (Object mapKey : mapKeys) {
+                        try {
+                            enterScope();
+                            scope().put(varName, mapKey);
+                            runAll(body);
+                        } catch (BreakException e) { break; }
+                        catch (ContinueException e) { continue; }
+                        finally { setScope(mapLoopScope); }
                     }
                 }
                 // Nếu duyệt qua chữ cái trong một Chuỗi (String)
@@ -3013,6 +3044,15 @@ public class Interpreter {
         }
         // --------------------------------------------------------
 
+        // --- MAP LITERAL: { "ten": "Linh", "tuoi": 17 } ---
+        // Chỉ nhận khi dấu '{' đầu tiên khớp đúng với dấu '}' cuối cùng (tránh nhầm "{..} + {..}").
+        if (tokens.get(0).type.equals("L_BRACE")
+                && tokens.get(tokens.size() - 1).type.equals("R_BRACE")
+                && findMatchingBrace(tokens, 0) == tokens.size() - 1) {
+            trace().lastToken = tokens.get(0);
+            return resolveMapLiteral(tokens.subList(1, tokens.size() - 1));
+        }
+
         if (tokens.size() == 1) return getObjectValue(tokens.get(0));
 
         trace().lastToken = tokens.get(0);
@@ -3080,6 +3120,119 @@ public class Interpreter {
         throw new RuntimeException("Lỗi: Không thể giải quyết biểu thức.");
     }
 
+    /**
+     * Dựng map từ phần BÊN TRONG cặp { }:
+     *     { "ten": "Linh", tuoi: 17, [bienKhoa]: 1, "ds": [1, 2], "con": { "x": 1 } }
+     * Khoá có thể là: chuỗi "..", tên trần (coi như chuỗi, giống JavaScript), số,
+     * hoặc [biểu_thức] (tính ra rồi đổi sang chuỗi). Map lưu khoá dạng chuỗi,
+     * khớp với cách gán  bang["khoa"] = v  và đọc  bang.khoa  sẵn có.
+     * Giữ đúng thứ tự viết, khoá trùng thì cái sau đè cái trước, cho phép dấu ',' thừa ở cuối.
+     */
+    private Object resolveMapLiteral(List<Token> inner) {
+        LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+
+        // Map viết trải nhiều dòng: bỏ các dấu xuống dòng nằm bên trong.
+        List<Token> clean = new ArrayList<>();
+        for (Token t : inner) if (!t.type.equals("END")) clean.add(t);
+        if (clean.isEmpty()) return map;   // {}
+
+        List<List<Token>> entries = splitTopLevel(clean, "COMMA");
+        for (int n = 0; n < entries.size(); n++) {
+            List<Token> entry = entries.get(n);
+            int ordinal = n + 1;
+            if (entry.isEmpty()) {
+                if (n == entries.size() - 1 && n > 0) continue;   // {"a": 1,}
+                throw new RuntimeException("Lỗi Cú Pháp (map): có dấu ',' thừa hoặc mục trống ở mục thứ " + ordinal + ".");
+            }
+
+            int colon = findFirstTopLevel(entry, "COLON");
+            if (colon == -1) {
+                throw new RuntimeException("Lỗi Cú Pháp (map): mục thứ " + ordinal + " thiếu dấu ':' giữa khoá và giá trị. Viết đúng: { \"khoa\": giaTri }.");
+            }
+            List<Token> keyTokens = entry.subList(0, colon);
+            List<Token> valueTokens = entry.subList(colon + 1, entry.size());
+            if (keyTokens.isEmpty()) {
+                throw new RuntimeException("Lỗi Cú Pháp (map): mục thứ " + ordinal + " thiếu khoá trước dấu ':'.");
+            }
+            if (valueTokens.isEmpty()) {
+                throw new RuntimeException("Lỗi Cú Pháp (map): khoá '" + keyTokens.get(0).value + "' (mục thứ " + ordinal + ") thiếu giá trị sau dấu ':'.");
+            }
+
+            String key;
+            if (keyTokens.size() == 1) {
+                Token k = keyTokens.get(0);
+                switch (k.type) {
+                    case "STRING", "IDENTIFIER", "KEYWORD" -> key = k.value;
+                    case "NUMBER" -> key = stringify(Double.parseDouble(k.value));
+                    default -> throw new RuntimeException("Lỗi Cú Pháp (map): khoá ở mục thứ " + ordinal + " không hợp lệ ('" + k.value + "'). Khoá phải là chuỗi, tên, số hoặc [biểu_thức].");
+                }
+            } else if (keyTokens.get(0).type.equals("L_BRACKET")
+                    && findMatchingBracket(keyTokens, 0) == keyTokens.size() - 1) {
+                key = stringify(resolveExpression(keyTokens.subList(1, keyTokens.size() - 1)));   // [biểu_thức]: giá_trị
+            } else {
+                throw new RuntimeException("Lỗi Cú Pháp (map): khoá ở mục thứ " + ordinal + " không hợp lệ. Khoá phải là chuỗi, tên, số hoặc [biểu_thức].");
+            }
+
+            map.put(key, resolveExpression(valueTokens));
+        }
+        return map;
+    }
+
+    /** Tìm token loại `type` ĐẦU TIÊN (từ trái sang) nằm ngoài mọi cặp ( ) [ ] { }. */
+    private int findFirstTopLevel(List<Token> tokens, String type) {
+        int parenDepth = 0, bracketDepth = 0, braceDepth = 0;
+        for (int i = 0; i < tokens.size(); i++) {
+            Token token = tokens.get(i);
+            if (token.type.equals("L_PAREN")) parenDepth++;
+            if (token.type.equals("R_PAREN")) parenDepth--;
+            if (token.type.equals("L_BRACKET")) bracketDepth++;
+            if (token.type.equals("R_BRACKET")) bracketDepth--;
+            if (token.type.equals("L_BRACE")) braceDepth++;
+            if (token.type.equals("R_BRACE")) braceDepth--;
+            if (parenDepth == 0 && bracketDepth == 0 && braceDepth == 0 && token.type.equals(type)) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Tìm dấu '{' mở THÂN KHỐI của if / else / while / for: dấu '{' đầu tiên KHÔNG nằm trong ( ) hay [ ].
+     * Cần có từ khi map literal ra đời, vì  for d in [ {"a": 1}, {"a": 2} ] { ... }
+     * có '{' của map đứng trước '{' của thân vòng lặp (findTokenIndex sẽ chọn nhầm cái đầu).
+     */
+    private int findBodyBrace(List<Token> tokens) {
+        int parenDepth = 0, bracketDepth = 0;
+        for (int i = 0; i < tokens.size(); i++) {
+            Token token = tokens.get(i);
+            if (token.type.equals("L_PAREN")) parenDepth++;
+            else if (token.type.equals("R_PAREN")) parenDepth--;
+            else if (token.type.equals("L_BRACKET")) bracketDepth++;
+            else if (token.type.equals("R_BRACKET")) bracketDepth--;
+            else if (token.type.equals("L_BRACE") && parenDepth == 0 && bracketDepth == 0) {
+                // '{' đứng ở chỗ đang chờ một biểu thức (sau in, toán tử, dấu phẩy...) là MAP LITERAL:
+                //   for k in { "a": 1 } { ... }      if (x == { ... }) ...
+                // -> nhảy qua cả cặp { } rồi tìm tiếp '{' thân khối.
+                if (i > 0 && isExpressionExpectedAfter(tokens.get(i - 1))) {
+                    int close = findMatchingBrace(tokens, i);
+                    if (close == -1) return -1;
+                    i = close;
+                    continue;
+                }
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private boolean isExpressionExpectedAfter(Token t) {
+        switch (t.type) {
+            case "OPERATOR": case "COMPARE": case "LOGIC": case "NOT": case "COMMA":
+            case "ASSIGN": case "ASSIGN_OP": case "TERNARY_Q": case "RANGE":
+                return true;
+        }
+        return t.type.equals("KEYWORD")
+                && Arrays.asList("in", "to", "and", "or", "not", "return").contains(t.value);
+    }
+
     private Object resolveCallOrAccess(List<Token> tokens) {
         // --- 1. XỬ LÝ TRUY CẬP MẢNG VÀ CHUỖI LIÊN HOÀN (Ví dụ: arr[0][1] hoặc txt.split()[0]) ---
         if (tokens.get(tokens.size() - 1).type.equals("R_BRACKET")) {
@@ -3097,6 +3250,14 @@ public class Interpreter {
                 Object arrayObj = resolveExpression(tokens.subList(0, openBracketIndex));
                 // Tính toán biểu thức bên trong ngoặc vuông
                 Object indexObj = resolveExpression(tokens.subList(openBracketIndex + 1, tokens.size() - 1));
+
+                // Map: bang["khoa"] -- khoá luôn là chuỗi; không có khoá thì trả "" (giống bang.khoa)
+                if (arrayObj instanceof Map) {
+                    Map<?, ?> tableMap = (Map<?, ?>) arrayObj;
+                    String entryKey = stringify(indexObj);
+                    return tableMap.containsKey(entryKey) ? tableMap.get(entryKey) : "";
+                }
+
                 int index = (int) toDouble(indexObj);
 
                 if (arrayObj instanceof ArrayList) {
@@ -9333,16 +9494,27 @@ public class Interpreter {
         List<List<Token>> resultValue = new ArrayList<>();
         List<Token> statementText = new ArrayList<>();
         int paren = 0, bracket = 0, brace = 0;
+        // Mỗi '{' đang mở: true nếu là MAP LITERAL (đứng sau '=', 'in', toán tử, ','...), false nếu là khối lệnh.
+        // Dấu '}' đóng một map literal KHÔNG được coi là hết câu lệnh:  for k in { "a": 1 } { ... }
+        java.util.ArrayDeque<Boolean> braceIsLiteral = new java.util.ArrayDeque<>();
 
         for (int i = 0; i < tokens.size(); i++) {
             Token t = tokens.get(i);
+            boolean closedLiteral = false;
             switch (t.type) {
                 case "L_PAREN": paren++; break;
                 case "R_PAREN": paren--; break;
                 case "L_BRACKET": bracket++; break;
                 case "R_BRACKET": bracket--; break;
-                case "L_BRACE": brace++; break;
-                case "R_BRACE": brace--; break;
+                case "L_BRACE":
+                    brace++;
+                    braceIsLiteral.push(!statementText.isEmpty()
+                            && isExpressionExpectedAfter(statementText.get(statementText.size() - 1)));
+                    break;
+                case "R_BRACE":
+                    brace--;
+                    closedLiteral = !braceIsLiteral.isEmpty() && braceIsLiteral.pop();
+                    break;
             }
 
             // Dấu xuống dòng nằm TRONG dấu ngoặc ( ) hoặc [ ] không bao giờ là dấu kết thúc câu lệnh
@@ -9388,7 +9560,7 @@ public class Interpreter {
 
             statementText.add(t);
 
-            if (t.type.equals("R_BRACE") && brace == 0 && paren == 0 && bracket == 0) {
+            if (t.type.equals("R_BRACE") && brace == 0 && paren == 0 && bracket == 0 && !closedLiteral) {
                 int j = i + 1;
                 while (j < tokens.size() && tokens.get(j).type.equals("END")) j++;
                 String nextOne = (j < tokens.size()) ? tokens.get(j).value : "";

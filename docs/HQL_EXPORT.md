@@ -49,6 +49,18 @@ var tuyChon = "{ title:'BÁO CÁO DOANH THU', subtitle:'Tháng 11/2026', header:
 exportXlsx(query("SELECT * FROM DonHang"), "donhang.xlsx", tuyChon);
 ```
 
+Hoặc viết thẳng bằng map literal (kết quả file giống hệt):
+
+```java
+var tuyChon = {
+    "title": "BÁO CÁO DOANH THU",
+    "subtitle": "Tháng 11/2026",
+    "zebra": true,
+    "header": { "bg": "#7C3AED", "color": "white" }
+};
+exportXlsx(query("SELECT * FROM DonHang"), "donhang.xlsx", tuyChon);
+```
+
 ---
 
 ## 2. Kiểu chữ / màu của MỘT phần tử

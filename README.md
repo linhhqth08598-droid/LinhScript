@@ -230,8 +230,32 @@ var sp = { "ten": "Laptop", "gia": 1200 };
 print(sp.ten);            // Laptop
 print(sp["gia"]);         // 1200
 sp["kho"] = 5;            // thêm khoá mới
+sp.gia = 1300;            // gán bằng dấu chấm cũng được (và += -= *= /=)
 print(sp.khongCo);        // chuỗi rỗng "" (không báo lỗi)
+for k in sp { print(k + " = " + sp[k]); }   // duyệt theo KHOÁ, đúng thứ tự viết
 ```
+
+**Cú pháp map literal** `{ khoá: giá_trị, ... }`:
+
+```java
+var rong = {};                                   // map rỗng
+var sv = {
+    "ten": "Linh",                               // khoá là chuỗi
+    tuoi: 17,                                    // khoá viết trần = chuỗi "tuoi" (như JavaScript)
+    7: "bảy",                                    // khoá số -> chuỗi "7"
+    [tenCot]: 1,                                 // [biểu_thức]: tính ra rồi đổi sang chuỗi
+    "diem": [9, 8.5],                            // giá trị là mảng...
+    "dc": { "tinh": "Hà Nội" },                  // ...hoặc map lồng nhau
+    "tong": a + b,                               // ...hoặc biểu thức bất kỳ (kể cả a > b ? x : y)
+};                                               // dấu phẩy thừa ở cuối được phép
+print(sv.dc.tinh);                               // Hà Nội
+print(sv["diem"][1]);                            // 8.5
+for s in [ {"x": 1}, {"x": 2} ] { print(s.x); }  // mảng các map
+```
+
+- Khoá luôn được lưu dạng **chuỗi**; khoá trùng thì giá trị sau đè giá trị trước; thứ tự viết được giữ nguyên.
+- Map viết trải nhiều dòng được. Truyền thẳng map vào hàm, trả map từ hàm đều được.
+- Khoá không phải chuỗi / tên / số / `[biểu_thức]`, thiếu `:`, thiếu giá trị hay dư dấu `,` đều báo `Lỗi Cú Pháp (map): ...` kèm số thứ tự mục bị lỗi.
 
 Kết quả `query(...)` của database là **mảng các map**: `for dong in query("SELECT ...") { print(dong.TenSP); }`.
 
@@ -1175,7 +1199,7 @@ Tất cả trả `true` (riêng `webExport` trả số byte). Tên file thiếu 
 
 **`du_lieu`** có thể là: **chuỗi SQL** (chạy trên database đang nối); **mảng bản ghi** (kết quả `query(...)`); **mảng các mảng** (dòng đầu là tiêu đề); hoặc một bản ghi.
 
-**`tuy_chon`** là **chuỗi JSON** (cho phép nháy đơn và khoá viết trần). Vì HQL không có map literal, hãy luôn viết tuỳ chọn thành chuỗi:
+**`tuy_chon`** là một **map** (`{ "title": "BÁO CÁO", "zebra": true }`) **hoặc chuỗi JSON** (cho phép nháy đơn và khoá viết trần); hai cách cho kết quả như nhau:
 
 | Khoá                                                                     | Ý nghĩa                                                                                                                                                                                     |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1500,7 +1524,7 @@ Hàm `env("KHOA"[, mac_dinh])` của `hql.sys` cũng đọc được `.henv`.
 
 **Những điều khác với ngôn ngữ quen thuộc**
 
-- **Không có map literal.** `{ "a": 1 }` là lỗi cú pháp. Map chỉ đến từ kết quả hàm (`query`, `fetchOne`, `readCsvRecords`, `addCsvRecord`...). Muốn gom dữ liệu có tên trường, dùng **class**. Tuỳ chọn của `hql.export` truyền bằng **chuỗi JSON**.
+- **Map literal dùng được:** `{ "a": 1 }` (xem mục 3.4). Map hiện còn hai điểm yếu: `len(map)` luôn là `0` và `toJson(map)` chưa cho JSON đúng.
 - **Callback truyền bằng tên chuỗi:** `ds.map("gapDoi")`, `taskRepeat("t", "ham", 1000)`, `button("id", "Chữ", "tenHam")`, `gameLoop("update", "draw")`, `call("tenHam", ...)`.
 - **Class con không thừa kế constructor.** Ví dụ ở mục 4.2 phải viết lại `func @init` trong class con (có thể gọi lại cách gán giống class cha).
 - **`@ten` và `ten` là hai tên khác nhau** trong class: `this.@ten` và `this.ten` là hai thuộc tính riêng.
@@ -1527,7 +1551,7 @@ Hàm `env("KHOA"[, mac_dinh])` của `hql.sys` cũng đọc được `.henv`.
 
 | Lỗi                                                  | Cách xử lý                                                             |
 | ---------------------------------------------------- | ---------------------------------------------------------------------- |
-| `LỖI CÚ PHÁP ... L_BRACE`                            | Bạn đang dùng map literal `{...}`; HQL không hỗ trợ (xem trên)         |
+| `Lỗi Cú Pháp (map): ...`                             | Map literal viết sai: thiếu `:` hoặc giá trị, dư dấu `,`, khoá không hợp lệ (xem mục 3.4) |
 | `Không tìm thấy biến 'tenHam'`                       | Truyền hàm làm callback phải viết tên dạng chuỗi `"tenHam"`            |
 | `Lỗi OOP: Phương thức 'x()' là Private!`             | Thêm `@` trước tên hàm trong class nếu muốn gọi từ ngoài               |
 | `Lỗi OOP: Không thể gán! Thuộc tính 'x' là Private.` | Khai báo `var @x` hoặc gán qua một hàm `@set...`                       |
