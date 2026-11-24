@@ -916,6 +916,12 @@ public class Lexer {
                 continue;
             }
 
+            if (code.startsWith("...")) {
+                tokens.add(new Token("SPREAD", "...", fileName, currentLine));
+                code = code.substring(3);
+                continue;
+            }
+
             char c = code.charAt(0);
             if ("!><=()[]{},;.*+-/%?:^".indexOf(c) != -1) {
                 String op = String.valueOf(c);
@@ -1016,7 +1022,7 @@ public class Lexer {
                 // Danh sách các từ khóa CẤU TRÚC lõi (Tuyệt đối không được làm biến)
                 java.util.List<String> coreKeywords = java.util.Arrays.asList(
                         "if", "else", "while", "for", "to", "in", "func", "return",
-                        "true", "false", "null", "not", "import", "use", "class", "extends", "new", "var"
+                        "true", "false", "null", "not", "import", "use", "class", "extends", "new", "var", "const"
                 );
 
                 if (word.equals("and")) {
