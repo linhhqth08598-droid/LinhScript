@@ -188,6 +188,23 @@ public class Interpreter {
         }
     }
 
+    /**
+     * HÀM LÀ MỘT GIÁ TRỊ (closure). Lưu được vào biến, truyền được vào hàm khác.
+     *   var nhan2 = func(x) { return x * 2; };
+     * closure = vùng nhớ lúc hàm được TẠO RA -> hàm nhớ các biến xung quanh nó
+     * (đếm, tổng...) kể cả khi hàm bao ngoài đã chạy xong.
+     * closure == null: hàm đặt tên (func ten() {}) dùng như giá trị -> chạy kiểu cũ
+     * (vùng nhớ mở ngay tại nơi gọi).
+     */
+    private static class HqlFunction {
+        final FunctionDef def;
+        final Scope closure;
+        HqlFunction(FunctionDef def, Scope closure) { this.def = def; this.closure = closure; }
+        @Override public String toString() {
+            return "<func " + def.name + "(" + String.join(", ", def.params) + ")>";
+        }
+    }
+
     // --- BỘ NHỚ HQL.CONFIG ---
     private class HqlConfig {
         String id;
@@ -3093,6 +3110,16 @@ public class Interpreter {
             return resolveMapLiteral(tokens.subList(1, tokens.size() - 1));
         }
 
+        // --- HÀM ẨN DANH: func(x, y) { ... }  -> trả về một HqlFunction (closure) ---
+        if (tokens.size() >= 5 && tokens.get(0).value.equals("func") && tokens.get(1).type.equals("L_PAREN")) {
+            int bodyBrace = findTokenIndex(tokens, "L_BRACE", 0);
+            if (bodyBrace != -1 && findMatchingBrace(tokens, bodyBrace) == tokens.size() - 1) {
+                List<String> anonParams = parseParamNames(trimWrappingParentheses(tokens.subList(1, bodyBrace)));
+                FunctionDef anonDef = new FunctionDef("<ẩn danh>", anonParams, tokens.subList(bodyBrace + 1, tokens.size() - 1));
+                return new HqlFunction(anonDef, scope());
+            }
+        }
+
         if (tokens.size() == 1) return getObjectValue(tokens.get(0));
 
         trace().lastToken = tokens.get(0);
@@ -3429,8 +3456,49 @@ public class Interpreter {
         return newObject;
     }
 
+    /**
+     * Chạy một hàm-giá trị với các đối số ĐÃ TÍNH SẴN.
+     * Closure: vùng nhớ của hàm nối vào vùng nhớ lúc hàm được tạo (lexical scope),
+     * không phải vùng nhớ của nơi gọi. Thừa/thiếu đối số thì bỏ/để trống
+     * (cho phép callback kiểu func(x) dùng được trong map/filter/reduce).
+     */
+    private Object invokeFunctionValue(HqlFunction fn, List<Object> args) {
+        FunctionDef def = fn.def;
+        Scope callerScope = scope();
+        Token callerToken = trace().lastToken;
+        trace().callStack.push(new ErrorReport.StackFrame(def.name,
+                callerToken == null ? "" : callerToken.file,
+                callerToken == null ? 0 : callerToken.line));
+        boolean finishedFlag = false;
+        try {
+            setScope(new Scope(fn.closure != null ? fn.closure : callerScope, true));
+            for (int i = 0; i < def.params.size(); i++) {
+                scope().put(def.params.get(i), i < args.size() ? args.get(i) : null);
+            }
+            runAll(def.body);
+            finishedFlag = true;
+        } catch (ReturnException byteOut) {
+            finishedFlag = true;
+        } finally {
+            setScope(callerScope);
+            if (finishedFlag && !trace().callStack.isEmpty()) { trace().callStack.pop(); }
+        }
+        Object result = returnValue;
+        returnValue = "";
+        return result;
+    }
+
     public Object executeFunctionCall(String functionName, List<List<Token>> argGroups) {
         if (isBuiltin(functionName)) return executeBuiltin(functionName, argGroups);
+        if (scope().has(functionName) && scope().get(functionName) instanceof HqlFunction) {
+            HqlFunction fnValue = (HqlFunction) scope().get(functionName);
+            if (argGroups.size() != fnValue.def.params.size())
+                throw new RuntimeException("Lỗi: Sai số lượng tham số khi gọi hàm '" + functionName
+                        + "' (cần " + fnValue.def.params.size() + ", nhận " + argGroups.size() + ").");
+            List<Object> fnArgs = new ArrayList<>();
+            for (List<Token> g : argGroups) fnArgs.add(resolveExpression(g));
+            return invokeFunctionValue(fnValue, fnArgs);
+        }
         if (functionMemory.containsKey(functionName)) {
             FunctionDef def = functionMemory.get(functionName);
             if (argGroups.size() != def.params.size())
@@ -3556,7 +3624,13 @@ public class Interpreter {
                     String sep = argGroups.isEmpty() ? "" : stringify(resolveExpression(argGroups.get(0)));
                     return list.stream().map(this::stringify).collect(Collectors.joining(sep));
                 case "map": {
-                    String mapFunc = stringify(resolveExpression(argGroups.get(0)));
+                    Object mapCb = resolveExpression(argGroups.get(0));
+                    if (mapCb instanceof HqlFunction) {
+                        ArrayList<Object> mapOut = new ArrayList<>();
+                        for (Object item : new ArrayList<>(list)) mapOut.add(invokeFunctionValue((HqlFunction) mapCb, java.util.Collections.singletonList(item)));
+                        return mapOut;
+                    }
+                    String mapFunc = stringify(mapCb);
                     FunctionDef def = functionMemory.get(mapFunc);
                     if (def == null) throw new RuntimeException("Lỗi: Không tìm thấy hàm callback '" + mapFunc + "'");
 
@@ -3575,7 +3649,15 @@ public class Interpreter {
                     return mapResult;
                 }
                 case "filter": {
-                    String filterFunc = stringify(resolveExpression(argGroups.get(0)));
+                    Object filterCb = resolveExpression(argGroups.get(0));
+                    if (filterCb instanceof HqlFunction) {
+                        ArrayList<Object> filterOut = new ArrayList<>();
+                        for (Object item : new ArrayList<>(list)) {
+                            if (toBoolean(invokeFunctionValue((HqlFunction) filterCb, java.util.Collections.singletonList(item)))) filterOut.add(item);
+                        }
+                        return filterOut;
+                    }
+                    String filterFunc = stringify(filterCb);
                     FunctionDef def = functionMemory.get(filterFunc);
                     if (def == null) throw new RuntimeException("Lỗi: Không tìm thấy hàm callback '" + filterFunc + "'");
 
@@ -3594,7 +3676,17 @@ public class Interpreter {
                     return filterResult;
                 }
                 case "reduce": {
-                    String reduceFunc = stringify(resolveExpression(argGroups.get(0)));
+                    Object reduceCb = resolveExpression(argGroups.get(0));
+                    if (reduceCb instanceof HqlFunction) {
+                        HqlFunction reduceFn = (HqlFunction) reduceCb;
+                        if (reduceFn.def.params.size() < 2)
+                            throw new RuntimeException("Lỗi: Hàm callback reduce phải có ít nhất 2 tham số (accumulator, currentValue)");
+                        Object acc = argGroups.size() > 1 ? resolveExpression(argGroups.get(1)) : (list.isEmpty() ? null : list.get(0));
+                        int from = argGroups.size() > 1 ? 0 : 1;
+                        for (int i = from; i < list.size(); i++) acc = invokeFunctionValue(reduceFn, Arrays.asList(acc, list.get(i)));
+                        return acc;
+                    }
+                    String reduceFunc = stringify(reduceCb);
                     FunctionDef def = functionMemory.get(reduceFunc);
                     if (def == null || def.params.size() < 2)
                         throw new RuntimeException("Lỗi: Hàm callback reduce phải có ít nhất 2 tham số (accumulator, currentValue)");
@@ -5378,6 +5470,9 @@ public class Interpreter {
                 if (args.get(0) instanceof String) return (double) ((String)args.get(0)).length();
                 return 0.0;
             case "call":
+                if (!args.isEmpty() && args.get(0) instanceof HqlFunction) {
+                    return invokeFunctionValue((HqlFunction) args.get(0), new ArrayList<>(args.subList(1, args.size())));
+                }
                 if (args.isEmpty() || !(args.get(0) instanceof String)) throw new RuntimeException("Lỗi: call() cần tên hàm.");
                 String funcToCall = (String) args.get(0);
                 List<List<Token>> newArgGroups = new ArrayList<>(argGroups.subList(1, argGroups.size()));
@@ -9670,7 +9765,12 @@ public class Interpreter {
                     case "INF" -> Double.POSITIVE_INFINITY;
                     case "NAN" -> Double.NaN;
                     case "undefined" -> "undefined";
-                    default -> throw new RuntimeException("Lỗi: Không tìm thấy biến '" + token.value + "'");
+                    default -> {
+                        // Tên một hàm đã khai báo (func ten...) dùng như giá trị: ds.map(nhan2)
+                        FunctionDef named = functionMemory.get(token.value);
+                        if (named != null) yield new HqlFunction(named, null);
+                        throw new RuntimeException("Lỗi: Không tìm thấy biến '" + token.value + "'");
+                    }
                 };
                 // Chặn đầu ngay trước khi tìm trong Scope
             }
@@ -9692,6 +9792,7 @@ public class Interpreter {
         if (obj instanceof Boolean) return "bool";
         if (obj instanceof ArrayList) return "list";
         if (obj instanceof HqlObject) return ((HqlObject)obj).hqlClass.name;
+        if (obj instanceof HqlFunction) return "function";
         return "unknown";
     }
 
