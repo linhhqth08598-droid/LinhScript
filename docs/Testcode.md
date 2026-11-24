@@ -210,7 +210,7 @@ Luôn có sẵn không cần `use` thư viện nào:
 * `scroll(số_nấc)`: Lăn chuột.
 * `press("phím")`, `release("phím")`: Nhấn/Nhả.
 * `combo("K1", "K2")`: Tổ hợp phím.
-* `findPixel("#Màu", x, y, w, h)`: Tự động tìm tọa độ pixel theo màu.
+* `findPixel("#rrggbb", x, y, w, h)`: Tự động tìm tọa độ pixel theo màu.
 * `getClip()`, `setClip("Chữ")`: Tương tác với Clipboard.
 
 ### 13. `hql.logging` (Nhật ký Hệ thống chuẩn)
@@ -218,12 +218,12 @@ Luôn có sẵn không cần `use` thư viện nào:
 * **Cấu hình:** `setLogLevel(level)`, `setLogFile(path)`, `logReset()`.
 
 ### 14. `hql.image` (Xử lý Đồ họa ẢNH)
-* `loadImage(path)`, `saveImage(id, định_dạng, path)`.
+* `loadImage(path)`, `saveImage(id, format, path)`.
 * `imageWidth(id)`, `imageHeight(id)`.
 * `resizeImage(id, w, h)`, `cropImage(id, x, y, w, h)`.
-* `rotateImage(id, góc)`, `flipImage(id, "h"|"v")`.
-* `grayscaleImage(id)`, `blurImage(id, mức_độ)`, `invertImage(id)`.
-* `getPixelColor(id, x, y)`, `setPixelColor(id, x, y, "#Màu")`.
+* `rotateImage(id, angle)`, `flipImage(id, "h"|"v")`.
+* `grayscaleImage(id)`, `blurImage(id, level)`, `invertImage(id)`.
+* `getPixelColor(id, x, y)`, `setPixelColor(id, x, y, "#rrggbb")`.
 * `imageToSvg(id, path)`, `svgToImage(svg_text_or_path)`.
 
 ### 15. `hql.chart` (Vẽ biểu đồ phân tích Data)

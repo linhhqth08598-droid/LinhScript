@@ -14,7 +14,7 @@ use hql.mail;
 |---|---|
 | `mailConfig(email, matKhauUngDung)` | Cấu hình Gmail (mặc định `smtp.gmail.com:587`, STARTTLS) |
 | `mailConfig(email, matKhau, host, port)` | Dùng máy chủ SMTP khác. Cổng `465` tự bật SSL |
-| `mailSenderName("Smart Farm")` | Tên hiển thị của người gửi |
+| `mailSenderName("My Shop")` | Tên hiển thị của người gửi |
 | `mailBrand(ten, khauHieu)` | Tên và dòng mô tả in trên **đầu mỗi lá thư** |
 | `mailSupport(email1[, email2])` | Địa chỉ hỗ trợ in ở **cuối mỗi lá thư** |
 | `mailIsConfigured()` | Đã cấu hình hộp thư chưa (`true`/`false`) |
@@ -25,8 +25,8 @@ use hql.mail;
 
 ```java
 mailConfig("ten-hop-thu@gmail.com", "xxxxxxxxxxxxxxxx");   // KHÔNG ghi mật khẩu thật vào mã nguồn — xem mục 1b
-mailSenderName("Smart Farm - Hệ thống quản lý trang trại");
-mailBrand("SMART FARM", "Hệ thống quản lý trang trại sầu riêng");
+mailSenderName("My Shop - Hệ thống quản lý bán hàng");
+mailBrand("MY SHOP", "Hệ thống quản lý bán hàng");
 mailSupport("linhhqth08598@gmail.com");
 ```
 
@@ -37,10 +37,10 @@ mailSupport("linhhqth08598@gmail.com");
 ```
 MAIL_EMAIL=ten-hop-thu@gmail.com
 MAIL_PASSWORD=xxxx xxxx xxxx xxxx
-MAIL_NAME=GearZone Support
+MAIL_NAME=MyShop Support
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=465
-MAIL_BRAND=GEARZONE
+MAIL_BRAND=MYSHOP
 MAIL_SLOGAN=Chuyên linh kiện PC & Phụ kiện Gaming
 MAIL_SUPPORT=ho-tro@gmail.com
 ```
@@ -100,12 +100,12 @@ Khung thư gồm 4 tầng:
 
 ```
 ┌──────────────────────────────────────────┐
-│ 🌱 SMART FARM                            │  ← dải màu xanh lá chuyển sắc
-│    Hệ thống quản lý trang trại sầu riêng │     (mailBrand)
+│ 🛒 MY SHOP                               │  ← dải màu xanh lá chuyển sắc
+│    Hệ thống quản lý bán hàng             │     (mailBrand)
 │    ┌────────────┐                        │
 │    │ TÀI KHOẢN MỚI │  ← huy hiệu nhỏ      │
 │    └────────────┘                        │
-│    Chào mừng bạn gia nhập Smart Farm!    │
+│    Chào mừng bạn gia nhập My Shop!       │
 ├──────────────────────────────────────────┤
 │ Nội dung thư                             │
 │   ┌───────────┬────────────────────┐     │

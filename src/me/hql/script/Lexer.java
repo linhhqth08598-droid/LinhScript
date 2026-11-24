@@ -990,7 +990,7 @@ public class Lexer {
                      * ky tu  \ n  thanh MOT ky tu xuong dong that. Viet
                      * print("a\nb") gon trong MOT dong ma bo dem van cong them 1,
                      * nen tu do tro di moi so dong bao loi deu lon hon thuc te, cang ve
-                     * cuoi file cang lech. VNChecker/main.hql lech +7 o khoang dong
+                     * cuoi file cang lech. MyApp/main.hql lech +7 o khoang dong
                      * 2800: mui ten >> chi vao dong chu thich chu khong phai cau lenh
                      * dang hong. Chi dau xuong dong THAT trong ma nguon moi duoc tinh.
                      */

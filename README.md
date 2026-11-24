@@ -4,8 +4,7 @@ LinhScript (tên viết tắt **HQL**, file có đuôi `.hql`) là một ngôn n
 Cú pháp gọn như JavaScript/Python, có sẵn **28 thư viện lõi** (toán, file, mạng, database, web server, game 2D,
 xuất Excel/Word/PDF, gửi email, lập lịch, socket...) nên viết được từ script nhỏ tới website hoàn chỉnh mà không phải cài thêm gì.
 
-> Tài liệu này mô tả đúng theo **mã nguồn** trong dự án (`Interpreter.java`, `Lexer.java`...).
-> Chỗ nào docs cũ trong thư mục `docs/` khác với mã nguồn thì README này theo mã nguồn (xem mục 9).
+> Tài liệu này mô tả theo **mã nguồn** trong dự án (`Interpreter.java`, `Lexer.java`...). Tài liệu chi tiết từng thư viện nằm trong thư mục `docs/`.
 
 ## Mục lục
 
@@ -26,7 +25,7 @@ xuất Excel/Word/PDF, gửi email, lập lịch, socket...) nên viết đượ
 Bộ cài đặt chính thức đã đóng gói sẵn toàn bộ môi trường chạy (không cần cài thêm JDK hay cấu hình thủ công).
 
 ### Bước 1: Tải bộ cài đặt
-👉 **[Tải về LinhScript-Setup-1.0.0.exe (Windows 64-bit)](https://github.com)**
+👉 **[Tải về LinhScript-Setup-1.0.0.exe (Windows 64-bit)](https://linhhqth08598-droid.github.io/LinhScript-install/)**
 
 ### Bước 2: Cài đặt vào máy
 1. Mở file **`LinhScript-Setup-1.0.0.exe`** vừa tải về.
@@ -613,8 +612,8 @@ use hql.database;
 connect("sqlite", "data.db");                              // SQLite
 connect("mysql", "localhost", 3306, "shop", "root", "123"); // MySQL / MariaDB
 connect("postgres", "localhost", 5432, "shop", "user", "pw");
-connect("sqlserver", "localhost", 1433, "GearZone", "sa", "123");
-connect("localhost", 1433, "GearZone", "sa", "123");       // bỏ loại → mặc định SQL Server
+connect("sqlserver", "localhost", 1433, "MyShop", "sa", "123");
+connect("localhost", 1433, "MyShop", "sa", "123");       // bỏ loại → mặc định SQL Server
 connect("jdbc:sqlserver://...;databaseName=X", "user", "pw"); // chuỗi JDBC trực tiếp
 connect("postgresql://user:pw@ep-xxx.neon.tech/neondb?sslmode=require");  // database online (Neon, Supabase, Aiven, Azure...)
 connectEnv();                                              // theo tệp db.henv (hoặc .henv)
@@ -801,11 +800,11 @@ use hql.image;
 | `saveImage(id, "png"/"jpg", path)`                                       | Lưu ảnh                |
 | `imageWidth(id)`, `imageHeight(id)`                                      | Kích thước             |
 | `resizeImage(id, w, h)`, `cropImage(id, x, y, w, h)`                     | Đổi cỡ / cắt           |
-| `rotateImage(id, goc)`, `flipImage(id, "h"/"v")`                         | Xoay / lật             |
-| `grayscaleImage(id)`, `blurImage(id, muc)`, `invertImage(id)`            | Xám / làm mờ / đảo màu |
-| `getPixelColor(id, x, y)` → `#rrggbb`, `setPixelColor(id, x, y, "#mau")` | Điểm ảnh               |
+| `rotateImage(id, angle)`, `flipImage(id, "h"/"v")`                         | Xoay / lật             |
+| `grayscaleImage(id)`, `blurImage(id, level)`, `invertImage(id)`            | Xám / làm mờ / đảo màu |
+| `getPixelColor(id, x, y)` → `#rrggbb`, `setPixelColor(id, x, y, "#rrggbb")` | Điểm ảnh               |
 | `imageToSvg(id[, path])` → đường dẫn                                     | Ảnh → SVG              |
-| `svgToImage(noi_dung_svg_hoac_path)` → id                                | SVG → ảnh              |
+| `svgToImage(svgTextOrPath)` → id                                | SVG → ảnh              |
 
 ```java
 use hql.image;
@@ -836,12 +835,12 @@ use hql.image;
 use hql.database;
 var b64 = imageFileToBase64("avatar.png");
 if (imageBase64Valid(b64)) {
-    var nho = imageBase64Resize(b64, 512, 512);
-    executeSafe("INSERT INTO KhoAnh(ten, du_lieu) VALUES (?, ?)", ["avatar", nho]);
+    var small = imageBase64Resize(b64, 512, 512);
+    executeSafe("INSERT INTO ImageStore(name, data) VALUES (?, ?)", ["avatar", small]);
 }
 ```
 
-Trả ảnh về trình duyệt bằng `webImage(chuoi)` (xem `hql.web`). Chi tiết thêm: `docs/HQL_ANH.md`.
+Trả ảnh về trình duyệt bằng `webImage(b64[, mime])`, trả tệp tải xuống bằng `webBinary(b64, mime[, fileName])` (xem `hql.web`). Chi tiết thêm: `docs/HQL_IMAGE.md`.
 
 ### 7.14 `hql.chart` — Biểu đồ
 
@@ -1269,12 +1268,12 @@ HQL có **HQLSP** (như JSP) và **`<Tên>Servlet.hql`** (như Servlet). File ma
 ```java
 // web.hql
 use hql.web;
-var TEN_PROJECT = "/QuanLyKho";
+var TEN_PROJECT = "/MyApp";
 webStart(8080, TEN_PROJECT, "web");     // "web" = thư mục chứa .hqlsp / .html / *Servlet.hql
 webWait();                              // giữ chương trình chạy (Ctrl+C để dừng)
 ```
 
-Khi chạy, màn hình in ra toàn bộ đường dẫn (trang, servlet, route, địa chỉ LAN). Tên servlet trong URL viết **chữ thường**: `BaoCaoServlet.hql` → `/QuanLyKho/baocao`.
+Khi chạy, màn hình in ra toàn bộ đường dẫn (trang, servlet, route, địa chỉ LAN). Tên servlet trong URL viết **chữ thường**: `BaoCaoServlet.hql` → `/MyApp/baocao`.
 
 **Máy chủ**
 
@@ -1285,7 +1284,7 @@ Khi chạy, màn hình in ra toàn bộ đường dẫn (trang, servlet, route, 
 | `webRoot("thu_muc")`                  | Đặt thư mục gốc (dùng trước `webExportTomcat`) |
 | `webRoute("/duong-dan", "tenHam")`    | Gán một hàm HQL cho một URL                    |
 | `webServlet("/duong-dan", "X.hql")`   | Gán servlet cho URL tuỳ ý                      |
-| `webContext()`                        | Tên project, vd `/QuanLyKho`                   |
+| `webContext()`                        | Tên project, vd `/MyApp`                   |
 | `webExportTomcat("Ten"[, "web.hql"])` | Đóng gói thành thư mục chạy trên Tomcat        |
 | `webShowDetailedErrors([bool])`           | Bật/tắt hiện lỗi chi tiết trên trang           |
 
@@ -1362,7 +1361,7 @@ Cần `jakarta.mail` + `jakarta.activation` trong `lib/`. Gmail bắt buộc dù
 ```java
 use hql.mail;
 mailConfig("ten-hop-thu@gmail.com", "xxxxxxxxxxxxxxxx");   // tốt hơn: đặt trong .henv
-mailSenderName("GearZone Support");
+mailSenderName("MyShop Support");
 
 var ma = mailOtp(6);
 var html = "<h2>Mã xác thực</h2><p>Mã của bạn: <b>" + ma + "</b> (hết hạn sau 10 phút)</p>";
@@ -1477,18 +1476,18 @@ gameLoop("capNhat", "ve");
 use hql.app;
 ```
 
-`appWindow` nhúng Chromium (JCEF, cần thư viện `jcef-maven` trong `lib/`) thành cửa sổ riêng, có hồ sơ cookie riêng cho từng app.
+`appWindow` nhúng Chromium (JCEF, cần thư viện `jcef-maven` trong `lib/`) thành cửa sổ riêng, có hồ sơ cookie riêng cho từng app. Không dùng được Chromium thì tự lùi về Edge/Chrome có sẵn trên máy.
 
-| Hàm                                                   | Công dụng                                                                                                                   |
-| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `appHasBrowser()`                                   | Máy có trình duyệt để mở app không                                                                                          |
-| `appWindow(url[, tieu_de[, rong[, cao[, anh_icon]]]])` | Mở cửa sổ app (mặc định 1400×900) → **mã** cửa sổ                                                                           |
-| `appIsOpen(ma)`, `appWait(ma)`, `appClose(ma)`          | Còn mở không / chờ tới khi đóng / đóng                                                                                      |
-| `appTray(ma[, anh[, nhan_mo[, nhan_thoat]]])`         | Thu nhỏ xuống khay hệ thống                                                                                                 |
-| `processRun(lenh[, thu_muc])`                      | Chạy tiến trình con; `lenh` là **mảng** `["java","-jar","a.jar"]` (nên dùng mảng nếu đường dẫn có dấu cách) → mã tiến trình |
-| `processAlive(ma)`, `processKill(ma)`               | Còn chạy không / tắt (xin tử tế trước, không được mới ép)                                                                   |
-| `portIsOpen(cong)`, `waitPort(cong[, giay])`           | Cổng đang có ai dùng không / chờ cổng mở (mặc định 30 giây)                                                                 |
-| `sysProp("ten")`, `appRootDir("moc")`               | Thuộc tính hệ thống Java / tìm thư mục cha chứa tệp `moc`                                                                   |
+| Hàm | Công dụng |
+| --- | --- |
+| `appHasBrowser()` | Máy có Edge/Chrome để làm khung dự phòng không |
+| `appWindow(url[, title[, width[, height[, iconPath]]]])` | Mở cửa sổ app (mặc định 1400×900) → **mã** cửa sổ. `iconPath` phải là PNG/GIF/JPG |
+| `appIsOpen(id)`, `appWait(id)`, `appClose(id)` | Còn mở không / chờ tới khi đóng / đóng |
+| `appTray(id[, iconPath[, openLabel[, exitLabel]]])` | Thu xuống khay hệ thống (bấm X chỉ ẩn cửa sổ) |
+| `processRun(command[, workDir[, logFile]])` | Chạy tiến trình con; `command` là **mảng** `["java","-jar","a.jar"]` (nên dùng mảng nếu đường dẫn có dấu cách) → mã tiến trình |
+| `processAlive(id)`, `processKill(id)` | Còn chạy không / tắt (xin tử tế trước, không được mới ép) |
+| `portIsOpen(port)`, `waitPort(port[, seconds])` | Cổng đang có ai dùng không / chờ cổng mở (mặc định 30 giây) |
+| `sysProp("name")`, `appRootDir("marker")` | Thuộc tính hệ thống Java / tìm thư mục cha chứa tệp `marker` |
 
 ```java
 use hql.app;
@@ -1496,11 +1495,13 @@ use hql.web;
 
 webStart(8080, "/App", "web");
 if (waitPort(8080, 10)) {
-    var ma = appWindow("http://localhost:8080/App/", "Ứng dụng của tôi", 1200, 800);
-    appWait(ma);        // chờ người dùng đóng cửa sổ
+    var win = appWindow("http://localhost:8080/App/", "Ứng dụng của tôi", 1200, 800);
+    appWait(win);        // chờ người dùng đóng cửa sổ
 }
 webStop();
 ```
+
+Chi tiết thêm: `docs/HQL_APP.md`.
 
 ---
 
@@ -1529,7 +1530,7 @@ webStop();
 DB_TYPE=sqlserver              # sqlserver | mysql | postgres | sqlite
 DB_HOST=127.0.0.1              # " #" cắt chú thích cuối dòng
 DB_PORT=1433
-DB_NAME="Gear Zone"            # nháy kép: hiểu \n \t \" \\
+DB_NAME="My Shop"            # nháy kép: hiểu \n \t \" \\
 DB_USER=sa
 DB_PASSWORD=dien-mat-khau
 DB_URL=jdbc:sqlserver://${DB_HOST}:${DB_PORT};databaseName=${DB_NAME}   # có DB_URL thì bỏ qua DB_HOST...
@@ -1540,12 +1541,12 @@ DB_ENCRYPT=false               # SQL Server cũ / không có chứng chỉ
 
 MAIL_EMAIL=ten@gmail.com
 MAIL_PASSWORD=xxxx xxxx xxxx xxxx
-MAIL_NAME="GearZone Support"
+MAIL_NAME="MyShop Support"
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=465
 
 DB_USER2=${DB_USER_MAC_DINH:-sa}     # ${BIEN:-gia_tri_du_phong}
-MAIL_BRAND='GEAR #ZONE'              # nháy đơn: giữ nguyên từng chữ
+MAIL_BRAND='MY #SHOP'              # nháy đơn: giữ nguyên từng chữ
 export DB_X=1                        # chữ export ở đầu được bỏ qua
 ```
 
@@ -1606,8 +1607,6 @@ Hàm `env("KHOA"[, mac_dinh])` của `hql.sys` cũng đọc được `.henv`.
 | `Hết kết nối trong bể ...`                           | Có giao dịch bỏ quên chưa `commit`/`rollback`, hoặc tăng `DB_POOL_MAX` |
 | `Task tồn tại!`                                      | Tên tác vụ bị trùng; `taskCancel(ten)` trước hoặc đổi tên              |
 | Đổi `.henv` mà không thấy tác dụng                   | Biến môi trường hệ điều hành cùng tên đang được ưu tiên hơn tệp        |
-
-**Mức độ kiểm chứng của tài liệu này.** Các ví dụ cho `csv`, `xml`, `binary`, `color`, `config`, `env`, `schedule`, `export`, `socket`, `multiplayer`, `web` (trang `.hqlsp` và servlet) đã được chạy thử thật và kết quả ghi trong chú thích là kết quả thu được. Riêng `hql.game`, `hql.app`, `hql.ui`, `hql.mail`, `hql.database` (cần giao diện, driver hoặc tài khoản thật) được viết theo mã nguồn, chưa chạy thử trong môi trường soạn tài liệu này.
 
 ---
 

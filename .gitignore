@@ -1,7 +1,6 @@
 out/*
 .claude/*
 hql/*
-VNChecker/*
 .idea/*
 lib/
 .henv
@@ -10,7 +9,7 @@ db.henv
 .henv.*.local
 web/*
 build_exe.bat
-QuanLyKho/*
 hello.hql
 run_agent.ps1
 hello_world.hql
+VNChecker

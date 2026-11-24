@@ -24,7 +24,7 @@ Ai cài thư viện HQL về máy khác cũng chỉ cần viết 1 file main nh�
 use hql.web;
 use hql.time;
 
-var TEN_PROJECT = "/QuanLyKho";   // <-- TỰ ĐỔI TÊN Ở ĐÂY
+var TEN_PROJECT = "/MyApp";   // <-- TỰ ĐỔI TÊN Ở ĐÂY
 var CONG        = 8080;
 var THU_MUC_WEB = "web";          // Thư mục chứa .hqlsp / .html / <Ten>Servlet.hql
 
@@ -36,19 +36,19 @@ Chạy `LinhScriptRunner web.hql`, cửa sổ Run sẽ **tự in ra toàn bộ �
 
 ```
 =========================================================
-   HQL WEB SERVER - QuanLyKho
+   HQL WEB SERVER - MyApp
 =========================================================
-   Address        : http://localhost:8080/QuanLyKho/
-   LAN address    : http://26.62.109.68:8080/QuanLyKho/
+   Address        : http://localhost:8080/MyApp/
+   LAN address    : http://26.62.109.68:8080/MyApp/
    Root folder    : D:\...\web
 ---------------------------------------------------------
-   [Servlet] http://localhost:8080/QuanLyKho/BaoCao        BaoCaoServlet.hql
-   [Page]   http://localhost:8080/QuanLyKho/              index.hqlsp
-   [Route]   http://localhost:8080/QuanLyKho/api/sanpham   apiSanPham()
+   [Servlet] http://localhost:8080/MyApp/BaoCao        BaoCaoServlet.hql
+   [Page]   http://localhost:8080/MyApp/              index.hqlsp
+   [Route]   http://localhost:8080/MyApp/api/sanpham   apiSanPham()
 =========================================================
 ```
 
-Mở `http://localhost:8080/` sẽ tự chuyển hướng về `/QuanLyKho/`.
+Mở `http://localhost:8080/` sẽ tự chuyển hướng về `/MyApp/`.
 
 ---
 
@@ -89,7 +89,7 @@ File `web/index.hqlsp`:
 
 ## 3. Servlet — tên file khóa cứng `<Tên>Servlet.hql`
 
-`web/BaoCaoServlet.hql` → truy cập bằng `/QuanLyKho/BaoCao`
+`web/BaoCaoServlet.hql` → truy cập bằng `/MyApp/BaoCao`
 
 ```java
 use hql.web;
@@ -138,7 +138,7 @@ Mỗi servlet có **vùng hàm/lớp riêng** — hai file servlet cùng đặt 
 | `webStop()` / `webWait()` | Dừng / giữ chương trình chạy |
 | `webRoute("/duong-dan", "tenHam")` | Gán 1 hàm HQL cho 1 URL |
 | `webServlet("/duong-dan", "X.hql")` | Gán servlet cho URL tùy ý |
-| `webContext()` | Trả về tên project, vd `/QuanLyKho` |
+| `webContext()` | Trả về tên project, vd `/MyApp` |
 | `webExportTomcat("Ten", "web.hql")` | Đóng gói ra thư mục chạy trên Tomcat |
 
 **Đọc request**
@@ -161,13 +161,13 @@ Mỗi servlet có **vùng hàm/lớp riêng** — hai file servlet cùng đặt 
 // deploy.hql
 use hql.web;
 webRoot("web");
-webExportTomcat("QuanLyKho", "web.hql");
+webExportTomcat("MyApp", "web.hql");
 ```
 
 Chạy xong sẽ sinh ra thư mục:
 
 ```
-QuanLyKho/
+MyApp/
 ├── index.hqlsp, BaoCaoServlet.hql, style.css ...
 └── WEB-INF/
     ├── web.xml        (đã khai báo sẵn me.hql.script.LinhScriptRunner$HqlServlet)
@@ -176,8 +176,8 @@ QuanLyKho/
     └── lib/           (các file .jar, vd driver SQL Server)
 ```
 
-Chép thư mục `QuanLyKho` vào `<Tomcat>/webapps/`, khởi động Tomcat rồi mở
-`http://localhost:8080/QuanLyKho`.
+Chép thư mục `MyApp` vào `<Tomcat>/webapps/`, khởi động Tomcat rồi mở
+`http://localhost:8080/MyApp`.
 
 Khi chạy trong Tomcat, `webStart()` và `webWait()` **tự động vô hiệu** (Tomcat đã là máy chủ rồi),
 tên project lấy theo tên thư mục trong `webapps/` — nên cùng một file main chạy được cả 2 nơi.
@@ -208,7 +208,7 @@ func doQuery() {
 Phía client (hql.net):
 
 ```java
-var kq = httpQuery("http://localhost:8080/QuanLyKho/timkiem", "Price > 100");
+var kq = httpQuery("http://localhost:8080/MyApp/timkiem", "Price > 100");
 ```
 
 Servlet không có `doQuery()` thì request QUERY rơi về `service()` rồi `doGet()`.

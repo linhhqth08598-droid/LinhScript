@@ -193,7 +193,7 @@ var tuyChon = """
     { col:'Ghi chú',  op:'contains', value:'Nợ', scope:'row', bg:'#FEF3C7' }
   ],
   filter: true,
-  footer: 'Smart Farm'
+  footer: 'My Shop'
 }
 """;
 
@@ -208,7 +208,7 @@ exportFile(sql, "baocao.csv");        // CSV thường, có BOM cho Excel
 ### Tải xuống từ trang web (HQL.WEB)
 
 Người dùng chọn định dạng và màu trên trang, server trả file về luôn.
-File `web/XuatServlet.hql` → truy cập `/QuanLyKho/Xuat?fmt=pdf&mau=%237C3AED`:
+File `web/XuatServlet.hql` → truy cập `/MyApp/Xuat?fmt=pdf&mau=%237C3AED`:
 
 ```java
 use hql.web;

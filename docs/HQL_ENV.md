@@ -17,8 +17,8 @@ use hql.env;
 ```
 # dòng chú thích (cũng nhận dấu ; ở đầu dòng)
 DB_HOST=127.0.0.1                      # giá trị trần; " #" cắt chú thích cuối dòng
-DB_NAME="Gear Zone"                    # nháy kép: hiểu \n \t \" \\
-MAIL_BRAND='GEAR #ZONE'                # nháy đơn: giữ nguyên từng chữ
+DB_NAME="My Shop"                    # nháy kép: hiểu \n \t \" \\
+MAIL_BRAND='MY #SHOP'                # nháy đơn: giữ nguyên từng chữ
 export DB_PORT=1433                    # chữ export ở đầu được bỏ qua
 DB_URL=jdbc:sqlserver://${DB_HOST}:${DB_PORT};databaseName=${DB_NAME}
 DB_USER=${DB_USER_MAC_DINH:-sa}        # giá trị dự phòng khi biến chưa có

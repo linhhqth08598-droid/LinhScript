@@ -307,22 +307,22 @@ set "CP=out\production\NgonNguLapTrinhMoi;lib\*"
 
 <p>Cửa sổ Run sẽ tự in ra <b>toàn bộ đường dẫn</b>, bấm vào là mở được ngay:</p>
 <pre><code>=========================================================
-   HQL WEB SERVER - QuanLyKho
+   HQL WEB SERVER - MyApp
 =========================================================
-   Dia chi        : http://localhost:8080/QuanLyKho/
-   Trong mang LAN : http://26.62.109.68:8080/QuanLyKho/
+   Dia chi        : http://localhost:8080/MyApp/
+   Trong mang LAN : http://26.62.109.68:8080/MyApp/
    Thu muc goc    : D:\...\web
 ---------------------------------------------------------
-   [Servlet] http://localhost:8080/QuanLyKho/BaoCao        BaoCaoServlet.hql
-   [Trang]   http://localhost:8080/QuanLyKho/              index.hqlsp
-   [Route]   http://localhost:8080/QuanLyKho/api/sanpham   apiSanPham()
+   [Servlet] http://localhost:8080/MyApp/BaoCao        BaoCaoServlet.hql
+   [Trang]   http://localhost:8080/MyApp/              index.hqlsp
+   [Route]   http://localhost:8080/MyApp/api/sanpham   apiSanPham()
 =========================================================
    Bam Ctrl+C de dung may chu.</code></pre>
 
 <div class="cal info">
 <span class="lbl">Mẹo</span>
 <p>Mở <code>http://localhost:8080/</code> (không có tên project) sẽ được tự chuyển hướng
-về <code>/QuanLyKho/</code>. Dòng <i>"Trong mang LAN"</i> là địa chỉ để máy khác cùng
+về <code>/MyApp/</code>. Dòng <i>"Trong mang LAN"</i> là địa chỉ để máy khác cùng
 mạng Wi-Fi mở được web của bạn.</p>
 </div>
 
@@ -375,7 +375,7 @@ use hql.time;
 use hql.util;
 
 // ------- CẤU HÌNH — CHỈ CẦN SỬA 3 DÒNG NÀY -------
-var TEN_PROJECT = "/QuanLyKho";   // -&gt; http://localhost:8080/QuanLyKho
+var TEN_PROJECT = "/MyApp";   // -&gt; http://localhost:8080/MyApp
 var CONG        = 8080;
 var THU_MUC_WEB = "web";          // thư mục chứa .hqlsp / .html / &lt;Ten&gt;Servlet.hql
 
@@ -406,8 +406,8 @@ webWait();</code></pre>
 
 <div class="cal info">
 <span class="lbl">Lưu ý</span>
-<p>Tên project tự động được chuẩn hoá: viết <code>"QuanLyKho"</code> hay
-<code>"/QuanLyKho/"</code> đều thành <code>/QuanLyKho</code>. Để trống sẽ báo lỗi ngay
+<p>Tên project tự động được chuẩn hoá: viết <code>"MyApp"</code> hay
+<code>"/MyApp/"</code> đều thành <code>/MyApp</code>. Để trống sẽ báo lỗi ngay
 lúc khởi động.</p>
 </div>
 </section>
@@ -443,7 +443,7 @@ trước thì dùng cái đó:</p>
 <div class="cal good">
 <span class="lbl">Nghĩa là</span>
 <p>Chỉ cần đặt file <code>SanPhamServlet.hql</code> vào <code>web/</code> là tự động có
-URL <code>/QuanLyKho/SanPham</code> — <b>không phải khai báo gì thêm</b>.</p>
+URL <code>/MyApp/SanPham</code> — <b>không phải khai báo gì thêm</b>.</p>
 </div>
 </section>
 
@@ -543,7 +543,7 @@ URL sẽ là <code>/&lt;Tên&gt;</code>. Bên trong viết các hàm giống h�
 </table>
 </div>
 
-<div class="file">web/BaoCaoServlet.hql → /QuanLyKho/BaoCao</div>
+<div class="file">web/BaoCaoServlet.hql → /MyApp/BaoCao</div>
 <pre><code>use hql.web;
 use hql.database;
 
@@ -626,7 +626,7 @@ webRoute("/api/chitiet", "apiChiTiet");</code></pre>
 <h3>Gán servlet vào URL tuỳ ý</h3>
 <p>Nếu không thích quy ước tên file, dùng <code>webServlet()</code>:</p>
 <pre><code>webServlet("/bao-cao-kho", "BaoCaoServlet.hql");
-// Giờ mở /QuanLyKho/bao-cao-kho cũng chạy đúng file đó</code></pre>
+// Giờ mở /MyApp/bao-cao-kho cũng chạy đúng file đó</code></pre>
 </section>
 
 <!-- ═══════════════ 9 ═══════════════ -->
@@ -641,7 +641,7 @@ webRoute("/api/chitiet", "apiChiTiet");</code></pre>
 <div class="cal warn">
 <span class="lbl">Luôn nhúng qua webContext()</span>
 <p>Đừng viết đường dẫn tuyệt đối <code>/style.css</code>. Vì trang thật nằm ở
-<code>/QuanLyKho/style.css</code> — thiếu tiền tố tên project là CSS sẽ không tải được.</p>
+<code>/MyApp/style.css</code> — thiếu tiền tố tên project là CSS sẽ không tải được.</p>
 </div>
 
 <pre><code>&lt;%-- ĐÚNG --%&gt;
@@ -650,7 +650,7 @@ webRoute("/api/chitiet", "apiChiTiet");</code></pre>
 &lt;script src="&lt;%= webContext() %&gt;/js/app.js"&gt;&lt;/script&gt;
 &lt;a href="&lt;%= webContext() %&gt;/BaoCao"&gt;Xem báo cáo&lt;/a&gt;
 
-&lt;%-- SAI: sẽ 404 vì thiếu /QuanLyKho --%&gt;
+&lt;%-- SAI: sẽ 404 vì thiếu /MyApp --%&gt;
 &lt;link rel="stylesheet" href="/style.css"&gt;</code></pre>
 
 <p>Trong servlet thì nối chuỗi:</p>
@@ -921,7 +921,7 @@ if (noiDung == "") {
 <tr><td><code>webRoot("web")</code></td><td>Đặt/đọc thư mục gốc website</td></tr>
 <tr><td><code>webRoute("/duong-dan", "tenHam")</code></td><td>Gán 1 hàm HQL cho 1 URL</td></tr>
 <tr><td><code>webServlet("/duong-dan", "X.hql")</code></td><td>Gán servlet cho URL tuỳ ý</td></tr>
-<tr><td><code>webContext()</code></td><td>Trả về tên project, vd <code>/QuanLyKho</code></td></tr>
+<tr><td><code>webContext()</code></td><td>Trả về tên project, vd <code>/MyApp</code></td></tr>
 <tr><td><code>webExportTomcat("Ten", "web.hql")</code></td><td>Đóng gói ra thư mục chạy trên Tomcat</td></tr>
 </tbody>
 </table>
@@ -993,7 +993,7 @@ if (noiDung == "") {
 <div class="file">deploy.hql</div>
 <pre><code>use hql.web;
 
-var TEN_PROJECT = "QuanLyKho";   // = tên trên URL
+var TEN_PROJECT = "MyApp";   // = tên trên URL
 var FILE_MAIN   = "web.hql";     // file main của bạn
 
 webRoot("web");
@@ -1002,7 +1002,7 @@ webExportTomcat(TEN_PROJECT, FILE_MAIN);</code></pre>
 <pre><code>.\run.bat deploy.hql</code></pre>
 
 <p>Sẽ sinh ra thư mục:</p>
-<pre><code>QuanLyKho/
+<pre><code>MyApp/
 ├── index.hqlsp, BaoCaoServlet.hql, style.css ...
 └── WEB-INF/
     ├── web.xml        (đã khai sẵn me.hql.script.LinhScriptRunner$HqlServlet)
@@ -1010,8 +1010,8 @@ webExportTomcat(TEN_PROJECT, FILE_MAIN);</code></pre>
     ├── classes/       (trình thông dịch HQL đã biên dịch)
     └── lib/           (các .jar, vd driver SQL Server)</code></pre>
 
-<p>Chép thư mục <code>QuanLyKho</code> vào <code>&lt;Tomcat&gt;/webapps/</code>,
-khởi động Tomcat rồi mở <code>http://localhost:8080/QuanLyKho</code>.</p>
+<p>Chép thư mục <code>MyApp</code> vào <code>&lt;Tomcat&gt;/webapps/</code>,
+khởi động Tomcat rồi mở <code>http://localhost:8080/MyApp</code>.</p>
 
 <div class="cal good">
 <span class="lbl">Một file main, chạy được cả 2 nơi</span>

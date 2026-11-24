@@ -241,7 +241,7 @@ public class Interpreter {
      * biến scope(), mà mỗi lần vào/ra hàm là nó bị trỏ đi chỗ khác — nên
      * luồng này nhảy vào hàm là luồng kia mất sạch biến cục bộ giữa chừng.
      *
-     * Nó hỏng đúng vào bộ việc nền của VNChecker: hẹn giờ gọi goiNoiBo(viec),
+     * Nó hỏng đúng vào bộ việc nền của MyApp: hẹn giờ gọi goiNoiBo(viec),
      * hàm ấy gọi HTTP sang /Nen của chính máy chủ, luồng web chạy việc nặng và
      * đạp lên scope(); hẹn giờ quay lại đọc tham số 'viec' thì không còn:
      *     [ERROR] Task thuThapNen failed: Không tìm thấy biến 'viec'
@@ -675,7 +675,7 @@ public class Interpreter {
     public static class WebContext {
         public String method = "GET";
         public String path = "/";
-        public String contextPath = "";   // Tên project trên URL, ví dụ "/QuanLyKho"
+        public String contextPath = "";   // Tên project trên URL, ví dụ "/MyApp"
         public String query = "";
         public String body = "";
         public String ip = "";
@@ -1464,15 +1464,15 @@ public class Interpreter {
             ctx.ip = (clientIp.isEmpty() || clientIp.startsWith("127.") || clientIp.equals("0:0:0:0:0:0:0:1") || clientIp.equals("::1"))
                     ? getClientIpAddress() : clientIp;
 
-            // Bóc tên project khỏi URL: /QuanLyKho/BaoCao  ->  /BaoCao  (giống Tomcat)
+            // Bóc tên project khỏi URL: /MyApp/BaoCao  ->  /BaoCao  (giống Tomcat)
             String rawPath = ex.getRequestURI().getPath();
             if (!webAppContext.isEmpty()) {
                 /*
                  * SO TÊN PROJECT KHÔNG PHÂN BIỆT HOA THƯỜNG.
                  *
-                 * Tên servlet thì đã so kiểu này sẵn (/VNChecker/trangchu vào được),
+                 * Tên servlet thì đã so kiểu này sẵn (/MyApp/trangchu vào được),
                  * riêng tên project thì không — nên /vnchecker/trangchu trả 404 trong
-                 * khi /VNChecker/trangchu ra trang. Người ta gõ địa chỉ bằng tay hay
+                 * khi /MyApp/trangchu ra trang. Người ta gõ địa chỉ bằng tay hay
                  * gõ thường hết, mà lỗi 404 kiểu này không ai đoán ra vì sao.
                  * Chuẩn URL cũng nói phần tên miền không phân biệt hoa thường, nên
                  * người dùng mặc nhiên tưởng cả địa chỉ đều thế.
@@ -1610,7 +1610,7 @@ public class Interpreter {
         }
     }
 
-    /** Tự gắn tên project vào đầu đường dẫn khi chuyển hướng: "/BaoCao" -> "/QuanLyKho/BaoCao". */
+    /** Tự gắn tên project vào đầu đường dẫn khi chuyển hướng: "/BaoCao" -> "/MyApp/BaoCao". */
     public static String withContextPath(String url, String contextPath) {
         if (url == null || contextPath == null || contextPath.isEmpty()) return url;
         if (!url.startsWith("/") || url.startsWith(contextPath + "/") || url.equals(contextPath)) return url;
@@ -3697,7 +3697,7 @@ public class Interpreter {
                 "param", "params", "webMethod", "webPath", "webQuery", "webBody", "webIP", "reqHeader",
                 "webStatus", "webType", "resHeader", "webRedirect", "webInclude", "webRender", "webJson",
                 "webHienLoiChiTiet", "webBaoLoi",
-                "webJsonText", "webAnh", "webImage", "webNhiPhan", "webBinary",
+                "webJsonText", "webImage", "webBinary",
                 "sessionSet", "sessionGet", "sessionDel", "sessionId", "sessionKill", "cookieSet", "cookieGet",
                 "htmlEscape", "urlEncode", "urlDecode", "webMime",
                 "now", "today", "currentTime", "format", "parse","addMinutes", "addDays", "addMonths",
@@ -3742,12 +3742,9 @@ public class Interpreter {
                 "grayscaleImage", "blurImage", "invertImage", "getPixelColor", "setPixelColor",
                 "imageWidth", "imageHeight", "imageToSvg", "svgToImage",
                 // Nhóm ẢNH <-> CHUỖI BASE64 (cất ảnh thẳng vào cơ sở dữ liệu)
-                "anhTuFile", "imageFileToBase64", "anhRaFile", "imageBase64ToFile",
-                "anhLamSach", "imageBase64Clean", "anhKieu", "imageBase64Mime",
-                "anhDataUri", "imageBase64Uri", "anhDungLuong", "imageBase64Size",
-                "anhHopLe", "imageBase64Valid", "anhRong", "imageBase64Width",
-                "anhCao", "imageBase64Height", "anhThongTin", "imageBase64Info",
-                "anhThuNho", "imageBase64Resize", "anhCatVuong", "imageBase64Square",
+                "imageFileToBase64", "imageBase64ToFile", "imageBase64Clean", "imageBase64Mime",
+                "imageBase64Uri", "imageBase64Size", "imageBase64Valid", "imageBase64Width",
+                "imageBase64Height", "imageBase64Info", "imageBase64Resize", "imageBase64Square",
                 // --- BỔ SUNG HÀM HQL.CHART VÀO ĐÂY ---
                 "drawBarChart", "drawLineChart", "drawPieChart", "drawScatterChart",
                 "drawHistogram", "setChartSize", "setChartColor", "saveChart", "chartTitle",
@@ -3818,11 +3815,11 @@ public class Interpreter {
                 // --- THU VIEN hql.app: DUNG APP MAY TINH TU MOT TRANG WEB HQL ---
                 //  DANH SACH NAY LA CUA KHAU: viet xong than ham trong
                 //  thuVienApp() ma quen khai ten o day thi HQL bao "Khong tim
-                //  thay ham 'appCuaSo'" — nghe y nhu chua viet gi, mat cong di
+                //  thay ham 'appWindow'" — nghe y nhu chua viet gi, mat cong di
                 //  tim trong khi ham nam san do. Da dinh dung mot lan.
-                "appCuaSo", "appDangMo", "appCho", "appDong", "appCoTrinhDuyet",
-                "tienTrinhChay", "tienTrinhSong", "tienTrinhTat",
-                "choCong", "congDangMo", "sysProp", "appThuMucGoc", "appKhay").contains(name);
+                "appWindow", "appIsOpen", "appWait", "appClose", "appHasBrowser",
+                "processRun", "processAlive", "processKill",
+                "waitPort", "portIsOpen", "sysProp", "appRootDir", "appTray").contains(name);
     }
 
 
@@ -3854,16 +3851,16 @@ public class Interpreter {
     //
     //  CÁC HÀM
     //  -------
-    //    appCuaSo(url, tieuDe, rong, cao)  mở cửa sổ app, trả về MÃ CỬA SỔ
-    //    appDangMo(ma)                     cửa sổ còn mở không
-    //    appCho(ma)                        chặn tới khi người dùng đóng cửa sổ
-    //    appDong(ma)                       đóng cửa sổ
-    //    appCoTrinhDuyet()                 máy có Edge/Chrome không
+    //    appWindow(url, tieuDe, rong, cao)  mở cửa sổ app, trả về MÃ CỬA SỔ
+    //    appIsOpen(ma)                     cửa sổ còn mở không
+    //    appWait(ma)                        chặn tới khi người dùng đóng cửa sổ
+    //    appClose(ma)                       đóng cửa sổ
+    //    appHasBrowser()                 máy có Edge/Chrome không
     //
-    //    tienTrinhChay(mang, thuMuc, fileLog)  chạy chương trình ngoài
-    //    tienTrinhSong(ma) / tienTrinhTat(ma)  hỏi / tắt tiến trình đó
-    //    choCong(cong, giay)                   chờ một cổng TCP mở
-    //    congDangMo(cong)                      cổng có ai giữ không
+    //    processRun(mang, thuMuc, fileLog)  chạy chương trình ngoài
+    //    processAlive(ma) / processKill(ma)  hỏi / tắt tiến trình đó
+    //    waitPort(cong, giay)                   chờ một cổng TCP mở
+    //    portIsOpen(cong)                      cổng có ai giữ không
     //
     //  VÌ SAO KHÔNG DÙNG exec() CÓ SẴN: exec() cắt chuỗi lệnh theo DẤU CÁCH,
     //  nên đường dẫn kiểu "C:\Program Files (x86)\...\msedge.exe" bị xé làm ba
@@ -3880,10 +3877,10 @@ public class Interpreter {
             switch (name) {
 
                 // ---------- CỬA SỔ APP ----------
-                case "appCoTrinhDuyet":
+                case "appHasBrowser":
                     return findAppBrowser() != null;
 
-                case "appCuaSo": {
+                case "appWindow": {
                     String url = stringify(args.get(0));
                     String titleText = args.size() > 1 ? stringify(args.get(1)) : "App";
                     int windowWidth = args.size() > 2 ? (int) toDouble(args.get(2)) : 1400;
@@ -3899,14 +3896,14 @@ public class Interpreter {
                     return (double) appId;
                 }
 
-                case "appDangMo": {
+                case "appIsOpen": {
                     AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null) { return false; }
                     if (cs.fallbackProcess != null) { return cs.fallbackProcess.isAlive(); }
                     return cs.closedLatch.getCount() > 0;
                 }
 
-                case "appCho": {
+                case "appWait": {
                     AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null) { return 0.0; }
                     if (cs.fallbackProcess != null) { return (double) cs.fallbackProcess.waitFor(); }
@@ -3914,7 +3911,7 @@ public class Interpreter {
                     return 0.0;
                 }
 
-                case "appDong": {
+                case "appClose": {
                     AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null) { return false; }
                     if (cs.fallbackProcess != null) {
@@ -3929,12 +3926,12 @@ public class Interpreter {
                     return true;
                 }
 
-                case "tienTrinhSong": {
+                case "processAlive": {
                     Process processObj = appProcesses.get((int) toDouble(args.get(0)));
                     return processObj != null && processObj.isAlive();
                 }
 
-                case "tienTrinhTat": {
+                case "processKill": {
                     Process processObj = appProcesses.get((int) toDouble(args.get(0)));
                     if (processObj == null || !processObj.isAlive()) { return false; }
                     processObj.destroy();
@@ -3947,7 +3944,7 @@ public class Interpreter {
                 }
 
                 // ---------- TIẾN TRÌNH CON ----------
-                case "tienTrinhChay": {
+                case "processRun": {
                     List<String> commandText = new ArrayList<>();
                     Object headerText = args.get(0);
                     if (headerText instanceof List) {
@@ -3957,7 +3954,7 @@ public class Interpreter {
                         // dẫn không có dấu cách.
                         commandText.add(stringify(headerText));
                     }
-                    if (commandText.isEmpty()) { throw new RuntimeException("tienTrinhChay: danh sach lenh rong."); }
+                    if (commandText.isEmpty()) { throw new RuntimeException("processRun: the command list is empty."); }
 
                     ProcessBuilder pb = new ProcessBuilder(commandText);
                     if (args.size() > 1 && !stringify(args.get(1)).isEmpty()) {
@@ -3992,7 +3989,7 @@ public class Interpreter {
                 // ======================================================================
                 //  KHAY HỆ THỐNG CHO CỬA SỔ APP
                 //
-                //  appKhay(ma, anh, nhanMo, nhanThoat)
+                //  appTray(ma, anh, nhanMo, nhanThoat)
                 //
                 //  Gọi hàm này rồi thì BẤM DẤU X KHÔNG CÒN LÀ THOÁT — cửa sổ chỉ ẩn đi,
                 //  app nằm lại ở khay. Muốn mở lại thì bấm đúp icon khay hoặc chọn mục
@@ -4009,16 +4006,16 @@ public class Interpreter {
                 //  khi tiến trình vẫn chạy, người dùng không có đường nào chạm tới nó.
                 //  Nên máy không có khay thì GIỮ NGUYÊN nết cũ: đóng là thoát.
                 // ======================================================================
-                case "appKhay": {
+                case "appTray": {
                     AppWindow cs = appWindows.get((int) toDouble(args.get(0)));
                     if (cs == null || cs.windowFrame == null) { return false; }
 
                     String iconPath       = args.size() > 1 ? stringify(args.get(1)) : "";
                     String openLabel    = args.size() > 2 ? stringify(args.get(2)) : "Open app";
-                    String exitLabel = args.size() > 3 ? stringify(args.get(3)) : "Thoat";
+                    String exitLabel = args.size() > 3 ? stringify(args.get(3)) : "Exit";
 
                     if (!java.awt.SystemTray.isSupported()) {
-                        System.out.println("[hql.app] May khong ho tro khay he thong - giu nguyen: dong cua so la thoat.");
+                        System.out.println("[hql.app] System tray is not supported on this machine - keeping default behavior: closing the window exits the app.");
                         return false;
                     }
 
@@ -4064,13 +4061,13 @@ public class Interpreter {
                     exitItem.addActionListener((ev) -> {
                         java.awt.SystemTray.getSystemTray().remove(trayIconObj);
                         javax.swing.SwingUtilities.invokeLater(windowFrame::dispose);
-                        csf.closedLatch.countDown();   // appCho() nhả ra, app.hql chạy tiếp phần dọn dẹp
+                        csf.closedLatch.countDown();   // appWait() nhả ra, app.hql chạy tiếp phần dọn dẹp
                     });
 
                     try {
                         java.awt.SystemTray.getSystemTray().add(trayIconObj);
                     } catch (java.awt.AWTException ex) {
-                        System.out.println("[hql.app] Khong them duoc icon khay: " + ex.getMessage());
+                        System.out.println("[hql.app] Could not add the tray icon: " + ex.getMessage());
                         return false;
                     }
 
@@ -4095,11 +4092,11 @@ public class Interpreter {
                 //  đóng gói (jpackage) thì KHÔNG: thư mục hiện hành là chỗ
                 //  người dùng bấm chuột, chẳng liên quan gì tới chỗ đặt app.
                 //  Nên dò ngược lên từ chính vị trí file .exe cho tới khi thấy
-                //  cái mốc mình đưa vào (ví dụ "VNChecker/main.hql").
+                //  cái mốc mình đưa vào (ví dụ "MyApp/main.hql").
                 //
                 //  Trả về chuỗi rỗng nếu không tìm ra, để bên HQL tự quyết
                 //  định báo lỗi thế nào.
-                case "appThuMucGoc": {
+                case "appRootDir": {
                     String anchorMark = stringify(args.get(0));
                     List<java.io.File> appFiles = new ArrayList<>();
 
@@ -4118,11 +4115,11 @@ public class Interpreter {
                 }
 
                 // ---------- CỔNG MẠNG ----------
-                case "congDangMo": {
+                case "portIsOpen": {
                     return portInUse((int) toDouble(args.get(0)));
                 }
 
-                case "choCong": {
+                case "waitPort": {
                     int portNumber = (int) toDouble(args.get(0));
                     double secondsAmount = args.size() > 1 ? toDouble(args.get(1)) : 30;
                     long het = System.currentTimeMillis() + (long) (secondsAmount * 1000);
@@ -4136,14 +4133,14 @@ public class Interpreter {
         } catch (RuntimeException e) {
             throw e;
         } catch (Exception e) {
-            throw new RuntimeException("Loi Thu vien (hql.app): " + e.getMessage(), e);
+            throw new RuntimeException("Library error (hql.app): " + e.getMessage(), e);
         }
         return NOT_HANDLED;
     }
 
 
     // ======================================================================
-    //  CỬA SỔ CHROMIUM NHÚNG (JCEF) — RUỘT CỦA appCuaSo()
+    //  CỬA SỔ CHROMIUM NHÚNG (JCEF) — RUỘT CỦA appWindow()
     //
     //  VÌ SAO NHÚNG CHỨ KHÔNG MƯỢN EDGE
     //  ---------------------------------
@@ -4189,7 +4186,7 @@ public class Interpreter {
         try {
             java.io.File cefHomeDir = new java.io.File("hql_app_cef");
             cefHomeDir.mkdirs();
-            java.io.File sessionDir = new java.io.File("hql_app_cef/phien_"
+            java.io.File sessionDir = new java.io.File("hql_app_cef/session_"
                     + titleText.replaceAll("[^a-zA-Z0-9]", "_"));
             sessionDir.mkdirs();
 
@@ -4232,13 +4229,13 @@ public class Interpreter {
                         try {
                             java.awt.image.BufferedImage bt = javax.imageio.ImageIO.read(iconFile);
                             if (bt != null) { windowFrame.setIconImage(bt); }
-                            else { System.out.println("[hql.app] Khong doc duoc anh icon: " + iconPath
-                                    + " (ImageIO khong hieu dinh dang - phai la PNG/GIF/JPG)."); }
+                            else { System.out.println("[hql.app] Cannot read icon image: " + iconPath
+                                    + " (ImageIO does not understand this format - it must be PNG/GIF/JPG)."); }
                         } catch (java.io.IOException ex) {
-                            System.out.println("[hql.app] Loi doc anh icon " + iconPath + ": " + ex.getMessage());
+                            System.out.println("[hql.app] Error reading icon image " + iconPath + ": " + ex.getMessage());
                         }
                     } else {
-                        System.out.println("[hql.app] Khong thay anh icon: " + iconPath);
+                        System.out.println("[hql.app] Icon image not found: " + iconPath);
                     }
                 }
 
@@ -4255,9 +4252,9 @@ public class Interpreter {
             return cs;
 
         } catch (Throwable e) {
-            System.out.println("[hql.app] Khong dung duoc Chromium nhung (" + e.getClass().getSimpleName()
+            System.out.println("[hql.app] Could not use embedded Chromium (" + e.getClass().getSimpleName()
                     + ": " + e.getMessage() + ").");
-            System.out.println("[hql.app] Lui ve khung Edge/Chrome co san tren may.");
+            System.out.println("[hql.app] Falling back to the Edge/Chrome already installed on this machine.");
             cs.fallbackProcess = openBorrowedBrowserWindow(url, titleText, windowWidth, windowHeight);
             return cs;
         }
@@ -4267,14 +4264,14 @@ public class Interpreter {
     private Process openBorrowedBrowserWindow(String url, String titleText, int windowWidth, int windowHeight) throws Exception {
         String browserObj = findAppBrowser();
         if (browserObj == null) {
-            throw new RuntimeException("Khong dung duoc Chromium nhung, ma may cung khong co "
-                    + "Microsoft Edge hay Google Chrome de lam khung cua so.");
+            throw new RuntimeException("Could not use embedded Chromium, and this machine has neither "
+                    + "Microsoft Edge nor Google Chrome to use as the window frame.");
         }
 
         // Thu muc ho so RIENG. Thieu no thi Edge nhap cua so nay vao ho so Edge
         // nguoi dung dang mo: tien trinh vua sinh ra da thoat ngay (vi ban giao
-        // cho Edge cu) nen appCho() tra ve tuc thi va app tat lien.
-        java.io.File profileDir = new java.io.File("hql_app_cuaso/"
+        // cho Edge cu) nen appWait() tra ve tuc thi va app tat lien.
+        java.io.File profileDir = new java.io.File("hql_app_window/"
                 + titleText.replaceAll("[^a-zA-Z0-9]", "_"));
         profileDir.mkdirs();
 
@@ -7009,7 +7006,7 @@ public class Interpreter {
                     case "loadImage": {
                         String path = stringify(args.get(0));
                         BufferedImage img = ImageIO.read(new File(path));
-                        if (img == null) throw new RuntimeException("Không thể đọc ảnh: " + path);
+                        if (img == null) throw new RuntimeException("Cannot read image: " + path);
                         String id = "@img" + (++imageIdCounter);
                         imageLibrary.put(id, img);
                         return id;
@@ -7345,31 +7342,26 @@ public class Interpreter {
                     //   lúc cần hiển thị thì giải mã ngược lại thành ảnh thật.
                     // ==========================================================================
 
-                    // anhTuFile("logo.png") -> "iVBORw0KGgo..."  (đọc file ảnh thành chuỗi)
-                    case "anhTuFile":
+                    // imageFileToBase64("logo.png") -> "iVBORw0KGgo..."  (đọc file ảnh thành chuỗi)
                     case "imageFileToBase64": {
                         byte[] raw = Files.readAllBytes(Paths.get(stringify(args.get(0))));
                         return Base64.getEncoder().encodeToString(raw);
                     }
 
-                    // anhRaFile(chuoi, "avatar.png") -> ghi chuỗi base64 trở lại thành file ảnh
-                    case "anhRaFile":
+                    // imageBase64ToFile(chuoi, "avatar.png") -> ghi chuỗi base64 trở lại thành file ảnh
                     case "imageBase64ToFile": {
                         byte[] raw = imageDecode(stringify(args.get(0)));
                         Files.write(Paths.get(stringify(args.get(1))), raw);
                         return (double) raw.length;
                     }
 
-                    // anhLamSach("data:image/png;base64,AAA") -> "AAA"  (bỏ phần đầu data URI)
-                    case "anhLamSach":
+                    // imageBase64Clean("data:image/png;base64,AAA") -> "AAA"  (bỏ phần đầu data URI)
                     case "imageBase64Clean": return imageStripPrefix(stringify(args.get(0)));
 
-                    // anhKieu(chuoi) -> "image/png" | "image/jpeg" | "image/gif" | "image/webp"
-                    case "anhKieu":
+                    // imageBase64Mime(chuoi) -> "image/png" | "image/jpeg" | "image/gif" | "image/webp"
                     case "imageBase64Mime": return imageGuessMime(imageStripPrefix(stringify(args.get(0))));
 
-                    // anhDataUri(chuoi[, kieu]) -> "data:image/png;base64,AAA"  (dán thẳng vào <img src>)
-                    case "anhDataUri":
+                    // imageBase64Uri(chuoi[, kieu]) -> "data:image/png;base64,AAA"  (dán thẳng vào <img src>)
                     case "imageBase64Uri": {
                         String b64 = imageStripPrefix(stringify(args.get(0)));
                         if (b64.isEmpty()) return "";
@@ -7377,8 +7369,7 @@ public class Interpreter {
                         return "data:" + mime + ";base64," + b64;
                     }
 
-                    // anhDungLuong(chuoi) -> số byte thật của ảnh
-                    case "anhDungLuong":
+                    // imageBase64Size(chuoi) -> số byte thật của ảnh
                     case "imageBase64Size": {
                         String b64 = imageStripPrefix(stringify(args.get(0)));
                         if (b64.isEmpty()) return 0.0;
@@ -7386,8 +7377,7 @@ public class Interpreter {
                                 - (b64.endsWith("==") ? 2 : (b64.endsWith("=") ? 1 : 0)));
                     }
 
-                    // anhHopLe(chuoi) -> true nếu giải mã ra được ảnh thật
-                    case "anhHopLe":
+                    // imageBase64Valid(chuoi) -> true nếu giải mã ra được ảnh thật
                     case "imageBase64Valid": {
                         try {
                             byte[] raw = imageDecode(stringify(args.get(0)));
@@ -7396,36 +7386,32 @@ public class Interpreter {
                         } catch (Exception e) { return false; }
                     }
 
-                    // anhRong(chuoi) / anhCao(chuoi) -> kích thước điểm ảnh
-                    case "anhRong":
+                    // imageBase64Width(chuoi) / imageBase64Height(chuoi) -> kích thước điểm ảnh
                     case "imageBase64Width": {
                         BufferedImage bi = ImageIO.read(new ByteArrayInputStream(imageDecode(stringify(args.get(0)))));
                         return bi == null ? 0.0 : (double) bi.getWidth();
                     }
-                    case "anhCao":
                     case "imageBase64Height": {
                         BufferedImage bi = ImageIO.read(new ByteArrayInputStream(imageDecode(stringify(args.get(0)))));
                         return bi == null ? 0.0 : (double) bi.getHeight();
                     }
 
-                    // anhThongTin(chuoi) -> bảng { rong, cao, kieu, dung_luong }
-                    case "anhThongTin":
+                    // imageBase64Info(chuoi) -> map { width, height, mime, size, valid }
                     case "imageBase64Info": {
                         String b64 = imageStripPrefix(stringify(args.get(0)));
                         byte[] raw = imageDecode(b64);
                         BufferedImage bi = raw.length == 0 ? null : ImageIO.read(new ByteArrayInputStream(raw));
                         LinkedHashMap<String, Object> info = new LinkedHashMap<>();
-                        info.put("rong", bi == null ? 0.0 : (double) bi.getWidth());
-                        info.put("cao", bi == null ? 0.0 : (double) bi.getHeight());
-                        info.put("kieu", imageGuessMime(b64));
-                        info.put("dung_luong", (double) raw.length);
-                        info.put("hop_le", bi != null);
+                        info.put("width", bi == null ? 0.0 : (double) bi.getWidth());
+                        info.put("height", bi == null ? 0.0 : (double) bi.getHeight());
+                        info.put("mime", imageGuessMime(b64));
+                        info.put("size", (double) raw.length);
+                        info.put("valid", bi != null);
                         return info;
                     }
 
-                    // anhThuNho(chuoi, rongToiDa, caoToiDa) -> chuỗi base64 ảnh đã thu nhỏ
+                    // imageBase64Resize(chuoi, rongToiDa, caoToiDa) -> chuỗi base64 ảnh đã thu nhỏ
                     // Giữ đúng tỷ lệ, ảnh nhỏ hơn mức yêu cầu thì giữ nguyên.
-                    case "anhThuNho":
                     case "imageBase64Resize": {
                         String b64 = imageStripPrefix(stringify(args.get(0)));
                         int maxW = args.size() > 1 ? (int) toDouble(args.get(1)) : 512;
@@ -7433,8 +7419,7 @@ public class Interpreter {
                         return imageThumbBase64(b64, maxW, maxH);
                     }
 
-                    // anhCatVuong(chuoi, canh) -> cắt giữa thành ảnh vuông (dùng cho avatar)
-                    case "anhCatVuong":
+                    // imageBase64Square(chuoi, canh) -> cắt giữa thành ảnh vuông (dùng cho avatar)
                     case "imageBase64Square": {
                         byte[] raw = imageDecode(stringify(args.get(0)));
                         BufferedImage src = ImageIO.read(new ByteArrayInputStream(raw));
@@ -7456,7 +7441,7 @@ public class Interpreter {
                     }
                 }
             } catch (Exception e) {
-                throw new RuntimeException("Lỗi xử lý ảnh (hql.image): " + e.getMessage(), e);
+                throw new RuntimeException("Image processing error (hql.image): " + e.getMessage(), e);
             }
         }
         if (usedLibraries.contains("hql.chart")) {
@@ -9026,14 +9011,14 @@ public class Interpreter {
                         // Cú pháp: webStart(cong, "/tenProject")  hoặc  webStart(cong, "/tenProject", "thuMucGoc")
                         if (args.size() < 2) {
                             throw new RuntimeException("Lỗi HQL.WEB: webStart() phải có tên project. "
-                                    + "Ví dụ: webStart(8080, \"/QuanLyKho\", \"web\"); -> http://localhost:8080/QuanLyKho");
+                                    + "Ví dụ: webStart(8080, \"/MyApp\", \"web\"); -> http://localhost:8080/MyApp");
                         }
                         int port = (int) toDouble(args.get(0));
                         String ctxName = stringify(args.get(1)).trim();
                         if (!ctxName.startsWith("/")) ctxName = "/" + ctxName;
                         while (ctxName.endsWith("/")) ctxName = ctxName.substring(0, ctxName.length() - 1);
                         if (ctxName.isEmpty()) {
-                            throw new RuntimeException("Lỗi HQL.WEB: Tên project không được để trống. Ví dụ: webStart(8080, \"/QuanLyKho\");");
+                            throw new RuntimeException("Lỗi HQL.WEB: Tên project không được để trống. Ví dụ: webStart(8080, \"/MyApp\");");
                         }
                         if (webContainerMode) {
                             // Trong Tomcat thì máy chủ đã có sẵn, tên project lấy theo thư mục trong webapps/
@@ -9187,10 +9172,9 @@ public class Interpreter {
                         ctx.out.append(stringify(args.get(0)));
                         return null;
                     }
-                    // webAnh(chuoiBase64[, kieu]) — giải mã chuỗi trong CSDL rồi trả về ảnh THẬT
-                    case "webAnh":
+                    // webImage(chuoiBase64[, kieu]) — giải mã chuỗi trong CSDL rồi trả về ảnh THẬT
                     case "webImage": {
-                        WebContext ctx = requireWeb("webAnh");
+                        WebContext ctx = requireWeb("webImage");
                         String b64 = imageStripPrefix(stringify(args.get(0)));
                         byte[] raw = imageDecode(b64);
                         ctx.contentType = args.size() > 1 && !stringify(args.get(1)).isEmpty()
@@ -9199,10 +9183,9 @@ public class Interpreter {
                         ctx.rawOut = raw;
                         return (double) raw.length;
                     }
-                    // webNhiPhan(chuoiBase64, kieu) — trả về file bất kỳ (PDF, zip...) từ chuỗi base64
-                    case "webNhiPhan":
+                    // webBinary(chuoiBase64, kieu) — trả về file bất kỳ (PDF, zip...) từ chuỗi base64
                     case "webBinary": {
-                        WebContext ctx = requireWeb("webNhiPhan");
+                        WebContext ctx = requireWeb("webBinary");
                         byte[] raw = imageDecode(stringify(args.get(0)));
                         ctx.contentType = args.size() > 1 ? stringify(args.get(1)) : "application/octet-stream";
                         if (args.size() > 2) {
