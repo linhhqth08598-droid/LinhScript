@@ -1,54 +1,664 @@
 [
-  { "name": "com.sun.mail.smtp.SMTPTransport", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "com.sun.mail.smtp.SMTPSSLTransport", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "com.sun.mail.handlers.text_plain", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "com.sun.mail.handlers.text_html", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "com.sun.mail.handlers.text_xml", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "com.sun.mail.handlers.multipart_mixed", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "com.sun.mail.handlers.message_rfc822", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "jakarta.activation.MailcapCommandMap", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "jakarta.activation.MimetypesFileTypeMap", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "jakarta.mail.Session", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "jakarta.mail.internet.MimeMessage", "allDeclaredConstructors": true, "allPublicMethods": true },
-  {
-    "name": "java.awt.event.MouseEvent",
-    "allDeclaredConstructors": true,
-    "allPublicConstructors": true,
-    "allDeclaredMethods": true,
-    "allPublicMethods": true
-  },
-  {
-    "name": "java.awt.event.KeyEvent",
-    "allDeclaredConstructors": true,
-    "allPublicConstructors": true,
-    "allDeclaredMethods": true,
-    "allPublicMethods": true
-  },
-  {
-    "name": "java.rmi.MarshalledObject",
-    "allDeclaredConstructors": true,
-    "allPublicConstructors": true,
-    "allDeclaredMethods": true,
-    "allPublicMethods": true
-  },
-  {
-    "name": "javax.swing.plaf.basic.BasicOptionPaneUI",
-    "methods": [{"name": "createUI", "parameterTypes": ["javax.swing.JComponent"]}]
-  },
-  {
-    "name": "javax.swing.plaf.metal.MetalOptionPaneUI",
-    "methods": [{"name": "createUI", "parameterTypes": ["javax.swing.JComponent"]}]
-  },
-  {
-    "name": "com.sun.crypto.provider.HmacCore$HmacSHA1",
-    "methods": [{"name": "<init>", "parameterTypes": []}]
-  },
-  {
-    "name": "com.sun.crypto.provider.PBKDF2Core$HmacSHA1",
-    "methods": [{"name": "<init>", "parameterTypes": []}]
-  },
-  {
-    "name": "javax.swing.plaf.basic.BasicToolTipUI",
-    "methods": [{"name": "createUI", "parameterTypes": ["javax.swing.JComponent"]}]
-  }
+    {
+        "name":  "com.sun.mail.smtp.SMTPTransport",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "com.sun.mail.smtp.SMTPSSLTransport",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "com.sun.mail.handlers.text_plain",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "com.sun.mail.handlers.text_html",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "com.sun.mail.handlers.text_xml",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "com.sun.mail.handlers.multipart_mixed",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "com.sun.mail.handlers.message_rfc822",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "jakarta.activation.MailcapCommandMap",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "jakarta.activation.MimetypesFileTypeMap",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "jakarta.mail.Session",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "jakarta.mail.internet.MimeMessage",
+        "allDeclaredConstructors":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "java.awt.event.MouseEvent",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "java.awt.event.KeyEvent",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "java.rmi.MarshalledObject",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true
+    },
+    {
+        "name":  "javax.swing.plaf.basic.BasicOptionPaneUI",
+        "methods":  [
+                        {
+                            "name":  "createUI",
+                            "parameterTypes":  [
+                                                   "javax.swing.JComponent"
+                                               ]
+                        }
+                    ]
+    },
+    {
+        "name":  "javax.swing.plaf.metal.MetalOptionPaneUI",
+        "methods":  [
+                        {
+                            "name":  "createUI",
+                            "parameterTypes":  [
+                                                   "javax.swing.JComponent"
+                                               ]
+                        }
+                    ]
+    },
+    {
+        "name":  "com.sun.crypto.provider.HmacCore$HmacSHA1",
+        "methods":  [
+                        {
+                            "name":  "\u003cinit\u003e",
+                            "parameterTypes":  [
+
+                                               ]
+                        }
+                    ]
+    },
+    {
+        "name":  "com.sun.crypto.provider.PBKDF2Core$HmacSHA1",
+        "methods":  [
+                        {
+                            "name":  "\u003cinit\u003e",
+                            "parameterTypes":  [
+
+                                               ]
+                        }
+                    ]
+    },
+    {
+        "name":  "javax.swing.plaf.basic.BasicToolTipUI",
+        "methods":  [
+                        {
+                            "name":  "createUI",
+                            "parameterTypes":  [
+                                                   "javax.swing.JComponent"
+                                               ]
+                        }
+                    ]
+    },
+    {
+        "name":  "org.cef.CefApp",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefApp$1",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefApp$2",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefApp$3",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefApp$4",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefApp$5",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefClient",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefSettings",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefSettings$ColorType",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.CefSettings$LogSeverity",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowser",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowser_N",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr$1",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr$2",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr$3",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr$4",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr$5",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.browser.CefBrowserWr$6",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefClientHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefCommandLine",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefSchemeRegistrar",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefCookieAccessFilter",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefDownloadItem",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefDragData",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefJSDialogCallback",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefMenuModel",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefPrintJobCallback",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefQueryCallback",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefRunFileDialogCallback",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefStringVisitor",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.callback.CefTask",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefRenderHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefDisplayHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefLoadHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefRequestHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefLifeSpanHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefFocusHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefKeyboardHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefDialogHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefContextMenuHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefDownloadHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefDragHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefFindHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefJSDialogHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefMessageRouterHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefPrintHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.handler.CefResourceRequestHandler",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.network.CefRequest",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.network.CefResponse",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.network.CefURLRequest",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.misc.CefLog",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "org.cef.misc.CefCursorType",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "java.awt.Canvas",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "java.awt.Component",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "java.awt.Container",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "java.awt.Window",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "java.awt.Frame",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    },
+    {
+        "name":  "java.lang.Class",
+        "allDeclaredConstructors":  true,
+        "allPublicConstructors":  true,
+        "allDeclaredMethods":  true,
+        "allPublicMethods":  true,
+        "allDeclaredFields":  true,
+        "allPublicFields":  true
+    }
 ]

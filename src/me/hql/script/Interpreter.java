@@ -3799,7 +3799,7 @@ public class Interpreter {
         return Arrays.asList ("print", "sqrt", "pow", "round", "ceil", "floor", "abs", "max", "min", "sin", "cos", "tan", "random",
                 "cbrt", "trunc", "toRadians", "hypot", "log", "log10", "log2", "factorial", "gcd", "lcm", "comb", "clamp",
                 "isqrt", "fsum", "isclose", "isnan", "isinf", "perm", "degrees", "exp",
-                "read", "write", "readA", "writeA", "input", "create", "exists", "delete", "copy", "move",
+                "read", "write", "readA", "fullText", "writeA", "input", "create", "exists", "delete", "copy", "move",
                 "mean", "median", "variance", "stddev", "correlation", "linearRegression",
                 "matrixMultiply", "matrixTranspose", "matrixDeterminant", "matrixInverse","PI", "E", "TAU", "INF", "NAN",
                 "unitConvert", "listUnits", "celsiusToFahrenheit", "fahrenheitToCelsius", "unitCompare",
@@ -3825,7 +3825,7 @@ public class Interpreter {
                 "exec", "execRead", "exit", "env", "gc",
                 "diskName", "diskStatus", "diskTemp", "diskWear",
                 "sort", "reverse", "shuffle", "unique", "count",
-                "md5", "sha256", "base64Encode", "base64Decode", "uuid",
+                "md5", "sha1", "sha256", "base64Encode", "base64Decode", "uuid",
                 "toJson", "fromJson", "jsonEscape", "sleep", "range",
                 "type", "str", "num", "bool", "call", "len", "size",
                 // --- BỔ SUNG HÀM HQL.UI VÀO ĐÂY ---
@@ -3960,7 +3960,7 @@ public class Interpreter {
                 "nosqlUpdate", "nosqlUpdateMany", "nosqlDelete", "nosqlDeleteMany",
                 "nosqlCount", "nosqlAggregate", "nosqlIndex", "nosqlDrop", "nosqlCommand", "nosqlDate", "nosqlDoc",
                 // --- THU VIEN hql.app: DUNG APP MAY TINH TU MOT TRANG WEB HQL ---
-                "appWindow", "appIsOpen", "appWait", "appClose", "appHasBrowser",
+                "appWindow", "appWindowFull", "appIsOpen", "appWait", "appClose", "appHasBrowser",
                 "processRun", "processAlive", "processKill",
                 "waitPort", "portIsOpen", "sysProp", "appRootDir", "appTray").contains(name);
     }
@@ -4023,6 +4023,16 @@ public class Interpreter {
                 case "appHasBrowser":
                     return findAppBrowser() != null;
 
+                case "appWindowFull": {
+                    String awfUrl = stringify(args.get(0));
+                    String awfTitle = args.size() > 1 ? stringify(args.get(1)) : "App";
+                    java.awt.Dimension screenSz = java.awt.Toolkit.getDefaultToolkit().getScreenSize();
+                    String awfIcon = args.size() > 2 ? stringify(args.get(2)) : "";
+                    nextProcessId++;
+                    int awfId = nextProcessId;
+                    appWindows.put(awfId, openChromiumWindow(awfUrl, awfTitle, (int)screenSz.getWidth(), (int)screenSz.getHeight(), awfIcon));
+                    return (double) awfId;
+                }
                 case "appWindow": {
                     String url = stringify(args.get(0));
                     String titleText = args.size() > 1 ? stringify(args.get(1)) : "App";
@@ -5768,6 +5778,7 @@ public class Interpreter {
                         return null;
                     case "readA":
                         return new ArrayList<>(Files.readAllLines(Paths.get(stringify(args.get(0))), StandardCharsets.UTF_8));
+                    case "fullText": return new String(Files.readAllBytes(Paths.get(stringify(args.get(0)))), StandardCharsets.UTF_8);
 
                     // --- BỔ SUNG 5 HÀM QUẢN LÝ FILE MỚI ---
 
@@ -6170,6 +6181,7 @@ public class Interpreter {
 
                     // --- NHÓM 2: MÃ HÓA & BẢO MẬT ---
                     case "md5": return hashHelper(stringify(args.get(0)), "MD5");
+                    case "sha1": return hashHelper(stringify(args.get(0)), "SHA-1");
                     case "sha256": return hashHelper(stringify(args.get(0)), "SHA-256");
                     case "base64Encode": return Base64.getEncoder().encodeToString(stringify(args.get(0)).getBytes(StandardCharsets.UTF_8));
                     case "base64Decode": return new String(Base64.getDecoder().decode(stringify(args.get(0))), StandardCharsets.UTF_8);
@@ -8396,14 +8408,19 @@ public class Interpreter {
 
         if (usedLibraries.contains("hql.socket")) {
             try {
+                java.util.function.BiFunction<java.util.List<Object>, Integer, Object> sArgH = (ls, i) -> {
+                    if (ls == null || i >= ls.size()) throw new RuntimeException("Ham socket thieu tham so #" + i + " (co " + (ls == null ? 0 : ls.size()) + " tham so)");
+                    return ls.get(i);
+                };
+
                 switch (name) {
                     // ==========================================
                     // NHÓM 1 & 3: TCP & SSL CLIENT/SERVER
                     // ==========================================
                     case "socketTcpConnect":
                     case "socketSslTcpConnect": {
-                        String host = stringify(args.get(0));
-                        int port = (int) toDouble(args.get(1));
+                        String host = stringify(sArgH.apply(args, 0));
+                        int port = (int) toDouble(sArgH.apply(args, 1));
                         Socket s;
                         if (name.equals("socketSslTcpConnect")) {
                             s = SSLSocketFactory.getDefault().createSocket(host, port);
@@ -8417,8 +8434,8 @@ public class Interpreter {
                     case "socketTcpSend":
                     case "socketSslTcpSend":
                     case "socketTcpSendTo": {
-                        String id = stringify(args.get(0));
-                        String data = stringify(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        String data = stringify(sArgH.apply(args, 1));
                         Socket s = tcpClients.get(id);
                         if (s == null || s.isClosed()) throw new RuntimeException("Socket không tồn tại hoặc đã đóng.");
 
@@ -8435,8 +8452,8 @@ public class Interpreter {
                         return null;
                     }
                     case "socketTcpReceive": {
-                        String id = stringify(args.get(0));
-                        int len = (int) toDouble(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        int len = (int) toDouble(sArgH.apply(args, 1));
                         Socket s = tcpClients.get(id);
                         if (s == null || s.isClosed()) throw new RuntimeException("Socket không tồn tại hoặc đã đóng.");
 
@@ -8461,23 +8478,23 @@ public class Interpreter {
                         }
                     }
                     case "socketTcpClose": {
-                        String id = stringify(args.get(0));
+                        String id = stringify(sArgH.apply(args, 0));
                         if (tcpClients.containsKey(id)) { tcpClients.get(id).close(); tcpClients.remove(id); }
                         if (tcpServers.containsKey(id)) { tcpServers.get(id).close(); tcpServers.remove(id); }
                         return null;
                     }
                     case "socketTcpStatus": {
-                        Socket s = tcpClients.get(stringify(args.get(0)));
+                        Socket s = tcpClients.get(stringify(sArgH.apply(args, 0)));
                         return s != null && s.isConnected() && !s.isClosed();
                     }
                     case "socketTcpListen":
                     case "socketSslTcpListen": {
-                        int port = (int) toDouble(args.get(0));
+                        int port = (int) toDouble(sArgH.apply(args, 0));
                         ServerSocket ss;
                         if (name.equals("socketSslTcpListen")) {
                             // Hỗ trợ SSL tự động lấy keystore từ thuộc tính hệ thống
-                            System.setProperty("javax.net.ssl.keyStore", stringify(args.get(1)));
-                            System.setProperty("javax.net.ssl.keyStorePassword", stringify(args.get(2)));
+                            System.setProperty("javax.net.ssl.keyStore", stringify(sArgH.apply(args, 1)));
+                            System.setProperty("javax.net.ssl.keyStorePassword", stringify(sArgH.apply(args, 2)));
                             ss = SSLServerSocketFactory.getDefault().createServerSocket(port);
                         } else {
                             ss = new ServerSocket(port);
@@ -8488,7 +8505,7 @@ public class Interpreter {
                     }
                     case "socketTcpAccept":
                     case "socketSslTcpAccept": {
-                        ServerSocket ss = tcpServers.get(stringify(args.get(0)));
+                        ServerSocket ss = tcpServers.get(stringify(sArgH.apply(args, 0)));
                         if (ss == null) throw new RuntimeException("Server Socket không tồn tại.");
                         Socket client = ss.accept();
                         String clientId = "@client" + (++socketIdCounter);
@@ -8496,7 +8513,7 @@ public class Interpreter {
                         return clientId;
                     }
                     case "socketTcpBroadcast": {
-                        String data = stringify(args.get(1));
+                        String data = stringify(sArgH.apply(args, 1));
                         byte[] bytes = data.getBytes(StandardCharsets.UTF_8);
                         for (Socket client : tcpClients.values()) {
                             if (!client.isClosed()) {
@@ -8506,7 +8523,7 @@ public class Interpreter {
                         return null;
                     }
                     case "socketTcpDisconnectClient": {
-                        Socket client = tcpClients.remove(stringify(args.get(1)));
+                        Socket client = tcpClients.remove(stringify(sArgH.apply(args, 1)));
                         if (client != null && !client.isClosed()) client.close();
                         return null;
                     }
@@ -8515,23 +8532,23 @@ public class Interpreter {
                     // NHÓM 2: UDP & MULTICAST
                     // ==========================================
                     case "socketUdpBind": {
-                        int port = (int) toDouble(args.get(0));
+                        int port = (int) toDouble(sArgH.apply(args, 0));
                         DatagramSocket ds = new DatagramSocket(port);
                         String id = "@udp" + (++socketIdCounter);
                         udpSockets.put(id, ds);
                         return id;
                     }
                     case "socketUdpSend": {
-                        DatagramSocket ds = udpSockets.get(stringify(args.get(0)));
-                        InetAddress ip = InetAddress.getByName(stringify(args.get(1)));
-                        int port = (int) toDouble(args.get(2));
-                        byte[] data = stringify(args.get(3)).getBytes(StandardCharsets.UTF_8);
+                        DatagramSocket ds = udpSockets.get(stringify(sArgH.apply(args, 0)));
+                        InetAddress ip = InetAddress.getByName(stringify(sArgH.apply(args, 1)));
+                        int port = (int) toDouble(sArgH.apply(args, 2));
+                        byte[] data = stringify(sArgH.apply(args, 3)).getBytes(StandardCharsets.UTF_8);
                         ds.send(new DatagramPacket(data, data.length, ip, port));
                         return null;
                     }
                     case "socketUdpReceive": {
-                        DatagramSocket ds = udpSockets.get(stringify(args.get(0)));
-                        int len = (int) toDouble(args.get(1));
+                        DatagramSocket ds = udpSockets.get(stringify(sArgH.apply(args, 0)));
+                        int len = (int) toDouble(sArgH.apply(args, 1));
                         byte[] buf = new byte[len];
                         DatagramPacket dp = new DatagramPacket(buf, len);
                         ds.receive(dp);
@@ -8542,13 +8559,13 @@ public class Interpreter {
                         return result; // Trả về [data, senderHost, senderPort]
                     }
                     case "socketUdpClose": {
-                        DatagramSocket ds = udpSockets.remove(stringify(args.get(0)));
+                        DatagramSocket ds = udpSockets.remove(stringify(sArgH.apply(args, 0)));
                         if (ds != null && !ds.isClosed()) ds.close();
                         return null;
                     }
                     case "socketUdpBroadcast": {
-                        int port = (int) toDouble(args.get(0));
-                        byte[] data = stringify(args.get(1)).getBytes(StandardCharsets.UTF_8);
+                        int port = (int) toDouble(sArgH.apply(args, 0));
+                        byte[] data = stringify(sArgH.apply(args, 1)).getBytes(StandardCharsets.UTF_8);
                         try (DatagramSocket ds = new DatagramSocket()) {
                             ds.setBroadcast(true);
                             ds.send(new DatagramPacket(data, data.length, InetAddress.getByName("255.255.255.255"), port));
@@ -8556,8 +8573,8 @@ public class Interpreter {
                         return null;
                     }
                     case "socketUdpMulticastJoin": {
-                        String groupIp = stringify(args.get(0));
-                        int port = (int) toDouble(args.get(1));
+                        String groupIp = stringify(sArgH.apply(args, 0));
+                        int port = (int) toDouble(sArgH.apply(args, 1));
                         MulticastSocket ms = new MulticastSocket(port);
                         ms.joinGroup(InetAddress.getByName(groupIp));
                         String id = "@multicast" + (++socketIdCounter);
@@ -8565,8 +8582,8 @@ public class Interpreter {
                         return id;
                     }
                     case "socketUdpMulticastLeave": {
-                        MulticastSocket ms = (MulticastSocket) udpSockets.get(stringify(args.get(0)));
-                        if (ms != null) ms.leaveGroup(InetAddress.getByName(stringify(args.get(1))));
+                        MulticastSocket ms = (MulticastSocket) udpSockets.get(stringify(sArgH.apply(args, 0)));
+                        if (ms != null) ms.leaveGroup(InetAddress.getByName(stringify(sArgH.apply(args, 1))));
                         return null;
                     }
 
@@ -8574,35 +8591,35 @@ public class Interpreter {
                     // NHÓM 4: NON-BLOCKING & TIMEOUT
                     // ==========================================
                     case "socketSetTimeout": {
-                        String id = stringify(args.get(0));
-                        int timeout = (int) toDouble(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        int timeout = (int) toDouble(sArgH.apply(args, 1));
                         if (tcpClients.containsKey(id)) tcpClients.get(id).setSoTimeout(timeout);
                         else if (tcpServers.containsKey(id)) tcpServers.get(id).setSoTimeout(timeout);
                         else if (udpSockets.containsKey(id)) udpSockets.get(id).setSoTimeout(timeout);
                         return null;
                     }
                     case "socketSetTcpNoDelay": {
-                        Socket s = tcpClients.get(stringify(args.get(0)));
-                        if (s != null) s.setTcpNoDelay(toBoolean(args.get(1)));
+                        Socket s = tcpClients.get(stringify(sArgH.apply(args, 0)));
+                        if (s != null) s.setTcpNoDelay(toBoolean(sArgH.apply(args, 1)));
                         return null;
                     }
                     case "socketSetKeepAlive": {
-                        Socket s = tcpClients.get(stringify(args.get(0)));
-                        if (s != null) s.setKeepAlive(toBoolean(args.get(1)));
+                        Socket s = tcpClients.get(stringify(sArgH.apply(args, 0)));
+                        if (s != null) s.setKeepAlive(toBoolean(sArgH.apply(args, 1)));
                         return null;
                     }
 
                     // ==========================================
                     // NHÓM 5: TIỆN ÍCH MẠNG NÂNG CAO
                     // ==========================================
-                    case "socketResolveHost": return InetAddress.getByName(stringify(args.get(0))).getHostAddress();
+                    case "socketResolveHost": return InetAddress.getByName(stringify(sArgH.apply(args, 0))).getHostAddress();
                     case "socketGetLocalIp": return InetAddress.getLocalHost().getHostAddress();
                     case "socketGetRemoteIp": {
-                        Socket s = tcpClients.get(stringify(args.get(0)));
+                        Socket s = tcpClients.get(stringify(sArgH.apply(args, 0)));
                         return s != null ? s.getInetAddress().getHostAddress() : "";
                     }
                     case "socketGetRemotePort": {
-                        Socket s = tcpClients.get(stringify(args.get(0)));
+                        Socket s = tcpClients.get(stringify(sArgH.apply(args, 0)));
                         return s != null ? (double) s.getPort() : -1.0;
                     }
                     case "socketGetHostName": return InetAddress.getLocalHost().getHostName();
@@ -8625,8 +8642,8 @@ public class Interpreter {
                     // NHÓM 6: RAW SOCKET & PING
                     // ==========================================
                     case "socketRawPing": {
-                        String host = stringify(args.get(0));
-                        int timeout = (int) toDouble(args.get(1));
+                        String host = stringify(sArgH.apply(args, 0));
+                        int timeout = (int) toDouble(sArgH.apply(args, 1));
                         long start = System.currentTimeMillis();
                         boolean reachable = InetAddress.getByName(host).isReachable(timeout);
                         return reachable ? (double) (System.currentTimeMillis() - start) : -1.0;
@@ -8641,7 +8658,7 @@ public class Interpreter {
                     // NHÓM 7: WEBSOCKET
                     // ==========================================
                     case "socketWebSocketConnect": {
-                        String url = stringify(args.get(0));
+                        String url = stringify(sArgH.apply(args, 0));
                         String id = "@ws" + (++socketIdCounter);
                         wsMessages.put(id, new ArrayList<>());
 
@@ -8659,12 +8676,12 @@ public class Interpreter {
                         return id;
                     }
                     case "socketWebSocketSend": {
-                        WebSocket ws = webSockets.get(stringify(args.get(0)));
-                        if (ws != null) ws.sendText(stringify(args.get(1)), true);
+                        WebSocket ws = webSockets.get(stringify(sArgH.apply(args, 0)));
+                        if (ws != null) ws.sendText(stringify(sArgH.apply(args, 1)), true);
                         return null;
                     }
                     case "socketWebSocketReceive": {
-                        String id = stringify(args.get(0));
+                        String id = stringify(sArgH.apply(args, 0));
                         ArrayList<String> messages = wsMessages.get(id);
                         if (messages != null && !messages.isEmpty()) {
                             return messages.remove(0); // Lấy và xóa tin nhắn cũ nhất (Queue)
@@ -8675,8 +8692,8 @@ public class Interpreter {
                     // NHÓM 110%: GỬI/NHẬN FILE TỰ ĐỘNG (CHUNKED)
                     // ==========================================
                     case "socketSendFile": {
-                        String id = stringify(args.get(0));
-                        String filePath = stringify(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        String filePath = stringify(sArgH.apply(args, 1));
                         Socket s = tcpClients.get(id);
                         if (s == null || s.isClosed()) throw new RuntimeException("Socket không tồn tại.");
 
@@ -8710,8 +8727,8 @@ public class Interpreter {
                         return true;
                     }
                     case "socketReceiveFile": {
-                        String id = stringify(args.get(0));
-                        String savePath = stringify(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        String savePath = stringify(sArgH.apply(args, 1));
                         Socket s = tcpClients.get(id);
                         if (s == null || s.isClosed()) throw new RuntimeException("Socket không tồn tại.");
 
@@ -8747,9 +8764,9 @@ public class Interpreter {
                     // NHÓM 110%: MÃ HÓA END-TO-END TÍCH HỢP
                     // ==========================================
                     case "socketEnableEncryption": {
-                        String id = stringify(args.get(0));
-                        String algo = stringify(args.get(1)).toUpperCase(); // Thường là "AES"
-                        String keyHex = stringify(args.get(2)); // Cần 16/24/32 bytes Hex
+                        String id = stringify(sArgH.apply(args, 0));
+                        String algo = stringify(sArgH.apply(args, 1)).toUpperCase(); // Thường là "AES"
+                        String keyHex = stringify(sArgH.apply(args, 2)); // Cần 16/24/32 bytes Hex
 
                         byte[] keyBytes = hexToBytesHelper(keyHex);
                         SecretKeySpec secretKey = new SecretKeySpec(keyBytes, algo);
@@ -8765,7 +8782,7 @@ public class Interpreter {
                         return true;
                     }
                     case "socketDisableEncryption": {
-                        String id = stringify(args.get(0));
+                        String id = stringify(sArgH.apply(args, 0));
                         socketEncryptors.remove(id);
                         socketDecryptors.remove(id);
                         return true;
@@ -8777,14 +8794,14 @@ public class Interpreter {
                     case "socketSetNonBlocking": {
                         // Java cũ không hỗ trợ non-blocking Socket io chuẩn, ta dùng mẹo timeout = 1ms
                         // để hàm read() văng lỗi nhanh nếu không có data, tạo cảm giác non-blocking.
-                        String id = stringify(args.get(0));
-                        boolean isNonBlock = toBoolean(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        boolean isNonBlock = toBoolean(sArgH.apply(args, 1));
                         if (tcpClients.containsKey(id)) tcpClients.get(id).setSoTimeout(isNonBlock ? 1 : 0);
                         return true;
                     }
                     case "socketWaitData": {
-                        String id = stringify(args.get(0));
-                        int timeout = (int) toDouble(args.get(1));
+                        String id = stringify(sArgH.apply(args, 0));
+                        int timeout = (int) toDouble(sArgH.apply(args, 1));
                         Socket s = tcpClients.get(id);
                         if (s == null || s.isClosed()) return false;
 
@@ -8800,9 +8817,9 @@ public class Interpreter {
                     // NHÓM 110%: THIẾT LẬP TÙY CHỌN LOW-LEVEL
                     // ==========================================
                     case "socketSetOption": {
-                        String id = stringify(args.get(0));
-                        String opt = stringify(args.get(1)).toUpperCase();
-                        int val = (int) toDouble(args.get(2));
+                        String id = stringify(sArgH.apply(args, 0));
+                        String opt = stringify(sArgH.apply(args, 1)).toUpperCase();
+                        int val = (int) toDouble(sArgH.apply(args, 2));
 
                         Socket s = tcpClients.get(id);
                         if (s != null) {
