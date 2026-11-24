@@ -311,6 +311,9 @@ public class Interpreter {
     /** Khoá tự tăng do INSERT gần nhất của luồng này sinh ra (cho identity()). */
     private final ThreadLocal<Double> dbLastIdentity = new ThreadLocal<>();
 
+    /** NoSQL (MongoDB): kết nối + hàm nosqlXxx — nằm trong HqlDbPool. */
+    private final HqlDbPool.NoSql nosql = new HqlDbPool.NoSql();
+
     private interface SqlWork<T> { T run(Connection con) throws SQLException; }
 
     private static final class DbTarget { String url, user, pass; boolean sqlite; }
@@ -319,7 +322,7 @@ public class Interpreter {
     private void requireDb() {
         if (dbPool == null && !dbConnectFromHenv()) {
             throw new RuntimeException("Chưa kết nối Database! Hãy gọi connect(...) hoặc connectEnv() trước, "
-                    + "hoặc khai báo DB_HOST / DB_NAME / DB_USER / DB_PASSWORD trong tệp .henv.");
+                    + "hoặc khai báo db.name / db.host / db.user / db.password trong tệp db.henv.");
         }
     }
 
@@ -344,8 +347,9 @@ public class Interpreter {
     }
 
     private boolean dbConfiguredInHenv() {
+        if (HqlDbPool.NoSql.envSaysMongo()) return false;        // db.type=mongodb → dành cho nosql*, không tự nối SQL
         return HqlEnv.first(null, "DB_URL", "db.url") != null
-                || HqlEnv.first(null, "DB_NAME", "db.dbname", "DB_DATABASE") != null;
+                || HqlEnv.first(null, "DB_NAME", "db.name", "db.dbname", "DB_DATABASE") != null;
     }
 
     /** Tự kết nối theo .henv (chỉ chạy khi script chưa gọi connect). Kiểu "lười": lần dùng đầu tiên mới nối. */
@@ -362,28 +366,34 @@ public class Interpreter {
         }
     }
 
-    /** Đọc DB_URL hoặc (DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD); nhận cả khoá kiểu db.hostname. */
+    /**
+     * Đọc cấu hình DB từ db.henv / .henv:
+     *   db.url (jdbc:... hoặc postgresql://... mysql://... sqlserver://...)  — nếu có thì bỏ qua các dòng host/port/name
+     *   db.type, db.host, db.port, db.name, db.user, db.password, db.ssl
+     * Nhận cả khoá viết hoa kiểu cũ: DB_URL, DB_TYPE, DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_SSL.
+     */
     private DbTarget dbTargetFromHenv() throws SQLException {
-        String url  = HqlEnv.first(null, "DB_URL", "db.url");
-        String user = HqlEnv.first(null, "DB_USER", "DB_USERNAME", "db.username");
-        String pass = HqlEnv.first(null, "DB_PASSWORD", "DB_PASS", "db.password");
+        String url  = HqlEnv.first(null, "db.url", "DB_URL");
+        String user = HqlEnv.first(null, "db.user", "DB_USER", "DB_USERNAME", "db.username");
+        String pass = HqlEnv.first(null, "db.password", "DB_PASSWORD", "DB_PASS");
+        Boolean ssl = dbSslFromHenv();
         if (url != null) {
+            HqlDbPool.Target r = HqlDbPool.OnlineUrl.fromUrl(url, user, pass, ssl);
             DbTarget t = new DbTarget();
-            t.url = url; t.user = user; t.pass = pass;
-            t.sqlite = url.toLowerCase().startsWith("jdbc:sqlite:");
+            t.url = r.url; t.user = r.user; t.pass = r.pass; t.sqlite = r.sqlite;
             return t;
         }
-        String name = HqlEnv.first(null, "DB_NAME", "db.dbname", "DB_DATABASE");
-        if (name == null) throw new SQLException("Không thấy DB_NAME (hoặc DB_URL) trong tệp .henv.");
-        String kind = HqlEnv.first("sqlserver", "DB_TYPE", "db.type").toLowerCase();
+        String name = HqlEnv.first(null, "db.name", "DB_NAME", "db.dbname", "DB_DATABASE");
+        if (name == null) throw new SQLException("Không thấy db.name (hoặc db.url) trong tệp db.henv.");
+        String kind = HqlEnv.first("sqlserver", "db.type", "DB_TYPE").toLowerCase();
         if (kind.equals("sqlite")) {
             DbTarget t = new DbTarget();
             t.url = "jdbc:sqlite:" + name; t.sqlite = true;
             return t;
         }
         List<Object> a = new ArrayList<>();
-        a.add(HqlEnv.first("127.0.0.1", "DB_HOST", "db.hostname"));
-        String port = HqlEnv.first(null, "DB_PORT", "db.port");
+        a.add(HqlEnv.first("127.0.0.1", "db.host", "DB_HOST", "db.hostname"));
+        String port = HqlEnv.first(null, "db.port", "DB_PORT");
         if (port != null) a.add(port.trim());
         a.add(name);
         a.add(user == null ? "sa" : user);
@@ -391,16 +401,23 @@ public class Interpreter {
         return buildJdbcTarget(kind, a);
     }
 
+    /** db.ssl=true/false ép bật/tắt SSL; không khai báo → tự bật khi máy chủ nằm trên mạng (không phải localhost/LAN). */
+    private Boolean dbSslFromHenv() {
+        String v = HqlEnv.first(null, "db.ssl", "DB_SSL");
+        if (v == null || v.equalsIgnoreCase("auto")) return null;
+        return HqlEnv.getBool(HqlEnv.has("db.ssl") ? "db.ssl" : "DB_SSL", false);
+    }
+
     /** Mở bể mới rồi đổi sang dùng nó (bể cũ, nếu có, đóng sau). Ném SQLException nếu sai thông tin đăng nhập. */
     private void dbOpenPool(DbTarget t) throws SQLException {
         HqlDbPool.Config c = new HqlDbPool.Config();
         c.url = t.url; c.user = t.user; c.pass = t.pass;
-        int max = dbPoolMax > 0 ? dbPoolMax : HqlEnv.getInt("DB_POOL_MAX", 10);
-        int min = dbPoolMin >= 0 ? dbPoolMin : HqlEnv.getInt("DB_POOL_MIN", 2);
+        int max = dbPoolMax > 0 ? dbPoolMax : HqlEnv.getInt(HqlEnv.has("db.pool.max") ? "db.pool.max" : "DB_POOL_MAX", 10);
+        int min = dbPoolMin >= 0 ? dbPoolMin : HqlEnv.getInt(HqlEnv.has("db.pool.min") ? "db.pool.min" : "DB_POOL_MIN", 2);
         if (t.sqlite) { max = 1; min = 0; }          // SQLite chỉ cho một người ghi tại một thời điểm
         c.maxSize = max;
         c.minIdle = min;
-        c.connectionTimeoutMs = HqlEnv.getInt("DB_TIMEOUT_MS", 15000);
+        c.connectionTimeoutMs = HqlEnv.getInt(HqlEnv.has("db.timeout") ? "db.timeout" : "DB_TIMEOUT_MS", 15000);
         HqlDbPool newPool = new HqlDbPool(c);
         HqlDbPool previousPool = dbPool;
         dbPool = newPool;
@@ -448,6 +465,18 @@ public class Interpreter {
 
         String first = stringify(args.get(0));
         DbTarget t = new DbTarget();
+
+        // 0. Địa chỉ MongoDB: sai hàm → nhắc dùng nosqlConnect
+        if (first.toLowerCase().startsWith("mongodb")) {
+            throw new SQLException("Đây là địa chỉ MongoDB (NoSQL) — hãy dùng nosqlConnect(\"" + "mongodb+srv://...\") thay cho connect().");
+        }
+        // 0b. Địa chỉ online dạng URL: postgresql://user:pw@host/db , mysql://... , sqlserver://...
+        if (HqlDbPool.OnlineUrl.isUrlForm(first)) {
+            HqlDbPool.Target r = HqlDbPool.OnlineUrl.fromUrl(first,
+                    args.size() > 1 ? stringify(args.get(1)) : null, args.size() > 2 ? stringify(args.get(2)) : null, dbSslFromHenv());
+            t.url = r.url; t.user = r.user; t.pass = r.pass;
+            return t;
+        }
 
         // 1. Truyền thẳng chuỗi JDBC URL
         if (first.toLowerCase().startsWith("jdbc:")) {
@@ -509,19 +538,17 @@ public class Interpreter {
         switch (kind) {
             case "mysql":
             case "mariadb":
-                url = String.format("jdbc:mysql://%s:%d/%s?useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&serverTimezone=UTC",
-                        host, port == -1 ? 3306 : port, database);
-                break;
             case "postgres":
             case "postgresql":
-                url = String.format("jdbc:postgresql://%s:%d/%s", host, port == -1 ? 5432 : port, database);
+                // máy chủ online (Neon, Supabase, Aiven, PlanetScale...) → tự bật SSL; localhost/LAN giữ nguyên không SSL
+                url = HqlDbPool.OnlineUrl.jdbcUrl(kind, host, port, database, null, dbSslFromHenv());
                 break;
             default: // SQL Server
                 // host có thể là "MAYTINH\\SQLEXPRESS" (named instance) -> khi đó không gắn cổng
                 boolean namedInstance = host.contains("\\");
                 url = "jdbc:sqlserver://" + host + (namedInstance || port == -1 ? "" : ":" + port)
                         + ";databaseName=" + database
-                        + ";encrypt=" + HqlEnv.getBool("DB_ENCRYPT", true) + ";trustServerCertificate=true";
+                        + ";encrypt=" + HqlEnv.getBool(HqlEnv.has("db.encrypt") ? "db.encrypt" : "DB_ENCRYPT", true) + ";trustServerCertificate=true";
         }
 
         DbTarget t = new DbTarget();
@@ -3782,6 +3809,12 @@ public class Interpreter {
                 // --- BỔ SUNG HQL.ENV (TỆP CẤU HÌNH .henv) VÀ BỂ KẾT NỐI DATABASE ---
                 "envLoad", "envGet", "envHas", "envSet", "envInt", "envBool", "envAll", "envFiles", "envRequire",
                 "connectEnv", "dbPoolSize", "dbPoolStats", "executeBatch",
+                // --- NOSQL (MONGODB): do HqlDbPool.NoSql xử lý ---
+                "nosqlConnect", "nosqlConnectEnv", "nosqlClose", "nosqlIsOpen", "nosqlError", "nosqlPing",
+                "nosqlDatabase", "nosqlDatabases", "nosqlCollections",
+                "nosqlInsert", "nosqlInsertMany", "nosqlFind", "nosqlFindOne",
+                "nosqlUpdate", "nosqlUpdateMany", "nosqlDelete", "nosqlDeleteMany",
+                "nosqlCount", "nosqlAggregate", "nosqlIndex", "nosqlDrop", "nosqlCommand", "nosqlDate", "nosqlDoc",
                 // --- THU VIEN hql.app: DUNG APP MAY TINH TU MOT TRANG WEB HQL ---
                 //  DANH SACH NAY LA CUA KHAU: viet xong than ham trong
                 //  thuVienApp() ma quen khai ten o day thi HQL bao "Khong tim
@@ -6431,6 +6464,14 @@ public class Interpreter {
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Lỗi Bảo mật (hql.crypto): " + e.getMessage(), e);
+            }
+        }
+        // --- NOSQL (MongoDB): hàm nosqlXxx — dùng được với `use hql.database;` hoặc `use hql.nosql;` ---
+        if ((usedLibraries.contains("hql.database") || usedLibraries.contains("hql.nosql")) && HqlDbPool.NoSql.handles(name)) {
+            try {
+                return nosql.call(name, args);
+            } catch (HqlDbPool.NoSqlException e) {
+                throw new RuntimeException("Lỗi NoSQL: " + e.getMessage());
             }
         }
         if (usedLibraries.contains("hql.database")) {

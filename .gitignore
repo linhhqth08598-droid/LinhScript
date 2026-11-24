@@ -5,6 +5,7 @@ VNChecker/*
 .idea/*
 lib/
 .henv
+db.henv
 .henv.local
 .henv.*.local
 web/*

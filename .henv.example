@@ -6,18 +6,8 @@
 #  ".henv" đã được .gitignore chặn — KHÔNG đưa lên git.
 # ==========================================================================
 
-# ---- Database (SQL Server mặc định) ----
-DB_TYPE=sqlserver           # sqlserver | mysql | postgres | sqlite
-DB_HOST=127.0.0.1
-DB_PORT=1433
-DB_NAME=GearZone
-DB_USER=sa
-DB_PASSWORD=dien-mat-khau-o-day
-# DB_URL=jdbc:sqlserver://127.0.0.1:1433;databaseName=GearZone;encrypt=false   # có DB_URL thì bỏ qua các dòng trên
-# DB_ENCRYPT=false          # SQL Server cũ/không có chứng chỉ
-DB_POOL_MAX=10              # số kết nối tối đa trong bể
-DB_POOL_MIN=2               # số kết nối giữ sẵn
-DB_TIMEOUT_MS=15000         # chờ mượn kết nối tối đa
+# ---- Database: đã chuyển sang tệp riêng db.henv (xem db.henv.example) ----
+#      Khoá kiểu cũ DB_HOST / DB_NAME / DB_USER / DB_PASSWORD ở đây vẫn chạy được.
 
 # ---- Email (Gmail cần "Mật khẩu ứng dụng" 16 ký tự) ----
 MAIL_EMAIL=ten-hop-thu@gmail.com

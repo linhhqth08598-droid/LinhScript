@@ -37,7 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * │  1. Biến môi trường thật của hệ điều hành (giống dotenv: không bị ghi đè)│
  * │  2. .henv.local        (riêng máy này — KHÔNG đưa lên git)             │
  * │  3. .henv.<chế độ>     (vd .henv.production, chọn bằng HQL_ENV=...)    │
- * │  4. .henv              (giá trị chung của dự án)                       │
+ * │  4. db.henv            (cấu hình DATABASE: db.name=..., db.host=...)    │
+ * │  5. .henv              (giá trị chung của dự án)                       │
  * └────────────────────────────────────────────────────────────────────────┘
  *
  * Lớp này thread-safe và không phụ thuộc thư viện ngoài.
@@ -54,6 +55,9 @@ public final class HqlEnv {
     private static final java.util.Set<String> AUTO_DONE = ConcurrentHashMap.newKeySet();
 
     private static final int MAX_LEVELS_UP = 6;
+
+    /** Tên tệp cấu hình database riêng (nằm cạnh .henv), vd chứa dòng  db.name=namedb */
+    public static final String DB_FILE = "db.henv";
 
     // ======================================================================
     //   NẠP TỆP
@@ -72,9 +76,11 @@ public final class HqlEnv {
         if (!AUTO_DONE.add(dir.getPath())) return false;
 
         for (int i = 0; dir != null && i <= MAX_LEVELS_UP; i++, dir = dir.getParentFile()) {
-            if (new File(dir, ".henv").isFile() || new File(dir, ".henv.local").isFile()) {
+            File[] named = namedFiles(dir);
+            if (new File(dir, ".henv").isFile() || new File(dir, ".henv.local").isFile() || named.length > 0) {
                 boolean any = false;
                 any |= loadFile(new File(dir, ".henv"), false);
+                for (File nf : named) any |= loadFile(nf, true);         // db.henv, mail.henv...: tệp theo nhóm, thắng .henv
                 String mode = getRaw("HQL_ENV");
                 if (mode != null && !mode.isEmpty()) {
                     any |= loadFile(new File(dir, ".henv." + mode), true);
@@ -84,6 +90,23 @@ public final class HqlEnv {
             }
         }
         return false;
+    }
+
+    /** Các tệp có tên dạng nhom.henv (db.henv, mail.henv...) trong thư mục, xếp theo tên. */
+    private static File[] namedFiles(File dir) {
+        File[] fs = dir.listFiles((d, n) -> n.endsWith(".henv") && n.length() > 5 && !n.startsWith("."));
+        if (fs == null) return new File[0];
+        java.util.Arrays.sort(fs);
+        return fs;
+    }
+
+    /**
+     * Chuẩn hoá tên khoá: không phân biệt hoa thường, dấu chấm / gạch ngang / gạch dưới / khoảng trắng coi như nhau.
+     * db.host = DB_HOST = Db-Host = db_host.
+     */
+    public static String canon(String k) {
+        if (k == null) return null;
+        return k.trim().toUpperCase(java.util.Locale.ROOT).replaceAll("[.\\-\\s]+", "_");
     }
 
     /**
@@ -97,10 +120,27 @@ public final class HqlEnv {
         try {
             String text = new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8);
             Map<String, String> parsed = parse(text);
-            synchronized (LOADED_FILES) {
+            // Tệp tên nhom.henv (vd db.henv): khoá viết thiếu tiền tố (HOST) hiểu là NHOM_HOST; khoá viết đủ (db.host) luôn thắng.
+            String fn = f.getName(), prefix = null;
+            if (fn.endsWith(".henv") && fn.length() > 5 && !fn.startsWith(".")) prefix = canon(fn.substring(0, fn.length() - 5));
+            Map<String, String> norm = new LinkedHashMap<>();
+            Map<String, String> alias = new LinkedHashMap<>();   // tên gốc không tiền tố (vd NOSQL_URL trong db.henv): chỉ điền khi chưa ai khai báo
+            if (prefix != null) {
                 for (Map.Entry<String, String> e : parsed.entrySet()) {
+                    String ck = canon(e.getKey());
+                    if (!ck.startsWith(prefix + "_")) { norm.put(prefix + "_" + ck, e.getValue()); alias.put(ck, e.getValue()); }
+                }
+            }
+            for (Map.Entry<String, String> e : parsed.entrySet()) {
+                String ck = canon(e.getKey());
+                if (prefix != null && !ck.startsWith(prefix + "_")) continue;
+                norm.put(ck, e.getValue());
+            }
+            synchronized (LOADED_FILES) {
+                for (Map.Entry<String, String> e : norm.entrySet()) {
                     if (override || !VALUES.containsKey(e.getKey())) VALUES.put(e.getKey(), e.getValue());
                 }
+                for (Map.Entry<String, String> e : alias.entrySet()) VALUES.putIfAbsent(e.getKey(), e.getValue());
                 String pathString = f.getAbsolutePath();
                 if (!LOADED_FILES.contains(pathString)) LOADED_FILES.add(pathString);   // không ghi trùng cùng một tệp
             }
@@ -235,6 +275,7 @@ public final class HqlEnv {
             int d = expr.indexOf(":-");
             if (d >= 0) { def = expr.substring(d + 2); expr = expr.substring(0, d); }
             String found = sameFile.get(expr.trim());
+            if (found == null) for (Map.Entry<String, String> en : sameFile.entrySet()) if (canon(en.getKey()).equals(canon(expr))) { found = en.getValue(); break; }
             if (found == null) found = get(expr.trim(), null);
             sb.append(found == null || found.isEmpty() ? def : found);
             k = e + 1;
@@ -247,9 +288,12 @@ public final class HqlEnv {
     // ======================================================================
 
     private static String getRaw(String key) {
+        if (key == null) return null;
+        String ck = canon(key);
         String sys = System.getenv(key);
+        if (sys == null && !ck.equals(key)) sys = System.getenv(ck);
         if (sys != null) return sys;
-        return VALUES.get(key);
+        return VALUES.get(ck);
     }
 
     /** Lấy giá trị theo khoá (biến hệ điều hành thắng .henv). Trả về def nếu không có. */
@@ -273,7 +317,7 @@ public final class HqlEnv {
     /** Đặt giá trị tạm trong bộ nhớ (không ghi ra tệp). */
     public static void set(String key, String value) {
         if (key == null) return;
-        if (value == null) VALUES.remove(key); else VALUES.put(key, value);
+        if (value == null) VALUES.remove(canon(key)); else VALUES.put(canon(key), value);
     }
 
     public static int getInt(String key, int def) {

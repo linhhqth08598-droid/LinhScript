@@ -669,6 +669,32 @@ public class Lexer {
         KEYWORDS.put("dbPoolStats", "dbPoolStats");
         KEYWORDS.put("executeBatch", "executeBatch");
 
+        // --- HQL.DATABASE: NoSQL (MongoDB) — xử lý trong HqlDbPool.NoSql ---
+        KEYWORDS.put("nosqlConnect", "nosqlConnect");
+        KEYWORDS.put("nosqlConnectEnv", "nosqlConnectEnv");
+        KEYWORDS.put("nosqlClose", "nosqlClose");
+        KEYWORDS.put("nosqlIsOpen", "nosqlIsOpen");
+        KEYWORDS.put("nosqlError", "nosqlError");
+        KEYWORDS.put("nosqlPing", "nosqlPing");
+        KEYWORDS.put("nosqlDatabase", "nosqlDatabase");
+        KEYWORDS.put("nosqlDatabases", "nosqlDatabases");
+        KEYWORDS.put("nosqlCollections", "nosqlCollections");
+        KEYWORDS.put("nosqlInsert", "nosqlInsert");
+        KEYWORDS.put("nosqlInsertMany", "nosqlInsertMany");
+        KEYWORDS.put("nosqlFind", "nosqlFind");
+        KEYWORDS.put("nosqlFindOne", "nosqlFindOne");
+        KEYWORDS.put("nosqlUpdate", "nosqlUpdate");
+        KEYWORDS.put("nosqlUpdateMany", "nosqlUpdateMany");
+        KEYWORDS.put("nosqlDelete", "nosqlDelete");
+        KEYWORDS.put("nosqlDeleteMany", "nosqlDeleteMany");
+        KEYWORDS.put("nosqlCount", "nosqlCount");
+        KEYWORDS.put("nosqlAggregate", "nosqlAggregate");
+        KEYWORDS.put("nosqlIndex", "nosqlIndex");
+        KEYWORDS.put("nosqlDrop", "nosqlDrop");
+        KEYWORDS.put("nosqlCommand", "nosqlCommand");
+        KEYWORDS.put("nosqlDate", "nosqlDate");
+        KEYWORDS.put("nosqlDoc", "nosqlDoc");
+
         // --- THƯ VIỆN WEB / HQLSP (HQL.WEB) ---
         KEYWORDS.put("printWeb", "printWeb");
         KEYWORDS.put("webStart", "webStart");

@@ -79,6 +79,32 @@ mailWarmUp();                                   // mở sẵn kết nối SMTP k
 
 ---
 
+## 3b. Tệp `db.henv` — cấu hình database riêng
+
+Từ phiên bản này, cấu hình database nên đặt trong **`db.henv`** (cạnh `.henv`, cùng cách dò thư mục cha), vd:
+
+```
+db.type=sqlserver
+db.name=namedb
+db.host=localhost\SQLEXPRESS
+db.user=sa
+db.password=123
+db.encrypt=false
+```
+
+* Ưu tiên: `.henv.local` > `.henv.<chế độ>` > **`db.henv`** > `.henv`.
+* Khoá `db.*` và khoá cũ `DB_*` đều được; có cả `nosql.url`, `nosql.name` cho MongoDB.
+* Danh sách khoá đầy đủ, nối SQL online (Neon, Supabase, Aiven, Azure) và MongoDB: xem [HQL_DATABASE.md](HQL_DATABASE.md).
+
+### Quy tắc đặt tên khoá (áp dụng cho MỌI khoá, mọi tệp `.henv`)
+
+* **Không phân biệt hoa thường và dấu `.` `_` `-`:** `db.host` = `DB_HOST` = `Db-Host` = `db_host`. Viết kiểu nào cũng nhận, đọc bằng kiểu nào cũng được (`env("db.host")` hay `env("DB_HOST")`).
+* **Tệp theo nhóm** có tên `nhom.henv` (`db.henv`, `mail.henv`...) được tự nạp, ưu tiên cao hơn `.henv`. Trong tệp đó có thể **bỏ tiền tố**: trong `db.henv`, `HOST=...` hiểu là `db.host`; trong `mail.henv`, `EMAIL=...` hiểu là `mail.email`.
+* **Viết đủ tiền tố thì thắng viết tắt** trong cùng tệp: có cả `HOST=a` và `db.host=b` thì `db.host` = `b`.
+* `${TEN}` chỉ thấy các khoá khai báo trong cùng tệp hoặc tệp đã nạp trước.
+
+---
+
 ## 4. Database: bể kết nối (thay cho một kết nối dùng chung)
 
 Trước đây `Interpreter` giữ **một** `Connection` duy nhất. Giờ dùng **bể kết nối** `HqlDbPool`

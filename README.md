@@ -358,7 +358,7 @@ Class từ file import **phải** có `@` ở tên class (`class @SanPham`), n�
 | 5   | `hql.util`     | Sắp xếp, UUID, hash md5/sha256, base64, JSON, `sleep`, `range`           |
 | 6   | `hql.ui`       | Cửa sổ Swing, hộp thoại, nút, ô nhập                                     |
 | 7   | `hql.crypto`   | AES, RSA, PBKDF2, số ngẫu nhiên an toàn                                  |
-| 8   | `hql.database` | SQL Server / MySQL / PostgreSQL / SQLite, giao dịch, bể kết nối          |
+| 8   | `hql.database` | SQL Server / MySQL / PostgreSQL / SQLite (cả online), MongoDB (NoSQL), bể kết nối |
 | 9   | `hql.time`     | Ngày giờ                                                                 |
 | 10  | `hql.regex`    | Biểu thức chính quy                                                      |
 | 11  | `hql.game`     | Game 2D (đồ họa, sprite, âm thanh, bản đồ lưới, isometric)               |
@@ -616,8 +616,12 @@ connect("postgres", "localhost", 5432, "shop", "user", "pw");
 connect("sqlserver", "localhost", 1433, "GearZone", "sa", "123");
 connect("localhost", 1433, "GearZone", "sa", "123");       // bỏ loại → mặc định SQL Server
 connect("jdbc:sqlserver://...;databaseName=X", "user", "pw"); // chuỗi JDBC trực tiếp
-connectEnv();                                              // theo tệp .henv
+connect("postgresql://user:pw@ep-xxx.neon.tech/neondb?sslmode=require");  // database online (Neon, Supabase, Aiven, Azure...)
+connectEnv();                                              // theo tệp db.henv (hoặc .henv)
 ```
+
+Địa chỉ online dạng `postgresql://`, `mysql://`, `sqlserver://` được đổi sang JDBC và **tự bật SSL** khi máy chủ nằm trên mạng.
+Cấu hình đặt trong tệp riêng **`db.henv`** (vd `db.name=namedb`) — xem [mục 8](#8-tệp-cấu-hình-henv) và [docs/HQL_DATABASE.md](docs/HQL_DATABASE.md).
 
 | Nhóm      | Hàm                                                                                                                                                                |
 | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -660,6 +664,30 @@ closeDB();
 ```
 
 > Cần có JDBC driver tương ứng trong `lib/`. Chi tiết bể kết nối xem [mục 8](#8-tệp-cấu-hình-henv).
+
+**NoSQL — MongoDB** (Atlas hoặc tự dựng; giao thức tự viết, **không cần thêm `.jar`**). Hàm bắt đầu bằng `nosql`, dùng chung `use hql.database;`:
+
+```java
+use hql.database;
+
+nosqlConnect("mongodb+srv://user:matkhau@cluster0.abcde.mongodb.net/", "namedb");   // hoặc nosqlConnectEnv() theo db.henv
+var id = nosqlInsert("sinhvien", { "ten": "Linh", "tuoi": 17 });
+for sv in nosqlFind("sinhvien", { "tuoi": { "$gt": 10 } }, { "sort": { "tuoi": -1 }, "limit": 5 }) {
+    print(sv.ten + " - " + sv.tuoi);
+}
+nosqlUpdate("sinhvien", { "_id": id }, { "$inc": { "tuoi": 1 } });
+nosqlDelete("sinhvien", { "ten": "Linh" });
+nosqlClose();
+```
+
+| Nhóm      | Hàm |
+| --------- | --- |
+| Kết nối   | `nosqlConnect(url[, tenDB])`, `nosqlConnectEnv()`, `nosqlClose()`, `nosqlIsOpen()`, `nosqlPing()`, `nosqlError()`, `nosqlDatabase([ten])`, `nosqlDatabases()`, `nosqlCollections()` |
+| Dữ liệu   | `nosqlInsert`, `nosqlInsertMany`, `nosqlFind`, `nosqlFindOne`, `nosqlUpdate`, `nosqlUpdateMany`, `nosqlDelete`, `nosqlDeleteMany`, `nosqlCount`, `nosqlAggregate` |
+| Quản trị  | `nosqlIndex`, `nosqlDrop`, `nosqlCommand` |
+| Tiện ích  | `nosqlDoc("{ten: ?}", [gia_tri])` (dựng map từ JSON + tham số), `nosqlDate([iso])` (ngày giờ) |
+
+Bộ lọc là **map** hoặc **chuỗi JSON** (`"{tuoi: {$gt: 18}}"`). Chuỗi 24 ký tự hex ở khoá `_id` tự đổi thành ObjectId. Chi tiết, kiểu dữ liệu và lỗi thường gặp: [docs/HQL_DATABASE.md](docs/HQL_DATABASE.md).
 
 ### 7.9 `hql.time` — Thời gian
 
@@ -1476,7 +1504,23 @@ webStop();
 
 ---
 
-## 8. Tệp cấu hình `.henv`
+## 8. Tệp cấu hình `.henv` và `db.henv`
+
+> **Cấu hình database nay đặt trong tệp riêng `db.henv`** (sao chép từ `db.henv.example`), ví dụ:
+>
+> ```
+> db.type=postgres
+> db.name=namedb
+> db.host=ep-xxxx.neon.tech
+> db.user=neondb_owner
+> db.password=matkhau
+> # hoặc db.url=postgresql://user:matkhau@host/namedb?sslmode=require
+> nosql.url=mongodb+srv://user:matkhau@cluster0.abcde.mongodb.net/     # MongoDB
+> nosql.name=namedb
+> ```
+>
+> Khoá: `db.type`, `db.name`, `db.host`, `db.port`, `db.user`, `db.password`, `db.url`, `db.ssl` (`auto`/`true`/`false`), `db.pool.max`, `db.pool.min`, `db.timeout`, `db.encrypt`, `nosql.url`, `nosql.name`, `nosql.pool.max`.
+> `db.henv` được tự nạp, ưu tiên cao hơn `.henv`, và nằm trong `.gitignore`. **Tên khoá không phân biệt hoa thường và `.`/`_`/`-`**: `db.host` = `DB_HOST` = `db_host`; trong `db.henv` (hay `mail.henv`...) còn viết tắt được `HOST=...` = `db.host`, nhưng viết đủ `db.host` thì thắng. Chi tiết: [docs/HQL_DATABASE.md](docs/HQL_DATABASE.md).
 
 `.henv` giống `.env` của Node.js: cất mật khẩu, địa chỉ máy chủ, cổng... ra khỏi mã nguồn. Sao chép `.henv.example` thành `.henv` cạnh file main (`.henv` đã nằm trong `.gitignore`).
 
@@ -1512,7 +1556,8 @@ Tệp lưu **UTF-8**; dòng sai cú pháp bị bỏ qua, không làm hỏng cả
 | 1   | Biến môi trường thật của hệ điều hành | Không bị tệp ghi đè → đặt mật khẩu thật trên máy chủ mà khỏi sửa tệp   |
 | 2   | `.henv.local`                         | Riêng từng máy, không đưa lên git                                      |
 | 3   | `.henv.<chế độ>`                      | Chọn bằng biến `HQL_ENV`, vd `HQL_ENV=production` → `.henv.production` |
-| 4   | `.henv`                               | Giá trị chung của dự án                                                |
+| 4   | `db.henv`                             | Cấu hình database (`db.name=...`, `nosql.url=...`)                     |
+| 5   | `.henv`                               | Giá trị chung của dự án                                                |
 
 **Bể kết nối database.** `connect(...)` / `connectEnv()` dùng bể kết nối `HqlDbPool` (tự viết): mỗi lệnh `query`, `execute` mượn một kết nối rồi trả ngay; kết nối chết tự được thay mới; `beginTransaction()` giữ một kết nối riêng cho từng luồng tới khi `commit()` / `rollback()`. Request web kết thúc mà quên `commit`/`rollback` thì tự rollback và in cảnh báo. Nếu `.henv` có cấu hình DB mà script chưa gọi `connect`, lệnh SQL đầu tiên sẽ tự kết nối theo `.henv`. Chỉnh cỡ bể bằng `dbPoolSize(toi_da[, giu_san])` (gọi **trước** `connect`) hoặc `DB_POOL_MAX` / `DB_POOL_MIN`; xem `dbPoolStats()`.
 

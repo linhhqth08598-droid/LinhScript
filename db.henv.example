@@ -1,0 +1,38 @@
+# ==========================================================================
+#  TỆP CẤU HÌNH DATABASE LINHSCRIPT (db.henv)
+#
+#  Cách dùng: sao chép tệp này thành "db.henv" cạnh file main.hql (hoặc ở thư mục cha, tối đa 6 cấp)
+#  rồi điền giá trị thật. "db.henv" đã được .gitignore chặn — KHÔNG đưa lên git.
+#  Cú pháp giống .henv: mỗi dòng  khoá=giá trị ; dòng bắt đầu bằng # là chú thích.
+# ==========================================================================
+
+# ---------- A. DATABASE SQL (hql.database: connect / query / execute ...) ----------
+db.type=postgres            # sqlserver | mysql | postgres | sqlite
+db.name=namedb              # tên database (sqlite: đường dẫn file .db)
+db.host=ep-xxxx.us-east-2.aws.neon.tech
+db.port=5432                # bỏ trống = cổng mặc định của loại DB
+db.user=neondb_owner
+db.password=dien-mat-khau-o-day
+db.ssl=auto                 # auto (mặc định: bật khi host là máy chủ trên mạng) | true | false
+
+# Hoặc dán nguyên địa chỉ nhà cung cấp cho (có db.url thì bỏ qua host/port/name/user/password ở trên):
+# db.url=postgresql://user:matkhau@ep-xxxx.neon.tech/namedb?sslmode=require
+# db.url=mysql://user:matkhau@host.aivencloud.com:12345/namedb
+# db.url=sqlserver://user:matkhau@ten.database.windows.net:1433/namedb
+# db.url=jdbc:sqlserver://127.0.0.1:1433;databaseName=GearZone;encrypt=false
+
+db.pool.max=10              # số kết nối tối đa trong bể
+db.pool.min=2               # số kết nối giữ sẵn
+db.timeout=15000            # chờ mượn kết nối tối đa (ms)
+# db.encrypt=false          # SQL Server cũ / không có chứng chỉ
+
+# ---------- B. DATABASE NOSQL = MONGODB (nosqlConnectEnv / nosqlFind ...) ----------
+# MongoDB Atlas: Connect → Drivers → copy chuỗi "mongodb+srv://..." (mật khẩu có ký tự đặc biệt thì mã hoá %-encode)
+nosql.url=mongodb+srv://user:matkhau@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority
+nosql.name=namedb           # database mặc định khi dùng nosqlFind, nosqlInsert...
+# nosql.pool.max=10
+
+# Chỉ dùng MongoDB (không có SQL)? Có thể viết gọn:
+# db.type=mongodb
+# db.name=namedb
+# db.url=mongodb+srv://user:matkhau@cluster0.abcde.mongodb.net/
