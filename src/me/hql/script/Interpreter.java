@@ -106,6 +106,11 @@ import java.awt.geom.Area;
  */
 public class Interpreter {
 
+    static {
+        System.setProperty("sun.java2d.d3d", "false");
+        System.setProperty("sun.java2d.noddraw", "true");
+    }
+
     // Biến kiểm soát quy tắc cấu trúc: Chỉ cho phép USE/IMPORT ở đầu file
     private boolean isHeaderSection = true;
 
@@ -824,6 +829,12 @@ public class Interpreter {
             if (cand != null && cand.isFile()) { serveWebFile(cand, ctx); return; }
         }
 
+        if (path.equalsIgnoreCase("/favicon.ico")) {
+            ctx.contentType = "image/png";
+            ctx.rawOut = getDefaultHqlFaviconPng();
+            return;
+        }
+
         ctx.status = 404;
         ctx.out.append(webErrorPage("404 - Không tìm thấy", "Không có trang nào khớp với đường dẫn <code>" + htmlEscape(path) + "</code>"));
     }
@@ -1487,26 +1498,20 @@ public class Interpreter {
                 if (rawLower.startsWith(ctxLower + "/")) {
                     rawPath = rawPath.substring(webAppContext.length());
                 } else if (isRootVerificationFile(rawLower)) {
-                    /*
-                     * FILE XÁC MINH QUYỀN SỞ HỮU TÊN MIỀN — PHỤC VỤ Ở GỐC.
-                     *
-                     * Riot (và Google, Apple, Let's Encrypt...) đều đòi đặt một
-                     * file ở ĐÚNG GỐC tên miền để chứng minh mình sở hữu nó:
-                     *     https://ten-mien/riot.txt
-                     * Website này lại chạy dưới /myapp, nên mọi đường dẫn
-                     * ngoài đó rơi vào nhánh 404 "Sai tên project" bên dưới —
-                     * tức là KHÔNG CÁCH NÀO xác minh được, và trang 404 lại nói
-                     * về tên project nên chẳng ai đoán ra vì sao.
-                     *
-                     * Danh sách đóng, không mở cửa cho mọi file ở gốc: chỉ đúng
-                     * mấy tên chuẩn dùng để xác minh.
-                     */
                     File sourceFile = resolveWebFile(rawPath);
                     if (sourceFile != null && sourceFile.isFile()) {
                         byte[] fileBytes = Files.readAllBytes(sourceFile.toPath());
                         ex.getResponseHeaders().set("Content-Type", webMimeType(sourceFile.getName()));
                         ex.sendResponseHeaders(200, fileBytes.length);
                         ex.getResponseBody().write(fileBytes);
+                        return;
+                    }
+                    if (rawLower.equals("/favicon.ico")) {
+                        byte[] iconBytes = getDefaultHqlFaviconPng();
+                        ex.getResponseHeaders().set("Content-Type", "image/png");
+                        ex.getResponseHeaders().set("Cache-Control", "public, max-age=86400");
+                        ex.sendResponseHeaders(200, iconBytes.length);
+                        ex.getResponseBody().write(iconBytes);
                         return;
                     }
                     ex.sendResponseHeaders(404, -1);
@@ -3813,10 +3818,6 @@ public class Interpreter {
                 "nosqlUpdate", "nosqlUpdateMany", "nosqlDelete", "nosqlDeleteMany",
                 "nosqlCount", "nosqlAggregate", "nosqlIndex", "nosqlDrop", "nosqlCommand", "nosqlDate", "nosqlDoc",
                 // --- THU VIEN hql.app: DUNG APP MAY TINH TU MOT TRANG WEB HQL ---
-                //  DANH SACH NAY LA CUA KHAU: viet xong than ham trong
-                //  thuVienApp() ma quen khai ten o day thi HQL bao "Khong tim
-                //  thay ham 'appWindow'" — nghe y nhu chua viet gi, mat cong di
-                //  tim trong khi ham nam san do. Da dinh dung mot lan.
                 "appWindow", "appIsOpen", "appWait", "appClose", "appHasBrowser",
                 "processRun", "processAlive", "processKill",
                 "waitPort", "portIsOpen", "sysProp", "appRootDir", "appTray").contains(name);
@@ -6118,53 +6119,76 @@ public class Interpreter {
 
                     // --- NHÓM 2: WINDOW & LAYOUT ---
                     case "window": {
-                        if (hqlWindow != null) hqlWindow.dispose();
-                        hqlWindow = new JFrame(stringify(args.get(0)));
-                        hqlWindow.setSize((int)toDouble(args.get(1)), (int)toDouble(args.get(2)));
-                        hqlWindow.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                        hqlWindow.setLocationRelativeTo(null);
-                        hqlPanel = new JPanel();
-                        hqlWindow.add(hqlPanel);
+                        String title = stringify(args.get(0));
+                        int w = (int) toDouble(args.get(1));
+                        int h = (int) toDouble(args.get(2));
+                        runOnEdt(() -> {
+                            if (hqlWindow != null) hqlWindow.dispose();
+                            hqlWindow = new JFrame(title);
+                            hqlWindow.setIconImage(getDefaultHqlIcon());
+                            hqlWindow.setSize(w, h);
+                            hqlWindow.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                            hqlWindow.setLocationRelativeTo(null);
+                            hqlPanel = new JPanel();
+                            hqlPanel.setOpaque(true);
+                            hqlPanel.setBackground(new Color(248, 250, 252));
+                            hqlWindow.add(hqlPanel);
+                        });
                         return null;
                     }
                     case "setLayout": {
                         if (hqlPanel == null) return null;
                         String layoutType = stringify(args.get(0)).toLowerCase();
-                        if (layoutType.equals("grid")) hqlPanel.setLayout(new GridLayout(0, 1, 5, 5));
-                        else hqlPanel.setLayout(new FlowLayout());
+                        runOnEdt(() -> {
+                            if (layoutType.equals("grid")) hqlPanel.setLayout(new GridLayout(0, 1, 5, 5));
+                            else hqlPanel.setLayout(new FlowLayout());
+                        });
                         return null;
                     }
-                    case "show": { if (hqlWindow != null) hqlWindow.setVisible(true); return null; }
-                    case "hide": { if (hqlWindow != null) hqlWindow.setVisible(false); return null; }
-                    case "close": { if (hqlWindow != null) hqlWindow.dispose(); return null; }
+                    case "show": {
+                        runOnEdt(() -> {
+                            if (hqlWindow != null) {
+                                hqlWindow.revalidate();
+                                hqlWindow.repaint();
+                                hqlWindow.setVisible(true);
+                            }
+                        });
+                        return null;
+                    }
+                    case "hide": { runOnEdt(() -> { if (hqlWindow != null) hqlWindow.setVisible(false); }); return null; }
+                    case "close": { runOnEdt(() -> { if (hqlWindow != null) hqlWindow.dispose(); }); return null; }
 
                     // --- NHÓM 3: WIDGETS & EVENTS ---
                     case "label": {
                         if (hqlPanel != null) {
-                            String id = args.size() > 1 ? stringify(args.get(0)) : stringify(args.get(0));
-                            String text = args.size() > 1 ? stringify(args.get(1)) : stringify(args.get(0));
-                            JLabel lbl = new JLabel(text);
-                            hqlWidgets.put(id, lbl);
-                            hqlPanel.add(lbl);
-                            return id; // Trả về ID để dùng cho các hàm lồng nhau
+                            String id = stringify(args.get(0));
+                            String text = args.size() > 1 ? stringify(args.get(1)) : id;
+                            runOnEdt(() -> {
+                                JLabel lbl = new JLabel(text);
+                                hqlWidgets.put(id, lbl);
+                                hqlPanel.add(lbl);
+                            });
+                            return id;
                         }
                         return null;
                     }
                     case "button": {
                         if (hqlPanel != null) {
-                            String id = args.size() > 2 ? stringify(args.get(0)) : stringify(args.get(0));
-                            String text = args.size() > 2 ? stringify(args.get(1)) : stringify(args.get(0));
+                            String id = stringify(args.get(0));
+                            String text = args.size() > 2 ? stringify(args.get(1)) : id;
                             String actionFuncName = args.size() > 2 ? stringify(args.get(2)) : (args.size() > 1 ? stringify(args.get(1)) : "");
 
-                            JButton btn = new JButton(text);
-                            hqlWidgets.put(id, btn);
-                            if (!actionFuncName.isEmpty()) {
-                                btn.addActionListener(e -> {
-                                    try { executeFunctionCall(actionFuncName, new ArrayList<>()); }
-                                    catch (Exception ex) { JOptionPane.showMessageDialog(hqlWindow, "Lỗi HQL Action: " + ex.getMessage()); }
-                                });
-                            }
-                            hqlPanel.add(btn);
+                            runOnEdt(() -> {
+                                JButton btn = new JButton(text);
+                                hqlWidgets.put(id, btn);
+                                if (!actionFuncName.isEmpty()) {
+                                    btn.addActionListener(e -> {
+                                        try { executeFunctionCall(actionFuncName, new ArrayList<>()); }
+                                        catch (Exception ex) { JOptionPane.showMessageDialog(hqlWindow, "Lỗi HQL Action: " + ex.getMessage()); }
+                                    });
+                                }
+                                hqlPanel.add(btn);
+                            });
                             return id;
                         }
                         return null;
@@ -6172,9 +6196,11 @@ public class Interpreter {
                     case "textField": {
                         if (hqlPanel != null) {
                             String id = stringify(args.get(0));
-                            JTextField txt = new JTextField(20);
-                            hqlWidgets.put(id, txt);
-                            hqlPanel.add(txt);
+                            runOnEdt(() -> {
+                                JTextField txt = new JTextField(20);
+                                hqlWidgets.put(id, txt);
+                                hqlPanel.add(txt);
+                            });
                             return id;
                         }
                         return null;
@@ -6182,35 +6208,41 @@ public class Interpreter {
                     case "textArea": {
                         if (hqlPanel != null) {
                             String id = stringify(args.get(0));
-                            JTextArea txtArea = new JTextArea(5, 20);
-                            txtArea.setLineWrap(true);
-                            txtArea.setWrapStyleWord(true);
-                            hqlWidgets.put(id, txtArea);
-                            hqlPanel.add(new JScrollPane(txtArea));
+                            runOnEdt(() -> {
+                                JTextArea txtArea = new JTextArea(5, 20);
+                                txtArea.setLineWrap(true);
+                                txtArea.setWrapStyleWord(true);
+                                hqlWidgets.put(id, txtArea);
+                                hqlPanel.add(new JScrollPane(txtArea));
+                            });
                             return id;
                         }
                         return null;
                     }
                     case "image": {
                         if (hqlPanel != null) {
-                            try {
-                                String id = args.size() > 1 ? stringify(args.get(0)) : stringify(args.get(0));
-                                String path = args.size() > 1 ? stringify(args.get(1)) : stringify(args.get(0));
-                                JLabel imgLabel = new JLabel(new ImageIcon(path));
-                                hqlWidgets.put(id, imgLabel);
-                                hqlPanel.add(imgLabel);
-                                return id;
-                            } catch (Exception ex) { System.err.println("Lỗi tải ảnh"); }
+                            String id = stringify(args.get(0));
+                            String path = args.size() > 1 ? stringify(args.get(1)) : id;
+                            runOnEdt(() -> {
+                                try {
+                                    JLabel imgLabel = new JLabel(new ImageIcon(path));
+                                    hqlWidgets.put(id, imgLabel);
+                                    hqlPanel.add(imgLabel);
+                                } catch (Exception ex) { System.err.println("Lỗi tải ảnh"); }
+                            });
+                            return id;
                         }
                         return null;
                     }
                     case "checkbox": {
                         if (hqlPanel != null) {
                             String id = stringify(args.get(0));
-                            String text = args.size() > 1 ? stringify(args.get(1)) : stringify(args.get(0));
-                            JCheckBox chk = new JCheckBox(text);
-                            hqlWidgets.put(id, chk);
-                            hqlPanel.add(chk);
+                            String text = args.size() > 1 ? stringify(args.get(1)) : id;
+                            runOnEdt(() -> {
+                                JCheckBox chk = new JCheckBox(text);
+                                hqlWidgets.put(id, chk);
+                                hqlPanel.add(chk);
+                            });
                             return id;
                         }
                         return null;
@@ -6219,11 +6251,13 @@ public class Interpreter {
                         if (hqlPanel != null) {
                             String id = stringify(args.get(0));
                             String group = args.size() > 1 ? stringify(args.get(1)) : "default";
-                            String text = args.size() > 2 ? stringify(args.get(2)) : stringify(args.get(0));
-                            JRadioButton rb = new JRadioButton(text);
-                            hqlRadioGroups.computeIfAbsent(group, k -> new ButtonGroup()).add(rb);
-                            hqlWidgets.put(id, rb);
-                            hqlPanel.add(rb);
+                            String text = args.size() > 2 ? stringify(args.get(2)) : id;
+                            runOnEdt(() -> {
+                                JRadioButton rb = new JRadioButton(text);
+                                hqlRadioGroups.computeIfAbsent(group, k -> new ButtonGroup()).add(rb);
+                                hqlWidgets.put(id, rb);
+                                hqlPanel.add(rb);
+                            });
                             return id;
                         }
                         return null;
@@ -6233,136 +6267,149 @@ public class Interpreter {
                             String id = args.size() > 1 ? stringify(args.get(0)) : "cb_" + System.currentTimeMillis();
                             ArrayList<?> list = (ArrayList<?>) (args.size() > 1 ? args.get(1) : args.get(0));
                             String[] items = list.stream().map(this::stringify).toArray(String[]::new);
-                            JComboBox<String> cb = new JComboBox<>(items);
-                            hqlWidgets.put(id, cb);
-                            hqlPanel.add(cb);
+                            runOnEdt(() -> {
+                                JComboBox<String> cb = new JComboBox<>(items);
+                                hqlWidgets.put(id, cb);
+                                hqlPanel.add(cb);
+                            });
                             return id;
                         }
                         return null;
                     }
                     case "onHover": {
-                        JComponent hoverComp = hqlWidgets.get(stringify(args.get(0)));
+                        String id = stringify(args.get(0));
                         String hoverFunc = stringify(args.get(1));
-                        if (hoverComp != null) {
-                            hoverComp.addMouseListener(new java.awt.event.MouseAdapter() {
-                                @Override
-                                public void mouseEntered(java.awt.event.MouseEvent e) {
-                                    try { executeFunctionCall(hoverFunc, new ArrayList<>()); } catch (Exception ex) {}
-                                }
-                            });
-                        }
+                        runOnEdt(() -> {
+                            JComponent hoverComp = hqlWidgets.get(id);
+                            if (hoverComp != null) {
+                                hoverComp.addMouseListener(new java.awt.event.MouseAdapter() {
+                                    @Override
+                                    public void mouseEntered(java.awt.event.MouseEvent e) {
+                                        try { executeFunctionCall(hoverFunc, new ArrayList<>()); } catch (Exception ex) {}
+                                    }
+                                });
+                            }
+                        });
                         return null;
                     }
                     case "onKeyPress": {
-                        JComponent keyComp = hqlWidgets.get(stringify(args.get(0)));
+                        String id = stringify(args.get(0));
                         String keyFunc = stringify(args.get(1));
-                        if (keyComp != null) {
-                            keyComp.addKeyListener(new java.awt.event.KeyAdapter() {
-                                @Override
-                                public void keyPressed(java.awt.event.KeyEvent e) {
-                                    try { executeFunctionCall(keyFunc, new ArrayList<>()); } catch (Exception ex) {}
-                                }
-                            });
-                        }
+                        runOnEdt(() -> {
+                            JComponent keyComp = hqlWidgets.get(id);
+                            if (keyComp != null) {
+                                keyComp.addKeyListener(new java.awt.event.KeyAdapter() {
+                                    @Override
+                                    public void keyPressed(java.awt.event.KeyEvent e) {
+                                        try { executeFunctionCall(keyFunc, new ArrayList<>()); } catch (Exception ex) {}
+                                    }
+                                });
+                            }
+                        });
                         return null;
                     }
                     case "trayInit": {
                         return TrayManager.init(stringify(args.get(0)), stringify(args.get(1)), stringify(args.get(2)), stringify(args.get(3)), this);
                     }
 
-                    // --- NHÓM 4: STYLE & DATA RETRIEVAL ---
+// --- NHÓM 4: STYLE & DATA RETRIEVAL ---
                     case "getText": {
-                        JComponent getComp = hqlWidgets.get(stringify(args.get(0)));
-                        if (getComp instanceof JTextField) return ((JTextField)getComp).getText();
-                        if (getComp instanceof JTextArea) return ((JTextArea)getComp).getText();
-                        if (getComp instanceof JCheckBox) return ((JCheckBox)getComp).isSelected() ? "true" : "false";
-                        if (getComp instanceof JRadioButton) return ((JRadioButton)getComp).isSelected() ? "true" : "false";
-                        if (getComp instanceof JComboBox) {
-                            Object sel = ((JComboBox<?>)getComp).getSelectedItem();
-                            return sel != null ? sel.toString() : "";
-                        }
-                        return "";
+                        String id = stringify(args.get(0));
+                        return callOnEdt(() -> {
+                            JComponent getComp = hqlWidgets.get(id);
+                            if (getComp instanceof JTextField) return ((JTextField) getComp).getText();
+                            if (getComp instanceof JTextArea) return ((JTextArea) getComp).getText();
+                            if (getComp instanceof JCheckBox) return ((JCheckBox) getComp).isSelected() ? "true" : "false";
+                            if (getComp instanceof JRadioButton) return ((JRadioButton) getComp).isSelected() ? "true" : "false";
+                            if (getComp instanceof JComboBox) {
+                                Object sel = ((JComboBox<?>) getComp).getSelectedItem();
+                                return sel != null ? sel.toString() : "";
+                            }
+                            return "";
+                        });
                     }
                     case "setStyle": {
-                        JComponent comp = hqlWidgets.get(stringify(args.get(0)));
-                        String prop = "";
-                        String val = "";
-
-                        // Thuật toán bóc tách thông minh: Hỗ trợ cả 2 cách viết "color:red" hoặc ("color", "red")
+                        String id = stringify(args.get(0));
+                        String propRaw = "";
+                        String valRaw = "";
                         if (args.size() == 2) {
                             String[] parts = stringify(args.get(1)).split(":", 2);
-                            prop = parts[0].trim().toLowerCase();
-                            if (parts.length > 1) val = parts[1].trim();
+                            propRaw = parts[0].trim().toLowerCase();
+                            if (parts.length > 1) valRaw = parts[1].trim();
                         } else if (args.size() >= 3) {
-                            prop = stringify(args.get(1)).toLowerCase();
-                            val = stringify(args.get(2));
+                            propRaw = stringify(args.get(1)).toLowerCase();
+                            valRaw = stringify(args.get(2));
                         }
+                        final String prop = propRaw;
+                        final String val = valRaw;
 
-                        if (comp != null) {
-                            try {
-                                switch (prop) {
-                                    case "color": comp.setForeground(Color.decode(val)); break;
-                                    case "bg": comp.setBackground(Color.decode(val)); break;
-                                    case "font_size": comp.setFont(new Font("SansSerif", Font.PLAIN, (int)toDouble(val))); break;
-                                    case "text":
-                                        if (comp instanceof JTextField) ((JTextField)comp).setText(val);
-                                        else if (comp instanceof JTextArea) ((JTextArea)comp).setText(val);
-                                        else if (comp instanceof JLabel) ((JLabel)comp).setText(val);
-                                        else if (comp instanceof JButton) ((JButton)comp).setText(val);
-                                        break;
-                                    case "font_weight":
-                                        if (val.equals("bold")) comp.setFont(comp.getFont().deriveFont(Font.BOLD));
-                                        else if (val.equals("plain")) comp.setFont(comp.getFont().deriveFont(Font.PLAIN));
-                                        break;
-                                    case "padding":
-                                        int p = (int)toDouble(val);
-                                        comp.setBorder(BorderFactory.createEmptyBorder(p, p, p, p));
-                                        break;
-                                    case "border_radius":
-                                        comp.setBorder(new javax.swing.border.LineBorder(Color.GRAY, 1, true));
-                                        break;
-                                }
-                            } catch (Exception ignored) {}
-                        }
+                        runOnEdt(() -> {
+                            JComponent comp = hqlWidgets.get(id);
+                            if (comp != null) {
+                                try {
+                                    switch (prop) {
+                                        case "color": comp.setForeground(Color.decode(val)); break;
+                                        case "bg": comp.setBackground(Color.decode(val)); break;
+                                        case "font_size": comp.setFont(new Font("SansSerif", Font.PLAIN, (int) toDouble(val))); break;
+                                        case "text":
+                                            if (comp instanceof JTextField) ((JTextField) comp).setText(val);
+                                            else if (comp instanceof JTextArea) ((JTextArea) comp).setText(val);
+                                            else if (comp instanceof JLabel) ((JLabel) comp).setText(val);
+                                            else if (comp instanceof JButton) ((JButton) comp).setText(val);
+                                            break;
+                                        case "font_weight":
+                                            if (val.equals("bold")) comp.setFont(comp.getFont().deriveFont(Font.BOLD));
+                                            else if (val.equals("plain")) comp.setFont(comp.getFont().deriveFont(Font.PLAIN));
+                                            break;
+                                        case "padding":
+                                            int p = (int) toDouble(val);
+                                            comp.setBorder(BorderFactory.createEmptyBorder(p, p, p, p));
+                                            break;
+                                        case "border_radius":
+                                            comp.setBorder(new javax.swing.border.LineBorder(Color.GRAY, 1, true));
+                                            break;
+                                    }
+                                } catch (Exception ignored) {}
+                            }
+                        });
                         return null;
                     }
                     case "table": {
                         if (hqlPanel != null) {
-                            // Tự động cấp ID nếu sếp truyền thiếu
                             String id = args.size() > 2 ? stringify(args.get(0)) : "tbl_" + System.currentTimeMillis();
                             ArrayList<?> colData = (ArrayList<?>) (args.size() > 2 ? args.get(1) : args.get(0));
                             ArrayList<?> rowData = (ArrayList<?>) (args.size() > 2 ? args.get(2) : args.get(1));
 
                             String[] cols = colData.stream().map(this::stringify).toArray(String[]::new);
                             String[][] rows = new String[rowData.size()][cols.length];
-
                             for (int i = 0; i < rowData.size(); i++) {
                                 ArrayList<?> r = (ArrayList<?>) rowData.get(i);
                                 for (int j = 0; j < r.size() && j < cols.length; j++) {
                                     rows[i][j] = stringify(r.get(j));
                                 }
                             }
-
-                            JTable table = new JTable(rows, cols);
-                            JScrollPane scrollPane = new JScrollPane(table);
-                            scrollPane.setPreferredSize(new Dimension(400, 200));
-                            hqlWidgets.put(id, table);
-                            hqlPanel.add(scrollPane);
+                            runOnEdt(() -> {
+                                JTable table = new JTable(rows, cols);
+                                JScrollPane scrollPane = new JScrollPane(table);
+                                scrollPane.setPreferredSize(new Dimension(400, 200));
+                                hqlWidgets.put(id, table);
+                                hqlPanel.add(scrollPane);
+                            });
                             return id;
                         }
                         return null;
                     }
                     case "progressBar": {
                         if (hqlPanel != null) {
-                            // Tự động cấp ID nếu sếp truyền thiếu
                             String id = args.size() > 1 ? stringify(args.get(0)) : "pb_" + System.currentTimeMillis();
                             int val = (int) toDouble(args.size() > 1 ? args.get(1) : args.get(0));
-
-                            JProgressBar pb = new JProgressBar(0, 100);
-                            pb.setValue(val);
-                            pb.setStringPainted(true);
-                            hqlWidgets.put(id, pb);
-                            hqlPanel.add(pb);
+                            runOnEdt(() -> {
+                                JProgressBar pb = new JProgressBar(0, 100);
+                                pb.setValue(val);
+                                pb.setStringPainted(true);
+                                hqlWidgets.put(id, pb);
+                                hqlPanel.add(pb);
+                            });
                             return id;
                         }
                         return null;
@@ -8193,13 +8240,13 @@ public class Interpreter {
             }
         }
         // ==========================================================================
-        //  HQL.MANG - THƯ VIỆN MẠNG CHO GAME NHIỀU NGƯỜI CHƠI
+        //  HQL.MULTIPLAYER - THƯ VIỆN MẠNG CHO GAME NHIỀU NGƯỜI CHƠI
         //  Khác hql.socket ở chỗ: KHÔNG CHẶN luồng, gửi/nhận theo TIN NHẮN (mỗi tin 1 dòng),
         //  nên nhét thẳng vào vòng lặp game 60 khung hình/giây được.
         // ==========================================================================
-        if (usedLibraries.contains("hql.mang")) {
-            Object networkResult = networkLibrary(name, args);
-            if (networkResult != NOT_HANDLED) return networkResult;
+        if (usedLibraries.contains("hql.multiplayer")) {
+            Object mpResult = networkLibrary(name, args);
+            if (mpResult != NOT_HANDLED) return mpResult;
         }
 
         if (usedLibraries.contains("hql.socket")) {
@@ -11079,5 +11126,71 @@ public class Interpreter {
         ArrayList<Object> result = new ArrayList<>();
         for(int i=0; i<Math.min(count, list.size()); i++) result.add(list.get(i).getKey());
         return result;
+    }
+
+    private static volatile BufferedImage cachedHqlIcon = null;
+    private static volatile byte[] cachedHqlFaviconPng = null;
+
+    /** Vẽ icon robot LinhScript mặc định (64x64) dùng cho cửa sổ UI và favicon Web. */
+    private static BufferedImage getDefaultHqlIcon() {
+        if (cachedHqlIcon != null) return cachedHqlIcon;
+        BufferedImage img = new BufferedImage(64, 64, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+        Color pink = new Color(236, 72, 153); // Màu hồng đặc trưng của hqlFile.svg
+        g.setColor(pink);
+        // Anten trên đầu
+        g.fillOval(26, 4, 12, 12);
+        g.fillRect(29, 13, 6, 10);
+        // Tai hai bên
+        g.fillRoundRect(4, 28, 8, 18, 6, 6);
+        g.fillRoundRect(52, 28, 8, 18, 6, 6);
+        // Đầu robot bo góc
+        g.fillRoundRect(10, 20, 44, 36, 16, 16);
+        // Hai mắt trắng
+        g.setColor(Color.WHITE);
+        g.fillRoundRect(18, 29, 10, 16, 6, 6);
+        g.fillRoundRect(36, 29, 10, 16, 6, 6);
+
+        g.dispose();
+        cachedHqlIcon = img;
+        return img;
+    }
+
+    private static byte[] getDefaultHqlFaviconPng() {
+        if (cachedHqlFaviconPng != null) return cachedHqlFaviconPng;
+        try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
+            ImageIO.write(getDefaultHqlIcon(), "png", baos);
+            cachedHqlFaviconPng = baos.toByteArray();
+        } catch (IOException e) {
+            cachedHqlFaviconPng = new byte[0];
+        }
+        return cachedHqlFaviconPng;
+    }
+
+    private void runOnEdt(Runnable task) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            task.run();
+        } else {
+            try {
+                SwingUtilities.invokeAndWait(task);
+            } catch (Exception e) {
+                throw new RuntimeException("Lỗi UI EDT: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    private <T> T callOnEdt(java.util.concurrent.Callable<T> task) {
+        if (SwingUtilities.isEventDispatchThread()) {
+            try { return task.call(); }
+            catch (Exception e) { throw new RuntimeException(e); }
+        }
+        final java.util.concurrent.atomic.AtomicReference<T> res = new java.util.concurrent.atomic.AtomicReference<>();
+        runOnEdt(() -> {
+            try { res.set(task.call()); }
+            catch (Exception e) { throw new RuntimeException(e); }
+        });
+        return res.get();
     }
 }

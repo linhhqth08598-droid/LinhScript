@@ -9,5 +9,46 @@
   { "name": "jakarta.activation.MailcapCommandMap", "allDeclaredConstructors": true, "allPublicMethods": true },
   { "name": "jakarta.activation.MimetypesFileTypeMap", "allDeclaredConstructors": true, "allPublicMethods": true },
   { "name": "jakarta.mail.Session", "allDeclaredConstructors": true, "allPublicMethods": true },
-  { "name": "jakarta.mail.internet.MimeMessage", "allDeclaredConstructors": true, "allPublicMethods": true }
+  { "name": "jakarta.mail.internet.MimeMessage", "allDeclaredConstructors": true, "allPublicMethods": true },
+  {
+    "name": "java.awt.event.MouseEvent",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.awt.event.KeyEvent",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "java.rmi.MarshalledObject",
+    "allDeclaredConstructors": true,
+    "allPublicConstructors": true,
+    "allDeclaredMethods": true,
+    "allPublicMethods": true
+  },
+  {
+    "name": "javax.swing.plaf.basic.BasicOptionPaneUI",
+    "methods": [{"name": "createUI", "parameterTypes": ["javax.swing.JComponent"]}]
+  },
+  {
+    "name": "javax.swing.plaf.metal.MetalOptionPaneUI",
+    "methods": [{"name": "createUI", "parameterTypes": ["javax.swing.JComponent"]}]
+  },
+  {
+    "name": "com.sun.crypto.provider.HmacCore$HmacSHA1",
+    "methods": [{"name": "<init>", "parameterTypes": []}]
+  },
+  {
+    "name": "com.sun.crypto.provider.PBKDF2Core$HmacSHA1",
+    "methods": [{"name": "<init>", "parameterTypes": []}]
+  },
+  {
+    "name": "javax.swing.plaf.basic.BasicToolTipUI",
+    "methods": [{"name": "createUI", "parameterTypes": ["javax.swing.JComponent"]}]
+  }
 ]

@@ -77,7 +77,8 @@
 },
 {
   "name":"java.awt.Point",
-  "fields":[{"name":"x"}, {"name":"y"}]
+  "fields":[{"name":"x"}, {"name":"y"}],
+  "methods":[{"name":"<init>","parameterTypes":["int","int"] }]
 },
 {
   "name":"java.awt.Rectangle",
@@ -114,7 +115,13 @@
 },
 {
   "name":"java.awt.event.KeyEvent",
-  "fields":[{"name":"extendedKeyCode"}, {"name":"keyChar"}, {"name":"keyCode"}, {"name":"primaryLevelUnicode"}, {"name":"rawCode"}, {"name":"scancode"}]
+  "fields":[{"name":"extendedKeyCode"}, {"name":"keyChar"}, {"name":"keyCode"}, {"name":"primaryLevelUnicode"}, {"name":"rawCode"}, {"name":"scancode"}],
+  "methods":[{"name":"<init>","parameterTypes":["java.awt.Component","int","long","int","int","char"] }, {"name":"<init>","parameterTypes":["java.awt.Component","int","long","int","int","char","int"] }]
+},
+{
+  "name":"java.awt.event.MouseEvent",
+  "fields":[{"name":"button"}, {"name":"causedByTouchEvent"}, {"name":"clickCount"}, {"name":"popupTrigger"}, {"name":"x"}, {"name":"y"}],
+  "methods":[{"name":"<init>","parameterTypes":["java.awt.Component","int","long","int","int","int","int","int","int","boolean","int"] }, {"name":"<init>","parameterTypes":["java.awt.Component","int","long","int","int","int","int","boolean"] }, {"name":"<init>","parameterTypes":["java.awt.Component","int","long","int","int","int","int","boolean","int"] }]
 },
 {
   "name":"java.awt.geom.AffineTransform",
@@ -297,7 +304,7 @@
 {
   "name":"sun.awt.windows.WComponentPeer",
   "fields":[{"name":"hwnd"}, {"name":"winGraphicsConfig"}],
-  "methods":[{"name":"disposeLater","parameterTypes":[] }, {"name":"handleExpose","parameterTypes":["int","int","int","int"] }, {"name":"postEvent","parameterTypes":["java.awt.AWTEvent"] }, {"name":"replaceSurfaceData","parameterTypes":[] }, {"name":"replaceSurfaceDataLater","parameterTypes":[] }]
+  "methods":[{"name":"disposeLater","parameterTypes":[] }, {"name":"dynamicallyLayoutContainer","parameterTypes":[] }, {"name":"handleExpose","parameterTypes":["int","int","int","int"] }, {"name":"postEvent","parameterTypes":["java.awt.AWTEvent"] }, {"name":"replaceSurfaceData","parameterTypes":[] }, {"name":"replaceSurfaceDataLater","parameterTypes":[] }]
 },
 {
   "name":"sun.awt.windows.WDesktopPeer",
@@ -309,12 +316,23 @@
   "methods":[{"name":"setBooleanProperty","parameterTypes":["java.lang.String","boolean"] }, {"name":"setColorProperty","parameterTypes":["java.lang.String","int","int","int"] }, {"name":"setFontProperty","parameterTypes":["java.lang.String","java.lang.String","int","int"] }, {"name":"setIntegerProperty","parameterTypes":["java.lang.String","int"] }, {"name":"setSoundProperty","parameterTypes":["java.lang.String","java.lang.String"] }, {"name":"setStringProperty","parameterTypes":["java.lang.String","java.lang.String"] }]
 },
 {
+  "name":"sun.awt.windows.WDialogPeer"
+},
+{
   "name":"sun.awt.windows.WFontPeer",
   "fields":[{"name":"textComponentFontName"}]
 },
 {
   "name":"sun.awt.windows.WFramePeer",
   "methods":[{"name":"getExtendedState","parameterTypes":[] }]
+},
+{
+  "name":"sun.awt.windows.WGlobalCursorManager",
+  "methods":[{"name":"nativeUpdateCursor","parameterTypes":["java.awt.Component"] }]
+},
+{
+  "name":"sun.awt.windows.WInputMethod",
+  "methods":[{"name":"inquireCandidatePosition","parameterTypes":[] }]
 },
 {
   "name":"sun.awt.windows.WObjectPeer",
@@ -332,7 +350,7 @@
 {
   "name":"sun.awt.windows.WWindowPeer",
   "fields":[{"name":"windowType"}],
-  "methods":[{"name":"draggedToNewScreen","parameterTypes":[] }, {"name":"notifyWindowStateChanged","parameterTypes":["int","int"] }, {"name":"setBackground","parameterTypes":["java.awt.Color"] }]
+  "methods":[{"name":"draggedToNewScreen","parameterTypes":[] }, {"name":"getActiveWindowHandles","parameterTypes":["java.awt.Component"] }, {"name":"notifyWindowStateChanged","parameterTypes":["int","int"] }, {"name":"setBackground","parameterTypes":["java.awt.Color"] }]
 },
 {
   "name":"sun.font.CharToGlyphMapper",
@@ -516,6 +534,10 @@
 {
   "name":"sun.java2d.pipe.ShapeSpanIterator",
   "fields":[{"name":"pData"}]
+},
+{
+  "name":"sun.java2d.windows.GDIWindowSurfaceData",
+  "methods":[{"name":"initIDs","parameterTypes":[] }]
 },
 {
   "name":"sun.java2d.windows.WindowsFlags",

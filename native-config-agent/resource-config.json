@@ -55,6 +55,8 @@
   }, {
     "pattern":"\\QMETA-INF/services/javax.xml.xpath.XPathFactory\\E"
   }, {
+    "pattern":"\\Qjndi.properties\\E"
+  }, {
     "pattern":"java.base:\\Qjdk/internal/icu/impl/data/icudt72b/nfc.nrm\\E"
   }, {
     "pattern":"java.base:\\Qjdk/internal/icu/impl/data/icudt72b/nfkc.nrm\\E"
@@ -64,6 +66,8 @@
     "pattern":"java.base:\\Qsun/net/idn/uidna.spp\\E"
   }, {
     "pattern":"java.datatransfer:\\Qsun/datatransfer/resources/flavormap.properties\\E"
+  }, {
+    "pattern":"java.desktop:\\Qjavax/swing/plaf/metal/icons/ocean/info.png\\E"
   }]},
   "bundles":[{
     "name":"com.microsoft.sqlserver.jdbc.SQLServerResource",

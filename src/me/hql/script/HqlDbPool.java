@@ -47,6 +47,7 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.naming.NamingEnumeration;
 import javax.naming.NamingException;
 import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
 import javax.naming.directory.DirContext;
 import javax.naming.directory.InitialDirContext;
 import javax.net.ssl.SSLContext;
@@ -1002,7 +1003,6 @@ public final class HqlDbPool implements AutoCloseable {
             }
         }
 
-        /** mongodb+srv://: tra DNS SRV để ra danh sách máy chủ, và bản ghi TXT để lấy authSource / replicaSet. */
         private static void resolveSrv(Cfg c, String host, Map<String, String> txtOpts) {
             DirContext ctx = null;
             try {
@@ -1011,26 +1011,125 @@ public final class HqlDbPool implements AutoCloseable {
                 env.put("com.sun.jndi.dns.timeout.initial", "5000");
                 env.put("com.sun.jndi.dns.timeout.retries", "2");
                 ctx = new InitialDirContext(env);
-                Attribute srv = ctx.getAttributes("_mongodb._tcp." + host, new String[]{"SRV"}).get("SRV");
-                if (srv == null || srv.size() == 0) throw new NoSqlException("Không có bản ghi SRV cho " + host + " — kiểm tra lại tên cluster.");
+                Attributes attrs = ctx.getAttributes("_mongodb._tcp." + host, new String[]{"SRV"});
+                Attribute srv = attrs == null ? null : attrs.get("SRV");
+                if (srv == null || srv.size() == 0) throw new NamingException("No SRV");
                 for (NamingEnumeration<?> en = srv.getAll(); en.hasMore(); ) {
-                    String[] p = String.valueOf(en.next()).trim().split("\\s+");      // ưu tiên, trọng số, cổng, tên máy
+                    String[] p = String.valueOf(en.next()).trim().split("\\s+");
                     String t = p[3].endsWith(".") ? p[3].substring(0, p[3].length() - 1) : p[3];
                     c.seeds.add(new String[]{t, p[2]});
                 }
                 try {
                     Attribute txt = ctx.getAttributes(host, new String[]{"TXT"}).get("TXT");
                     if (txt != null && txt.size() > 0) {
-                        String s = String.valueOf(txt.get(0)).replace("\"", "").trim();
-                        txtOpts.putAll(parseOptions(s));
+                        txtOpts.putAll(parseOptions(String.valueOf(txt.get(0)).replace("\"", "").trim()));
                     }
-                } catch (NamingException ignore) { /* không có TXT cũng được */ }
-            } catch (NamingException e) {
-                throw new NoSqlException("Không tra được DNS của " + host + " (" + e.getMessage() + "). "
-                        + "Kiểm tra mạng/DNS, hoặc dùng địa chỉ mongodb://host1:27017,host2:27017/... thay cho mongodb+srv://");
+                } catch (Throwable ignore) { }
+            } catch (Throwable e) {
+                // Native Image không hỗ trợ JNDI DNS -> dùng truy vấn DNS UDP trực tiếp
+                try {
+                    resolveSrvUdp(c, host, txtOpts);
+                } catch (Exception udpEx) {
+                    throw new NoSqlException("Không tra được DNS SRV cho " + host + " (" + msg(udpEx) + ").");
+                }
             } finally {
-                if (ctx != null) try { ctx.close(); } catch (NamingException ignore) { }
+                if (ctx != null) try { ctx.close(); } catch (Throwable ignore) { }
             }
+        }
+
+        private static void resolveSrvUdp(Cfg c, String host, Map<String, String> txtOpts) throws IOException {
+            byte[] srvResp = queryDnsUdp("_mongodb._tcp." + host, 33); // 33 = SRV
+            int anCount = ((srvResp[6] & 0xFF) << 8) | (srvResp[7] & 0xFF);
+            int pos = skipDnsName(srvResp, 12) + 4;
+            for (int i = 0; i < anCount && pos < srvResp.length; i++) {
+                pos = skipDnsName(srvResp, pos);
+                int type = ((srvResp[pos] & 0xFF) << 8) | (srvResp[pos + 1] & 0xFF);
+                int rdLen = ((srvResp[pos + 8] & 0xFF) << 8) | (srvResp[pos + 9] & 0xFF);
+                pos += 10;
+                if (type == 33 && rdLen > 6) {
+                    int port = ((srvResp[pos + 4] & 0xFF) << 8) | (srvResp[pos + 5] & 0xFF);
+                    String target = readDnsName(srvResp, pos + 6);
+                    c.seeds.add(new String[]{target, String.valueOf(port)});
+                }
+                pos += rdLen;
+            }
+            if (c.seeds.isEmpty()) throw new IOException("Không tìm thấy bản ghi SRV.");
+
+            try {
+                byte[] txtResp = queryDnsUdp(host, 16); // 16 = TXT
+                int txtAn = ((txtResp[6] & 0xFF) << 8) | (txtResp[7] & 0xFF);
+                int tp = skipDnsName(txtResp, 12) + 4;
+                for (int i = 0; i < txtAn && tp < txtResp.length; i++) {
+                    tp = skipDnsName(txtResp, tp);
+                    int type = ((txtResp[tp] & 0xFF) << 8) | (txtResp[tp + 1] & 0xFF);
+                    int rdLen = ((txtResp[tp + 8] & 0xFF) << 8) | (txtResp[tp + 9] & 0xFF);
+                    tp += 10;
+                    if (type == 16) {
+                        StringBuilder sb = new StringBuilder();
+                        int end = tp + rdLen, cur = tp;
+                        while (cur < end) {
+                            int len = txtResp[cur++] & 0xFF;
+                            sb.append(new String(txtResp, cur, len, StandardCharsets.UTF_8));
+                            cur += len;
+                        }
+                        txtOpts.putAll(parseOptions(sb.toString()));
+                    }
+                    tp += rdLen;
+                }
+            } catch (Exception ignore) { }
+        }
+
+        private static byte[] queryDnsUdp(String domain, int qtype) throws IOException {
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            out.write(new byte[]{0x12, 0x34, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+            for (String label : domain.split("\\.")) {
+                byte[] lb = label.getBytes(StandardCharsets.UTF_8);
+                out.write(lb.length);
+                out.write(lb, 0, lb.length);
+            }
+            out.write(0);
+            out.write(new byte[]{(byte) (qtype >> 8), (byte) qtype, 0x00, 0x01});
+            byte[] pkt = out.toByteArray();
+
+            IOException last = null;
+            for (String dns : new String[]{"8.8.8.8", "1.1.1.1"}) {
+                try (java.net.DatagramSocket sock = new java.net.DatagramSocket()) {
+                    sock.setSoTimeout(3000);
+                    java.net.InetAddress addr = java.net.InetAddress.getByName(dns);
+                    sock.send(new java.net.DatagramPacket(pkt, pkt.length, addr, 53));
+                    byte[] buf = new byte[2048];
+                    java.net.DatagramPacket resp = new java.net.DatagramPacket(buf, buf.length);
+                    sock.receive(resp);
+                    return Arrays.copyOf(buf, resp.getLength());
+                } catch (IOException e) { last = e; }
+            }
+            throw last != null ? last : new IOException("DNS timeout");
+        }
+
+        private static int skipDnsName(byte[] buf, int off) {
+            int p = off;
+            while (p < buf.length) {
+                int len = buf[p] & 0xFF;
+                if (len == 0) return p + 1;
+                if ((len & 0xC0) == 0xC0) return p + 2;
+                p += 1 + len;
+            }
+            return p;
+        }
+
+        private static String readDnsName(byte[] buf, int off) {
+            StringBuilder sb = new StringBuilder();
+            int p = off, jumps = 0;
+            while (p < buf.length && jumps++ < 20) {
+                int len = buf[p] & 0xFF;
+                if (len == 0) break;
+                if ((len & 0xC0) == 0xC0) { p = ((len & 0x3F) << 8) | (buf[p + 1] & 0xFF); continue; }
+                p++;
+                if (sb.length() > 0) sb.append('.');
+                sb.append(new String(buf, p, len, StandardCharsets.UTF_8));
+                p += len;
+            }
+            return sb.toString();
         }
 
         // ---------------------------------------------------------------- ổ cắm + TLS

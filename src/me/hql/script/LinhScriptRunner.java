@@ -6,6 +6,11 @@ import java.nio.file.Paths;
 
 public class LinhScriptRunner {
 
+    static {
+        System.setProperty("sun.java2d.d3d", "false");
+        System.setProperty("sun.java2d.noddraw", "true");
+    }
+
     /**
      * Dò ngược lên từ vị trí file chạy (jpackage.app-path hoặc Native Image) để tìm một file
      * theo đường dẫn tương đối. Trả về null nếu không thấy.
