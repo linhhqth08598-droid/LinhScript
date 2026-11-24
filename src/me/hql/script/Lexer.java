@@ -32,6 +32,7 @@ public class Lexer {
         KEYWORDS.put("extends", "extends");
         KEYWORDS.put("new", "new");
         KEYWORDS.put("var", "var");
+        KEYWORDS.put("const", "const");
 
         // Built-in functions
         KEYWORDS.put("call", "call");

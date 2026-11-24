@@ -125,6 +125,8 @@ public class Interpreter {
         /** true = đây là vùng nhớ gốc của một hàm (hoặc của toàn chương trình). */
         private final boolean isFunctionRoot;
         private final java.util.Map<String, Object> variables;
+        /** Ten cac hang so (const). Chi vung nho goc cua ham moi giu tap nay. */
+        private final java.util.Set<String> constants = new java.util.HashSet<>();
 
         Scope(Scope parent) { this(parent, false); }
         Scope(Scope parent, boolean isFunctionRoot) {
@@ -159,7 +161,27 @@ public class Interpreter {
             while (!s.isFunctionRoot && s.parent != null) s = s.parent;
             s.variables.put(name, value);
         }
+        /** Khai bao hang so bang tu khoa const. Chi cho phep o vung nho goc cua ham. */
+        public void declareConst(String name, Object value) {
+            Scope s = this;
+            while (!s.isFunctionRoot && s.parent != null) s = s.parent;
+            if (s.variables.containsKey(name) || s.constants.contains(name)) {
+                throw new RuntimeException("Lỗi: Hằng số '" + name + "' đã được khai báo.");
+            }
+            s.constants.add(name);
+            s.variables.put(name, value);
+        }
+
+        /** Kiem tra mot ten co phai hang so khong (do nguoc len cha). */
+        public boolean isConstant(String name) {
+            if (constants.contains(name)) return true;
+            return parent != null && parent.isConstant(name);
+        }
+
         public void assign(String name, Object value) {
+            if (isConstant(name)) {
+                throw new RuntimeException("Lỗi: Không thể gán lại giá trị cho hằng số '" + name + "'.");
+            }
             if (variables.containsKey(name) || parent == null) {
                 variables.put(name, value);
             } else {
@@ -2525,7 +2547,7 @@ public class Interpreter {
     private void declareFunction(List<Token> tokens) {
         String functionName = tokens.get(1).value;
         int bodyBraceIndex = findTokenIndex(tokens, "L_BRACE", 0);
-        List<String> params = parseParamNames(trimWrappingParentheses(tokens.subList(2, bodyBraceIndex)));
+        List<FunctionDef.Param> params = parseFunctionParams(trimWrappingParentheses(tokens.subList(2, bodyBraceIndex)));
         int bodyEndIndex = findMatchingBrace(tokens, bodyBraceIndex);
         if (bodyEndIndex == -1) {
             throw new RuntimeException("Lỗi: Thiếu dấu đóng ngoặc '}' cho hàm '" + functionName + "'");
@@ -2548,7 +2570,7 @@ public class Interpreter {
             if (isFunctionDeclaration(memberTokens)) {
                 String memberName = memberTokens.get(1).value;
                 int methodBodyBraceIndex = findTokenIndex(memberTokens, "L_BRACE", 0);
-                List<String> params = parseParamNames(trimWrappingParentheses(memberTokens.subList(2, methodBodyBraceIndex)));
+                List<FunctionDef.Param> params = parseFunctionParams(trimWrappingParentheses(memberTokens.subList(2, methodBodyBraceIndex)));
                 int methodBodyEndIndex = findMatchingBrace(memberTokens, methodBodyBraceIndex);
                 newClass.methods.put(memberName, new FunctionDef(memberName, params, memberTokens.subList(methodBodyBraceIndex + 1, methodBodyEndIndex)));
             } else if (memberTokens.get(0).value.equals("var")) {
@@ -2652,9 +2674,13 @@ public class Interpreter {
 
         List<Token> lhs = tokens.subList(0, assignIndex);
         boolean isDeclaration = false;   // Có từ khoá 'var' đứng trước hay không
+        boolean isConst = false;         // Có từ khoá 'const' đứng trước hay không
         if (!lhs.isEmpty() && lhs.get(0).type.equals("KEYWORD") && lhs.get(0).value.equals("var")) {
             lhs = lhs.subList(1, lhs.size());
             isDeclaration = true;
+        } else if (!lhs.isEmpty() && lhs.get(0).type.equals("KEYWORD") && lhs.get(0).value.equals("const")) {
+            lhs = lhs.subList(1, lhs.size());
+            isConst = true;
         }
         String op = tokens.get(assignIndex).value;
         Object rhsValue = resolveExpression(tokens.subList(assignIndex + 1, tokens.size()));
@@ -2662,8 +2688,12 @@ public class Interpreter {
         if (lhs.size() == 1 && lhs.get(0).type.equals("IDENTIFIER")) {
             String varName = lhs.get(0).value;
             if (op.equals("=")) {
-                if (isDeclaration) scope().declare(varName, rhsValue);
-                else scope().assign(varName, rhsValue);
+                if (isConst) scope().declareConst(varName, rhsValue);
+                else if (isDeclaration) scope().declare(varName, rhsValue);
+                else {
+                    if (scope().isConstant(varName)) throw new RuntimeException("Lỗi: Không thể gán lại giá trị cho hằng số '" + varName + "'.");
+                    scope().assign(varName, rhsValue);
+                }
             } else {
                 Object lhsValue = scope().get(varName);
                 if (lhsValue == null) throw new RuntimeException("Lỗi: Biến '" + varName + "' chưa được khởi tạo.");
@@ -3114,7 +3144,7 @@ public class Interpreter {
         if (tokens.size() >= 5 && tokens.get(0).value.equals("func") && tokens.get(1).type.equals("L_PAREN")) {
             int bodyBrace = findTokenIndex(tokens, "L_BRACE", 0);
             if (bodyBrace != -1 && findMatchingBrace(tokens, bodyBrace) == tokens.size() - 1) {
-                List<String> anonParams = parseParamNames(trimWrappingParentheses(tokens.subList(1, bodyBrace)));
+                List<FunctionDef.Param> anonParams = parseFunctionParams(trimWrappingParentheses(tokens.subList(1, bodyBrace)));
                 FunctionDef anonDef = new FunctionDef("<ẩn danh>", anonParams, tokens.subList(bodyBrace + 1, tokens.size() - 1));
                 return new HqlFunction(anonDef, scope());
             }
@@ -3462,6 +3492,36 @@ public class Interpreter {
      * không phải vùng nhớ của nơi gọi. Thừa/thiếu đối số thì bỏ/để trống
      * (cho phép callback kiểu func(x) dùng được trong map/filter/reduce).
      */
+
+    /**
+     * Gan doi so vao vung nho cua ham, xu ly day du: requiredCount, hasRest, defaultTokens.
+     * Dung chung cho invokeFunctionValue va executeFunctionCall.
+     */
+    private void bindArguments(FunctionDef def, List<Object> evaluatedArgs, Scope targetScope) {
+        int argCount = evaluatedArgs == null ? 0 : evaluatedArgs.size();
+        if (argCount < def.requiredCount) {
+            throw new RuntimeException("Lỗi: Thiếu đối số khi gọi hàm '" + def.name
+                    + "' (cần tối thiểu " + def.requiredCount + ", nhận " + argCount + ").");
+        }
+        if (!def.hasRest && argCount > def.paramDefs.size()) {
+            throw new RuntimeException("Lỗi: Thừa đối số khi gọi hàm '" + def.name
+                    + "' (tối đa " + def.paramDefs.size() + ", nhận " + argCount + ").");
+        }
+        for (int i = 0; i < def.paramDefs.size(); i++) {
+            FunctionDef.Param prm = def.paramDefs.get(i);
+            if (prm.isRest) {
+                ArrayList<Object> restList = new ArrayList<>();
+                for (int j = i; j < argCount; j++) restList.add(evaluatedArgs.get(j));
+                targetScope.put(prm.name, restList);
+            } else if (i < argCount && evaluatedArgs.get(i) != null) {
+                targetScope.put(prm.name, evaluatedArgs.get(i));
+            } else if (prm.defaultTokens != null) {
+                targetScope.put(prm.name, resolveExpression(prm.defaultTokens));
+            } else {
+                targetScope.put(prm.name, i < argCount ? evaluatedArgs.get(i) : null);
+            }
+        }
+    }
     private Object invokeFunctionValue(HqlFunction fn, List<Object> args) {
         FunctionDef def = fn.def;
         Scope callerScope = scope();
@@ -3472,9 +3532,7 @@ public class Interpreter {
         boolean finishedFlag = false;
         try {
             setScope(new Scope(fn.closure != null ? fn.closure : callerScope, true));
-            for (int i = 0; i < def.params.size(); i++) {
-                scope().put(def.params.get(i), i < args.size() ? args.get(i) : null);
-            }
+            bindArguments(def, args, scope());
             runAll(def.body);
             finishedFlag = true;
         } catch (ReturnException byteOut) {
@@ -3492,22 +3550,16 @@ public class Interpreter {
         if (isBuiltin(functionName)) return executeBuiltin(functionName, argGroups);
         if (scope().has(functionName) && scope().get(functionName) instanceof HqlFunction) {
             HqlFunction fnValue = (HqlFunction) scope().get(functionName);
-            if (argGroups.size() != fnValue.def.params.size())
-                throw new RuntimeException("Lỗi: Sai số lượng tham số khi gọi hàm '" + functionName
-                        + "' (cần " + fnValue.def.params.size() + ", nhận " + argGroups.size() + ").");
             List<Object> fnArgs = new ArrayList<>();
             for (List<Token> g : argGroups) fnArgs.add(resolveExpression(g));
             return invokeFunctionValue(fnValue, fnArgs);
         }
         if (functionMemory.containsKey(functionName)) {
             FunctionDef def = functionMemory.get(functionName);
-            if (argGroups.size() != def.params.size())
-                throw new RuntimeException("Lỗi: Sai số lượng tham số khi gọi hàm '" + functionName
-                        + "' (cần " + def.params.size() + ", nhận " + argGroups.size() + ").");
 
             // Tính giá trị tham số TRƯỚC (ở vùng nhớ của nơi gọi), rồi mới mở vùng nhớ riêng của hàm
             List<Object> paramValueText = new ArrayList<>();
-            for (int i = 0; i < def.params.size(); i++) paramValueText.add(resolveExpression(argGroups.get(i)));
+            for (List<Token> g : argGroups) paramValueText.add(resolveExpression(g));
 
             Scope funcScope = scope();
 
@@ -3521,9 +3573,7 @@ public class Interpreter {
             boolean finishedFlag = false;
             try {
                 enterFunctionScope();
-                for (int i = 0; i < def.params.size(); i++) {
-                    scope().put(def.params.get(i), paramValueText.get(i));
-                }
+                bindArguments(def, paramValueText, scope());
                 runAll(def.body);
                 finishedFlag = true;
             } catch (ReturnException byteOut) {
@@ -9833,6 +9883,67 @@ public class Interpreter {
         if (a instanceof Double && b instanceof String) return a.toString().equals(b);
         if (a instanceof String && b instanceof Double) return a.equals(b.toString());
         return a.equals(b);
+    }
+
+    private List<FunctionDef.Param> parseFunctionParams(List<Token> rawTokens) {
+        List<FunctionDef.Param> result = new ArrayList<>();
+        if (rawTokens == null || rawTokens.isEmpty()) return result;
+
+        List<List<Token>> groups = splitTopLevel(rawTokens, "COMMA");
+        boolean seenDefault = false;
+        boolean seenRest = false;
+
+        for (List<Token> g : groups) {
+            if (g.isEmpty()) continue;
+            if (seenRest) {
+                throw new RuntimeException("Lỗi cú pháp: Tham số rest '...args' phải nằm ở cuối danh sách tham số.");
+            }
+
+            int idx = 0;
+            boolean isRest = false;
+            // Ho tro 3 dang: token SPREAD, token value "...", hoac 3 token DOT lien tiep
+            if (g.get(idx).type.equals("SPREAD") || g.get(idx).value.equals("...")) {
+                isRest = true;
+                idx++;
+            } else if (idx + 2 < g.size()
+                    && g.get(idx).value.equals(".")
+                    && g.get(idx + 1).value.equals(".")
+                    && g.get(idx + 2).value.equals(".")) {
+                isRest = true;
+                idx += 3;
+            }
+            if (idx >= g.size()) {
+                throw new RuntimeException("Lỗi cú pháp: Thiếu tên tham số sau '...'.");
+            }
+            String paramName = g.get(idx).value;
+            idx++;
+
+            if (isRest) {
+                if (idx < g.size()) {
+                    throw new RuntimeException("Lỗi cú pháp: Tham số rest '..." + paramName + "' không thể có giá trị mặc định.");
+                }
+                seenRest = true;
+                result.add(new FunctionDef.Param(paramName, null, true));
+                continue;
+            }
+
+            List<Token> defaultExpr = null;
+            if (idx < g.size()) {
+                if (!g.get(idx).type.equals("ASSIGN") && !g.get(idx).value.equals("=")) {
+                    throw new RuntimeException("Lỗi cú pháp: Tham số '" + paramName + "' không hợp lệ.");
+                }
+                defaultExpr = g.subList(idx + 1, g.size());
+                if (defaultExpr.isEmpty()) {
+                    throw new RuntimeException("Lỗi cú pháp: Thiếu giá trị mặc định cho tham số '" + paramName + "'.");
+                }
+                seenDefault = true;
+            } else if (seenDefault) {
+                throw new RuntimeException("Lỗi cú pháp: Tham số bắt buộc '" + paramName + "' không thể đứng sau tham số có giá trị mặc định.");
+            }
+
+            result.add(new FunctionDef.Param(paramName, defaultExpr, false));
+        }
+        return result;
     }
 
     private List<String> parseParamNames(List<Token> paramTokens) {

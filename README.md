@@ -1611,3 +1611,153 @@ Hàm `env("KHOA"[, mac_dinh])` của `hql.sys` cũng đọc được `.henv`.
 ---
 
 _LinhScript (HQL) — Hà Quang Linh. Tài liệu chi tiết từng phần nằm trong thư mục `docs/`._
+
+---
+
+## 10. File test tong hop & danh sach day du cac nhom ham built-in
+
+> **Cap nhat:** Muc nay duoc bo sung sau khi sua loi build `cannot find symbol` (do file `.iml` trung + `.class` rac trong cac thu muc `_build_test`, `_verify_build`, `out_test`). Sau khi don sach + Invalidate Caches + Clean/Rebuild, build thanh cong.
+
+### 10.1. File test tong hop
+
+File test toan dien nam tai:
+
+```
+D:\CodeJava\Modding\Project\test_full_all_functions.hql
+```
+
+File nay kiem tra **18 nhom chuc nang** va in ra `[PASS]` / `[FAIL]` cho tung nhom, cuoi cung in tong ket:
+
+| # | Nhom | Thu vien | Noi dung kiem tra |
+|---|------|----------|-------------------|
+| 1 | Math | hql.math | abs, ceil, floor, round, sqrt, pow, min, max, random, randomInt, clamp, lerp, gcd, lcm, factorial, sin, cos, degrees, PI |
+| 2 | String | core/hql.util | trim, toUpperCase, toLowerCase, substring, indexOf, startsWith, endsWith, replace, contains, split, len, reverse, format |
+| 3 | List & Map | core | push, pop, join, indexOf, contains, truy cap map bang `["key"]` |
+| 4 | JSON | core/hql.util | toJson, fromJson, jsonEscape |
+| 5 | Time | hql.time | now, currentTime, getYear, getMonth, getDay, addDays, daysBetween, isWeekend |
+| 6 | Regex | hql.regex | matches, findRegex, findAll, replaceRegex, replaceFirst |
+| 7 | Crypto | hql.crypto | base64Encode/Decode, md5, sha256, encrypt, decrypt |
+| 8 | File IO | hql.io | write, read, exists, fileSize, lastModified |
+| 9 | Env | hql.env | envSet, envGet, envHas, envAll |
+| 10 | CSV | hql.csv | readCsvRecords, csvRowCount, getCsvField |
+| 11 | Config | hql.config | loadConfig, setConfig, saveConfig, getConfig, hasConfigKey |
+| 12 | Color | hql.color | colorHexToRgb, colorRgbToHex, colorLighten, colorDarken, colorIsDark, colorBlend, colorRandomHex |
+| 13 | Binary | hql.binary | binaryBytesToHex, binaryHexToBytes, binaryMD5, binarySHA256, binaryToBase64, binaryFromBase64 |
+| 14 | System/PC | hql.sys/hql.pc | osName, osArch, homeDir, cpuCores, cpuThreads, freeRam, screenW, screenH |
+| 15 | HTTP/Web | hql.net/hql.web | httpGet, getStatusCode, htmlEscape |
+| 16 | OOP | core | class, extends, this, `@public`, `var @name`, constructor `@init` |
+| 17 | Control/Loop | core | for, while, ternary `? :`, switch/case/default |
+| 18 | Export | hql.export | exportCSV |
+
+### 10.2. Cach chay file test
+
+**Cach 1 – qua IntelliJ:** chuot phai file `test_full_all_functions.hql` → Run.
+
+**Cach 2 – qua command line** (neu co `LinhScript.exe` trong `out\artifacts\...`):
+
+```powershell
+& "D:\CodeJava\Modding\NgonNguLapTrinhMoi\out\artifacts\NgonNguLapTrinhMoi_jar\LinhScript.exe" "D:\CodeJava\Modding\Project\test_full_all_functions.hql"
+```
+
+Ket qua mong doi: cuoi output in ra `TONG KET: PASS=18 | FAIL=0` va dong `>>> TAT CA TEST DEU PASS! He thong HQL hoat dong tot. <<<`.
+
+### 10.3. Danh sach day du cac nhom ham built-in (trich tu `Interpreter.java`, 10.561 dong)
+
+Duoi day la **danh sach day du cac ham built-in** duoc khai bao trong `Interpreter.java`. Moi ten la mot `case "ten"` trong switch xu ly call. Muon dung ham nao thi phai `use hql.<thu vien tuong ung>;` o dau file.
+
+#### Toan hoc (hql.math)
+`abs`, `ceil`, `floor`, `round`, `sqrt`, `cbrt`, `pow`, `exp`, `log`, `log2`, `log10`, `sin`, `cos`, `tan`, `asin`, `acos`, `atan`, `atan2`, `degrees`, `radians`, `min`, `max`, `clamp`, `lerp`, `gcd`, `lcm`, `factorial`, `random`, `randomInt`, `randomFloat`, `hypot`, `isnan`, `isinf`, `isqrt`, `fsum`, `mean`, `median`, `correlation`, `linearRegression`, `matrixMultiply`, `matrixTranspose`, `matrixDeterminant`, `matrixInverse`, `PI`, `E`, `INF`, `NAN`
+
+#### Chuoi (core / hql.util)
+`trim`, `strip`, `lstrip`, `rstrip`, `toLowerCase`, `toUpperCase`, `substring`, `indexOf`, `lastIndexOf`, `startsWith`, `endsWith`, `replace`, `replaceFirst`, `replaceRegex`, `contains`, `containsRegex`, `matches`, `findRegex`, `findAll`, `split`, `join`, `len`, `reverse`, `format`, `quote`, `jsonEscape`, `htmlEscape`
+
+#### Danh sach (core)
+`push`, `pop`, `add`, `insert`, `removeAt`, `set`, `get`, `clear`, `indexOf`, `contains`, `join`, `reverse`, `sort`, `map`, `filter`, `reduce`, `find`, `findAll`, `count`, `list`, `range`, `group`, `groups`, `sum`, `mean`, `median`
+
+#### Map / JSON (core)
+`toJson`, `fromJson`, `jsonEscape`, `jsonToXml`, `jsonToCsvRecords`
+
+#### Thoi gian (hql.time)
+`now`, `currentTime`, `currentTimeMillis`, `getYear`, `getMonth`, `getDay`, `getWeekday`, `getHour`, `getMinute`, `getSecond`, `addDays`, `addMonths`, `addYears`, `addMinutes`, `daysBetween`, `isPast`, `isWeekend`, `formatTime`, `parseTime`, `timeAgo`, `countdown`
+
+#### Regex (hql.regex)
+`matches`, `findRegex`, `findAll`, `replaceRegex`, `replaceFirst`, `splitRegex`
+
+#### Ma hoa (hql.crypto)
+`base64Encode`, `base64Decode`, `md5`, `sha256`, `sha1`, `encrypt`, `decrypt`, `generateKeys`, `pbkdf2`, `secureRandom`, `identity`
+
+#### File / IO (hql.io)
+`read`, `write`, `append`, `exists`, `isFile`, `isDir`, `delete`, `copy`, `move`, `mkdir`, `listDir`, `listFull`, `fileSize`, `lastModified`, `readA`, `readLines`, `writeLines`
+
+#### Env (hql.env)
+`env`, `envGet`, `envSet`, `envHas`, `envAll`, `envInt`, `envBool`, `envLoad`, `envRequire`, `envFiles`
+
+#### CSV (hql.csv)
+`readCsvFile`, `readCsvRecords`, `readDelimitedFile`, `writeCsvFile`, `csvRowCount`, `csvColumnCount`, `getCsvCell`, `getCsvField`, `addCsvRow`, `addCsvRecord`, `removeCsvRow`, `removeCsvRecord`, `filterCsvByColumn`, `filterCsvRecordsByField`, `sortCsvByColumn`, `csvRecordsToJson`, `csvToXml`, `jsonToCsvRecords`
+
+#### XML (hql.xml)
+`xmlParse`, `xmlGetNode`, `xmlGetAttr`, `xmlFindNodes`, `xmlToJson`, `xmlSetNode`, `xmlSave`
+
+#### Config (hql.config)
+`loadConfig`, `saveConfig`, `getConfig`, `setConfig`, `getSectionConfig`, `removeConfigKey`, `removeSection`, `hasConfigKey`, `listConfigKeys`, `listSections`, `listSectionKeys`
+
+#### Binary (hql.binary)
+`binaryRead`, `binaryWrite`, `binaryReadByte`, `binaryWriteByte`, `binaryReadBytes`, `binaryWriteBytes`, `binaryBytesToHex`, `binaryHexToBytes`, `binaryToBase64`, `binaryFromBase64`, `binaryMD5`, `binarySHA256`, `binaryCRC32`, `binaryConcat`, `binarySlice`, `binaryReverse`, `binaryRepeat`, `binaryXor`, `binaryCompare`, `binaryPack`, `binaryUnpack`, `binaryPackToFile`, `binaryUnpackFromFile`, `binaryHexDump`, `binaryFileSize`, `binaryCalcSize`
+
+#### Mau sac (hql.color)
+`colorHexToRgb`, `colorRgbToHex`, `colorRgbToHsl`, `colorHslToRgb`, `colorRgbToHsv`, `colorHsvToRgb`, `colorRgbToCmyk`, `colorCmykToRgb`, `colorNameToRgb`, `colorRgbToName`, `colorLighten`, `colorDarken`, `colorSaturate`, `colorDesaturate`, `colorAdjustHue`, `colorBlend`, `colorMultiBlend`, `colorGradient`, `colorMultiGradient`, `colorRandomHex`, `colorRandomRgb`, `colorRandomPalette`, `colorRandomGradient`, `colorExtractPalette`, `colorIsDark`, `colorIsLight`, `colorLuminance`, `colorContrastRatio`, `colorDistance`, `colorSimilarity`, `colorToGreyscale`, `colorWithOpacity`, `colorComplementary`, `colorAnalogous`, `colorMonochromatic`, `color`
+
+#### He thong (hql.sys / hql.pc)
+`osName`, `osArch`, `homeDir`, `sysProp`, `exec`, `execRead`, `exit`, `sleep`, `cpuCores`, `cpuThreads`, `cpuModel`, `cpuVendor`, `cpuSpeed`, `freeRam`, `freeSpace`, `ramSpeed`, `gpuModel`, `gpuDriver`, `gpuMemory`, `mainboard`, `biosVersion`, `machineModel`, `serialNumber`, `diskName`, `diskStatus`, `diskTemp`, `diskWear`, `screenW`, `screenH`, `resolution`
+
+#### HTTP / Web (hql.net / hql.web)
+`httpGet`, `httpPost`, `httpPostFile`, `httpQuery`, `addHeader`, `getStatusCode`, `getResponseHeader`, `getContentType`, `download`, `ignoreSSL`, `createServer`, `printWeb`, `reqHeader`, `resHeader`, `cookieGet`, `cookieSet`
+
+#### Socket (hql.socket)
+`socketTcpConnect`, `socketTcpSend`, `socketTcpReceive`, `socketTcpClose`, `socketUdpBind`, `socketUdpSend`, `socketUdpReceive`, `socketUdpClose`, `checkPort`, `portIsOpen`, `waitPort`, `ping`, `getIP`, `getHost`, `isOnline`
+
+#### Lap lich (hql.schedule)
+`taskSchedule`, `taskRepeat`, `taskCancel`, `taskList`, `cronValidate`, `cronNextRun`, `deltaTime`
+
+#### Export (hql.export)
+`exportCSV`, `exportXlsx`, `exportPdf`, `exportDocx`, `exportFile`
+
+#### Mail (hql.mail)
+`mailConfig`, `mailConfigEnv`, `mailIsConfigured`, `mailIsValid`, `mailSend`, `mailSendText`, `mailSendAsync`, `mailSendAsyncText`, `mailOtp`, `mailAttach`, `mailClearAttach`, `mailWarmUp`, `mailError`, `mailSenderName`, `mailPassword`
+
+#### Multiplayer (hql.multiplayer)
+`mpStartServer`, `mpStopServer`, `mpConnect`, `mpDisconnect`, `mpIsConnected`, `mpSend`, `mpSendToServer`, `mpReceive`, `mpReceiveFromServer`, `mpBroadcast`, `mpClientList`, `mpClientCount`, `mpKickClient`, `mpLocalIp`
+
+#### Game / Do hoa (hql.game)
+`gameWindow`, `gameWindowFull`, `gameLoop`, `getFPS`, `frameCount`, `deltaTime`, `clear`, `drawRect`, `fillRect`, `drawCircle`, `fillCircle`, `drawLine`, `drawText`, `drawImage`, `drawImageEx`, `drawTextCenter`, `textWidth`, `setFont`, `setAlpha`, `setStroke`, `gradientRect`, `fillOval`, `drawOval`, `fillRoundRect`, `drawRoundRect`, `fillArc`, `drawArc`, `fillTriangle`, `fillPolygon`, `drawPolygon`, `sprite`, `moveTo`, `moveBy`, `collide`, `removeSprite`, `rotateSprite`, `scaleSprite`, `isKeyDown`, `isKeyPressed`, `isMouseDown`, `isMousePressed`, `mouseX`, `mouseY`, `pressKey`, `releaseKey`, `playSound`, `playMusic`, `playSfx`, `setTitle`, `closeGame`, `screenShake`, `flashScreen`, `floatText`, `burst`, `clearEffects`, `addSmoke`, `clearSmoke`, `inSmoke`, `drawFog`, `drawVision`, `hideCursor`, `getTypedText`, `clearTypedText`, `drawMinimap`
+
+#### Ban do (hql.game)
+`mapLoad`, `mapCell`, `mapCellAt`, `mapCols`, `mapRows`, `mapCellSize`, `mapSetCell`, `mapCanSee`, `castRay`, `drawMap`, `isoSetup`, `isoX`, `isoY`, `isoScreenX`, `isoScreenY`, `isoToWorld`, `isoDrawMap`, `isoDrawGroundImage`, `isoDrawImage`, `isoFillEllipse`, `isoDrawEllipseOutline`, `isoDrawLine`, `isoDrawFog`
+
+#### Bieu do (hql.chart)
+`drawBarChart`, `drawLineChart`, `drawPieChart`, `drawScatterChart`, `drawHistogram`, `chartTitle`, `saveChart`
+
+#### Anh (hql.image)
+`loadImage`, `saveImage`, `imageWidth`, `imageHeight`, `resizeImage`, `cropImage`, `rotateImage`, `flipImage`, `grayscaleImage`, `invertImage`, `blurImage`, `findPixel`, `getPixelColor`, `saveScreenshot`, `imageFileToBase64`, `imageBase64ToFile`, `imageBase64Resize`, `imageBase64Square`, `imageBase64Info`, `imageBase64Width`, `imageBase64Height`, `imageBase64Mime`, `imageBase64Size`, `imageBase64Valid`, `imageBase64Clean`, `imageBase64Uri`, `imageReady`, `imageToSvg`
+
+#### Logging (hql.logging)
+`logInfo`, `logWarning`, `logError`, `logDebug`, `logReset`, `info`, `warn`, `error`, `debug`, `log`
+
+#### App / UI (hql.app / hql.ui)
+`appWindow`, `appWindowFull`, `appIsOpen`, `appWait`, `appClose`, `appHasBrowser`, `appTray`, `appRootDir`, `processAlive`, `processKill`, `processRun`, `beginUI`, `endUI`, `button`, `label`, `input`, `checkbox`, `radioButton`, `comboBox`, `progressBar`, `scroll`, `alert`, `confirm`, `prompt`, `chooseFile`, `chooseColor`, `getClip`, `setClip`, `bg`, `border_radius`, `padding`, `font_size`, `font_weight`, `onKeyPress`, `onHover`
+
+### 10.4. Ghi chu quan trong khi test
+
+- **Phai `use` thu vien truoc khi goi ham**: vi du goi `abs()` phai co `use hql.math;` o dau file.
+- **Moi so la so thuc**: `10 / 4` ra `2.5`, khong phai `2`.
+- **Noi mang phai dung `.push()`**, khong dung `+` (vi `+` giua 2 mang la phep cong so).
+- **Callback truyen bang ten chuoi**: `ds.map("gapDoi")`, `button("id", "Chu", "tenHam")`, `gameLoop("update", "draw")`.
+- **`@ten` va `ten` la 2 ten khac nhau** trong class: `this.@ten` khac `this.ten`.
+- **Class con khong thua ke constructor** – phai viet lai `func @init` trong class con.
+- **Private chi chan mot phan**: goi ham private tu ngoai bao loi, nhung doc thuoc tinh private tu ngoai van duoc.
+- **Map literal**: `{ "a": 1 }`. Hien `len(map)` luon la `0` va `toJson(map)` chua dung.
+- **Ham phan cung cua `hql.sys`** (nhiet do, do mon o...) chi day du tren Windows.
+
+---
+
+_Cap nhat lan cuoi: sau khi sua loi build `cannot find symbol` (xoa `.iml` trung, xoa `_build_test`/`_verify_build`/`out_test`/`out`, Invalidate Caches, Clean + Rebuild). File test moi: `test_full_all_functions.hql`._

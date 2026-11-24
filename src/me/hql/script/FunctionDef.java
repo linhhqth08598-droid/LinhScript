@@ -25,8 +25,8 @@ public class FunctionDef {
     public final int requiredCount;       // số đối số tối thiểu (không tính tham số có default / rest)
     public final boolean hasRest;
 
-    public FunctionDef(String name, List<String> params, List<Token> body) {
-        this(name, toDefaultParams(params), body);
+    public static FunctionDef ofNames(String name, List<String> params, List<Token> body) {
+        return new FunctionDef(name, toDefaultParams(params), body);
     }
 
     public FunctionDef(String name, List<Param> paramDefs, List<Token> body) {
