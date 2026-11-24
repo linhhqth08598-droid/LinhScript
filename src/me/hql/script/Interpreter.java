@@ -894,7 +894,7 @@ public class Interpreter {
         /*
          * DÒ LẠI, LẦN NÀY KHÔNG PHÂN BIỆT HOA THƯỜNG.
          *
-         * Địa chỉ viết thường (/vnchecker/trangchu) sở dĩ ra được TrangChuServlet.hql
+         * Địa chỉ viết thường (/myapp/trangchu) sở dĩ ra được TrangChuServlet.hql
          * là nhờ ổ đĩa Windows không phân biệt hoa thường — ăn may chứ không phải
          * do mã xử lý. Bê nguyên trang lên máy chủ Linux là 404 hàng loạt, mà lỗi
          * đó cực khó đoán vì ở máy nhà chạy ngon lành.
@@ -1471,7 +1471,7 @@ public class Interpreter {
                  * SO TÊN PROJECT KHÔNG PHÂN BIỆT HOA THƯỜNG.
                  *
                  * Tên servlet thì đã so kiểu này sẵn (/MyApp/trangchu vào được),
-                 * riêng tên project thì không — nên /vnchecker/trangchu trả 404 trong
+                 * riêng tên project thì không — nên /myapp/trangchu trả 404 trong
                  * khi /MyApp/trangchu ra trang. Người ta gõ địa chỉ bằng tay hay
                  * gõ thường hết, mà lỗi 404 kiểu này không ai đoán ra vì sao.
                  * Chuẩn URL cũng nói phần tên miền không phân biệt hoa thường, nên
@@ -1493,7 +1493,7 @@ public class Interpreter {
                      * Riot (và Google, Apple, Let's Encrypt...) đều đòi đặt một
                      * file ở ĐÚNG GỐC tên miền để chứng minh mình sở hữu nó:
                      *     https://ten-mien/riot.txt
-                     * Website này lại chạy dưới /vnchecker, nên mọi đường dẫn
+                     * Website này lại chạy dưới /myapp, nên mọi đường dẫn
                      * ngoài đó rơi vào nhánh 404 "Sai tên project" bên dưới —
                      * tức là KHÔNG CÁCH NÀO xác minh được, và trang 404 lại nói
                      * về tên project nên chẳng ai đoán ra vì sao.
@@ -3665,7 +3665,7 @@ public class Interpreter {
                 "fetchOne", "createServer", "table", "setInterval", "progressBar",
                 // --- THÊM LOẠT HÀM MẠNG VÀO ĐÂY ---
                 // --- WEBSOCKET (máy chủ đẩy dữ liệu xuống trang) ---
-                "wsStart", "wsGuiTatCa", "wsSoKetNoi", "wsStop",
+                "wsStart", "wsBroadcast", "wsClientCount", "wsStop",
                 "httpGet", "httpPost", "httpQuery", "httpPostFile", "download", "isOnline", "addHeader", "setCookie",
                 "setTimeout", "setProxy", "ignoreSSL", "getStatusCode", "getContentType",
                 "getResponseHeader", "getIP", "getHost", "ping", "checkPort",
@@ -3696,7 +3696,7 @@ public class Interpreter {
                 "printWeb", "webStart", "webStop", "webWait", "webRoot", "webRoute", "webServlet", "webExportTomcat", "webContext",
                 "param", "params", "webMethod", "webPath", "webQuery", "webBody", "webIP", "reqHeader",
                 "webStatus", "webType", "resHeader", "webRedirect", "webInclude", "webRender", "webJson",
-                "webHienLoiChiTiet", "webBaoLoi",
+                "webShowDetailedErrors", "webError",
                 "webJsonText", "webImage", "webBinary",
                 "sessionSet", "sessionGet", "sessionDel", "sessionId", "sessionKill", "cookieSet", "cookieGet",
                 "htmlEscape", "urlEncode", "urlDecode", "webMime",
@@ -3715,16 +3715,16 @@ public class Interpreter {
                 // --- GAME ENGINE V2: VẼ NÂNG CAO ---
                 "drawImageEx", "imageReady", "gameWindowFull", "screenW", "screenH", "isMousePressed",
                 // --- HQL.MANG (mạng nhiều người chơi) ---
-                "mangMoServer", "mangNhan", "mangGui", "mangPhat", "mangDanhSachKhach", "mangSoKhach",
-                "mangDuoiKhach", "mangDongServer", "mangKetNoi", "mangGuiServer", "mangNhanServer",
-                "mangDaNoi", "mangNgatKetNoi", "mangIpMay",
-                "mapNap", "mapO", "mapOTai", "mapSoCot", "mapSoHang", "mapKichThuocO", "mapDatO",
-                "mapThayDuoc", "banTia", "themKhoi", "xoaKhoiHet", "trongKhoi", "veSuongMu", "veVungNhin",
-                "veBanDo", "veBanDoNho",
+                "mpStartServer", "mpReceive", "mpSend", "mpBroadcast", "mpClientList", "mpClientCount",
+                "mpKickClient", "mpStopServer", "mpConnect", "mpSendToServer", "mpReceiveFromServer",
+                "mpIsConnected", "mpDisconnect", "mpLocalIp",
+                "mapLoad", "mapCell", "mapCellAt", "mapCols", "mapRows", "mapCellSize", "mapSetCell",
+                "mapCanSee", "castRay", "addSmoke", "clearSmoke", "inSmoke", "drawFog", "drawVision",
+                "drawMap", "drawMinimap",
                 // --- 2.5D nhin cheo + chuot/ban phim nang cao ---
-                "isoCaiDat", "isoX", "isoY", "isoManHinhX", "isoManHinhY", "isoNguocVeTheGioi",
-                "isoVeBanDo", "isoVeAnh", "isoVeAnhNen", "isoVeElip", "isoVeVienElip", "isoVeDuong", "isoVeSuongMu",
-                "anConTro", "layChuVuaGo", "xoaChuVuaGo",
+                "isoSetup", "isoX", "isoY", "isoScreenX", "isoScreenY", "isoToWorld",
+                "isoDrawMap", "isoDrawImage", "isoDrawGroundImage", "isoFillEllipse", "isoDrawEllipseOutline", "isoDrawLine", "isoDrawFog",
+                "hideCursor", "getTypedText", "clearTypedText",
                 "fillOval", "drawOval", "fillRoundRect", "drawRoundRect", "fillArc", "drawArc",
                 "fillTriangle", "fillPolygon", "drawPolygon", "gradientRect",
                 "drawTextCenter", "textWidth", "setFont", "setAlpha", "setStroke",
@@ -4338,8 +4338,8 @@ public class Interpreter {
                 case "screenH": return (double) Toolkit.getDefaultToolkit().getScreenSize().height;
 
                 // ---- NHÓM BẢN ĐỒ LƯỚI & TẦM NHÌN (dùng cho game bắn súng góc nhìn từ trên xuống) ----
-                case "mapNap": {
-                    // mapNap(danhSachHang, kichThuocO, kyTuChanNhin, kyTuChanDan)
+                case "mapLoad": {
+                    // mapLoad(danhSachHang, kichThuocO, kyTuChanNhin, kyTuChanDan)
                     List<?> rowList = (List<?>) args.get(0);
                     mapGrid = new char[rowList.size()][];
                     for (int i = 0; i < rowList.size(); i++) mapGrid[i] = stringify(rowList.get(i)).toCharArray();
@@ -4349,18 +4349,18 @@ public class Interpreter {
                     smokePuffs.clear();
                     return (double) mapGrid.length;
                 }
-                case "mapO": {
-                    // mapO(cot, hang) -> ký tự
+                case "mapCell": {
+                    // mapCell(cot, hang) -> ký tự
                     int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
                     if (mapGrid == null || h < 0 || h >= mapGrid.length || c < 0 || c >= mapGrid[h].length) return "#";
                     return String.valueOf(mapGrid[h][c]);
                 }
-                case "mapOTai": return String.valueOf(tileAtPoint(toDouble(args.get(0)), toDouble(args.get(1))));
-                case "mapSoCot": return mapGrid == null ? 0.0 : (double) mapGrid[0].length;
-                case "mapSoHang": return mapGrid == null ? 0.0 : (double) mapGrid.length;
-                case "mapKichThuocO": return (double) mapCellSize;
-                case "mapDatO": {
-                    // mapDatO(cot, hang, kyTu) - dùng để mở/đóng cửa, phá tường...
+                case "mapCellAt": return String.valueOf(tileAtPoint(toDouble(args.get(0)), toDouble(args.get(1))));
+                case "mapCols": return mapGrid == null ? 0.0 : (double) mapGrid[0].length;
+                case "mapRows": return mapGrid == null ? 0.0 : (double) mapGrid.length;
+                case "mapCellSize": return (double) mapCellSize;
+                case "mapSetCell": {
+                    // mapSetCell(cot, hang, kyTu) - dùng để mở/đóng cửa, phá tường...
                     int c = (int) toDouble(args.get(0)), h = (int) toDouble(args.get(1));
                     String k = stringify(args.get(2));
                     if (mapGrid != null && h >= 0 && h < mapGrid.length && c >= 0 && c < mapGrid[h].length && !k.isEmpty()) {
@@ -4368,13 +4368,13 @@ public class Interpreter {
                     }
                     return null;
                 }
-                case "mapThayDuoc": {
-                    // mapThayDuoc(x1,y1,x2,y2) -> hai điểm có nhìn thấy nhau không
+                case "mapCanSee": {
+                    // mapCanSee(x1,y1,x2,y2) -> hai điểm có nhìn thấy nhau không
                     return viewRayLength(toDouble(args.get(0)), toDouble(args.get(1)),
                             toDouble(args.get(2)), toDouble(args.get(3))) < 0;
                 }
-                case "banTia": {
-                    // banTia(x, y, gocDo, tamXa) -> [xTrung, yTrung, kyTuTuong, khoangCach]
+                case "castRay": {
+                    // castRay(x, y, gocDo, tamXa) -> [xTrung, yTrung, kyTuTuong, khoangCach]
                     // Dùng cho đường đạn: trả về điểm chạm tường CHẶN ĐẠN đầu tiên.
                     double bx = toDouble(args.get(0)), by = toDouble(args.get(1));
                     double angleVal = Math.toRadians(toDouble(args.get(2)));
@@ -4392,8 +4392,8 @@ public class Interpreter {
                     }
                     return new ArrayList<>(Arrays.asList(bx + cx * rangeLen, by + cy * rangeLen, " ", rangeLen));
                 }
-                case "veBanDo": {
-                    // veBanDo(anhSan, anhTuong, anhGo, anhThung, anhSite)
+                case "drawMap": {
+                    // drawMap(anhSan, anhTuong, anhGo, anhThung, anhSite)
                     // Vẽ toàn bộ ô đang lọt vào khung nhìn - chạy trong Java nên nhanh gấp trăm lần
                     // so với việc lặp từng ô bằng kịch bản HQL.
                     if (gameGraphics == null || mapGrid == null) return null;
@@ -4427,18 +4427,18 @@ public class Interpreter {
                     return null;
                 }
                 // ================= NHÓM 2.5D NHÌN CHÉO (ISOMETRIC) =================
-                case "isoCaiDat": {
-                    // isoCaiDat(rongO, caoO) - mặc định 64 x 32 (góc chéo 45 độ, tỉ lệ 2:1)
+                case "isoSetup": {
+                    // isoSetup(rongO, caoO) - mặc định 64 x 32 (góc chéo 45 độ, tỉ lệ 2:1)
                     isoWidth = toDouble(args.get(0));
                     isoHeight = toDouble(args.get(1));
                     return null;
                 }
                 case "isoX": return isoAxisX(toDouble(args.get(0)), toDouble(args.get(1)));
                 case "isoY": return isoAxisY(toDouble(args.get(0)), toDouble(args.get(1)));
-                case "isoManHinhX": return (double) isoScreenX(toDouble(args.get(0)), toDouble(args.get(1)));
-                case "isoManHinhY": return (double) isoScreenY(toDouble(args.get(0)), toDouble(args.get(1)));
-                case "isoNguocVeTheGioi": {
-                    // isoNguocVeTheGioi(sxManHinh, syManHinh) -> [wx, wy]
+                case "isoScreenX": return (double) isoScreenX(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoScreenY": return (double) isoScreenY(toDouble(args.get(0)), toDouble(args.get(1)));
+                case "isoToWorld": {
+                    // isoToWorld(sxManHinh, syManHinh) -> [wx, wy]
                     // Dùng để biết con trỏ chuột đang trỏ vào điểm nào trên mặt đất.
                     double sx = toDouble(args.get(0)) + camOffX();
                     double sy = toDouble(args.get(1)) + camOffY();
@@ -4448,8 +4448,8 @@ public class Interpreter {
                     double ty = (b - a) / 2.0;
                     return new ArrayList<>(Arrays.asList(tx * mapCellSize, ty * mapCellSize));
                 }
-                case "isoVeBanDo": {
-                    // isoVeBanDo(caoTuong, mauSan, mauSanToi, mauSite,
+                case "isoDrawMap": {
+                    // isoDrawMap(caoTuong, mauSan, mauSanToi, mauSite,
                     //            mauTuongTren, mauTuongTrai, mauTuongPhai,
                     //            mauGoTren, mauGoTrai, mauGoPhai,
                     //            mauThungTren, mauThungTrai, mauThungPhai)
@@ -4498,10 +4498,10 @@ public class Interpreter {
                     }
                     return null;
                 }
-                case "isoVeAnhNen": {
-                    // isoVeAnhNen(duongDanAnhBanDo)
+                case "isoDrawGroundImage": {
+                    // isoDrawGroundImage(duongDanAnhBanDo)
                     // Vẽ NGUYÊN tấm ảnh bản đồ thật, chiếu chéo 45 độ cho khớp lưới va chạm.
-                    // Ảnh được coi là phủ đúng toàn bộ lưới đã nạp bằng mapNap().
+                    // Ảnh được coi là phủ đúng toàn bộ lưới đã nạp bằng mapLoad().
                     if (gameGraphics == null || mapGrid == null) return null;
                     Image spriteImage = loadGameImage(stringify(args.get(0)));
                     int imageWidthPx = spriteImage.getWidth(null);
@@ -4518,8 +4518,8 @@ public class Interpreter {
                     if (oldInterpolation != null) gameGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldInterpolation);
                     return null;
                 }
-                case "isoVeAnh": {
-                    // isoVeAnh(duongDan, wx, wy, rong, cao, caoNhacLen)
+                case "isoDrawImage": {
+                    // isoDrawImage(duongDan, wx, wy, rong, cao, caoNhacLen)
                     // Ảnh được neo ở CHÂN nhân vật đứng tại ô (wx, wy).
                     Image img = loadGameImage(stringify(args.get(0)));
                     double wx = toDouble(args.get(1)), wy = toDouble(args.get(2));
@@ -4531,8 +4531,8 @@ public class Interpreter {
                             (int) rw, (int) rh, null);
                     return null;
                 }
-                case "isoVeElip": {
-                    // isoVeElip(wx, wy, banKinh, mau) - vòng tròn dưới chân bị bẹt theo phối cảnh
+                case "isoFillEllipse": {
+                    // isoFillEllipse(wx, wy, banKinh, mau) - vòng tròn dưới chân bị bẹt theo phối cảnh
                     double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
                     gameGraphics.setColor(parseColor(stringify(args.get(3))));
@@ -4542,7 +4542,7 @@ public class Interpreter {
                     gameGraphics.fillOval((int) (sx - rx), (int) (sy + isoHeight / 2 - ry), (int) (rx * 2), (int) (ry * 2));
                     return null;
                 }
-                case "isoVeVienElip": {
+                case "isoDrawEllipseOutline": {
                     double wx = toDouble(args.get(0)), wy = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
                     gameGraphics.setColor(parseColor(stringify(args.get(3))));
@@ -4552,8 +4552,8 @@ public class Interpreter {
                     gameGraphics.drawOval((int) (sx - rx), (int) (sy + isoHeight / 2 - ry), (int) (rx * 2), (int) (ry * 2));
                     return null;
                 }
-                case "isoVeDuong": {
-                    // isoVeDuong(wx1, wy1, wx2, wy2, mau, nhacLen)
+                case "isoDrawLine": {
+                    // isoDrawLine(wx1, wy1, wx2, wy2, mau, nhacLen)
                     double liftAmount = args.size() > 5 ? toDouble(args.get(5)) : 0;
                     gameGraphics.setColor(parseColor(stringify(args.get(4))));
                     gameGraphics.drawLine(isoScreenX(toDouble(args.get(0)), toDouble(args.get(1))),
@@ -4562,8 +4562,8 @@ public class Interpreter {
                             (int) (isoScreenY(toDouble(args.get(2)), toDouble(args.get(3))) + isoHeight / 2 - liftAmount));
                     return null;
                 }
-                case "isoVeSuongMu": {
-                    // isoVeSuongMu(x, y, banKinh, soTia, mauToi, doToi)
+                case "isoDrawFog": {
+                    // isoDrawFog(x, y, banKinh, soTia, mauToi, doToi)
                     if (gameGraphics == null || gameBuffer == null) return null;
                     double x = toDouble(args.get(0)), y = toDouble(args.get(1));
                     double bk = toDouble(args.get(2));
@@ -4589,8 +4589,8 @@ public class Interpreter {
                 }
 
                 // ================= CHUỘT & BÀN PHÍM NÂNG CAO =================
-                case "anConTro": {
-                    // anConTro(true) - ẩn con trỏ chuột để dùng tâm bắn tự vẽ
+                case "hideCursor": {
+                    // hideCursor(true) - ẩn con trỏ chuột để dùng tâm bắn tự vẽ
                     if (gameCanvas != null && gameWindow != null) {
                         boolean an = args.isEmpty() || toBoolean(args.get(0));
                         if (an) {
@@ -4606,16 +4606,16 @@ public class Interpreter {
                     }
                     return null;
                 }
-                case "layChuVuaGo": {
+                case "getTypedText": {
                     // Trả về các ký tự người chơi vừa gõ (dùng cho ô chat), rồi xoá đi.
                     String s = typedText.toString();
                     typedText.setLength(0);
                     return s;
                 }
-                case "xoaChuVuaGo": typedText.setLength(0); return null;
+                case "clearTypedText": typedText.setLength(0); return null;
 
-                case "veBanDoNho": {
-                    // veBanDoNho(x, y, tyLe, mauSan, mauTuong, mauSite) - vẽ minimap
+                case "drawMinimap": {
+                    // drawMinimap(x, y, tyLe, mauSan, mauTuong, mauSite) - vẽ minimap
                     if (gameGraphics == null || mapGrid == null) return null;
                     double mx = toDouble(args.get(0)), my = toDouble(args.get(1));
                     double ty = toDouble(args.get(2));
@@ -4636,22 +4636,22 @@ public class Interpreter {
                     }
                     return null;
                 }
-                case "themKhoi": {
+                case "addSmoke": {
                     SmokePuff q = new SmokePuff();
                     q.x = toDouble(args.get(0)); q.y = toDouble(args.get(1)); q.r = toDouble(args.get(2));
                     smokePuffs.add(q);
                     return null;
                 }
-                case "xoaKhoiHet": smokePuffs.clear(); return null;
-                case "trongKhoi": {
+                case "clearSmoke": smokePuffs.clear(); return null;
+                case "inSmoke": {
                     double px = toDouble(args.get(0)), py = toDouble(args.get(1));
                     for (SmokePuff q : smokePuffs) {
                         if (Math.hypot(px - q.x, py - q.y) <= q.r) return true;
                     }
                     return false;
                 }
-                case "veSuongMu": {
-                    // veSuongMu(x, y, banKinh, soTia, mauToi, doToi)
+                case "drawFog": {
+                    // drawFog(x, y, banKinh, soTia, mauToi, doToi)
                     // Phóng tia quanh (x,y), phần KHÔNG nhìn thấy bị phủ tối.
                     if (gameGraphics == null || gameBuffer == null) return null;
                     double x = toDouble(args.get(0)), y = toDouble(args.get(1));
@@ -4676,8 +4676,8 @@ public class Interpreter {
                     gameGraphics.setComposite(previousValue);
                     return null;
                 }
-                case "veVungNhin": {
-                    // veVungNhin(x, y, banKinh, soTia, mau, doMo) - tô sáng vùng nhìn thấy
+                case "drawVision": {
+                    // drawVision(x, y, banKinh, soTia, mau, doMo) - tô sáng vùng nhìn thấy
                     if (gameGraphics == null) return null;
                     Polygon p = buildViewPolygon(toDouble(args.get(0)), toDouble(args.get(1)),
                             toDouble(args.get(2)), args.size() > 3 ? (int) toDouble(args.get(3)) : 120);
@@ -5238,7 +5238,7 @@ public class Interpreter {
         try {
             switch (name) {
                 // ---------------- PHÍA MÁY CHỦ ----------------
-                case "mangMoServer": {
+                case "mpStartServer": {
                     int portNumber = (int) toDouble(args.get(0));
                     if (netServerSocket != null) { try { netServerSocket.close(); } catch (Exception ignored) {} }
                     netServerSocket = new ServerSocket(portNumber);
@@ -5263,34 +5263,34 @@ public class Interpreter {
                     t.start();
                     return true;
                 }
-                case "mangNhan": {
+                case "mpReceive": {
                     // Trả về [idKhach, noiDung] hoặc mảng rỗng nếu chưa có tin nào.
                     String[] lowerMessage = netInbox.poll();
                     if (lowerMessage == null) return new ArrayList<>();
                     return new ArrayList<>(Arrays.asList(lowerMessage[0], lowerMessage[1]));
                 }
-                case "mangGui": {
+                case "mpSend": {
                     netSendToGuest(stringify(args.get(0)), stringify(args.get(1)));
                     return null;
                 }
-                case "mangPhat": {
+                case "mpBroadcast": {
                     String bodyContent = stringify(args.get(0));
                     for (String id : netWriteGuest.keySet()) netSendToGuest(id, bodyContent);
                     return null;
                 }
-                case "mangDanhSachKhach": {
+                case "mpClientList": {
                     ArrayList<Object> ds = new ArrayList<>(netGuests.keySet());
                     return ds;
                 }
-                case "mangSoKhach": return (double) netGuests.size();
-                case "mangDuoiKhach": {
+                case "mpClientCount": return (double) netGuests.size();
+                case "mpKickClient": {
                     String id = stringify(args.get(0));
                     Socket s2 = netGuests.remove(id);
                     netWriteGuest.remove(id);
                     if (s2 != null) try { s2.close(); } catch (Exception ignored) {}
                     return null;
                 }
-                case "mangDongServer": {
+                case "mpStopServer": {
                     netServerRunning = false;
                     for (Socket s2 : netGuests.values()) try { s2.close(); } catch (Exception ignored) {}
                     netGuests.clear();
@@ -5301,7 +5301,7 @@ public class Interpreter {
                 }
 
                 // ---------------- PHÍA NGƯỜI CHƠI ----------------
-                case "mangKetNoi": {
+                case "mpConnect": {
                     String host = stringify(args.get(0));
                     int portNumber = (int) toDouble(args.get(1));
                     int connectTimeoutMs = args.size() > 2 ? (int) toDouble(args.get(2)) : 4000;
@@ -5321,7 +5321,7 @@ public class Interpreter {
                         return false;
                     }
                 }
-                case "mangGuiServer": {
+                case "mpSendToServer": {
                     if (netWriteToServer == null) return false;
                     try {
                         synchronized (netWriteToServer) {
@@ -5335,19 +5335,19 @@ public class Interpreter {
                         return false;
                     }
                 }
-                case "mangNhanServer": {
+                case "mpReceiveFromServer": {
                     String lowerMessage = netGuestInbox.poll();
                     return lowerMessage == null ? "" : lowerMessage;
                 }
-                case "mangDaNoi": return netConnectedToServer;
-                case "mangNgatKetNoi": {
+                case "mpIsConnected": return netConnectedToServer;
+                case "mpDisconnect": {
                     netConnectedToServer = false;
                     if (netSocketToServer != null) try { netSocketToServer.close(); } catch (Exception ignored) {}
                     netSocketToServer = null;
                     netWriteToServer = null;
                     return null;
                 }
-                case "mangIpMay": {
+                case "mpLocalIp": {
                     try { return InetAddress.getLocalHost().getHostAddress(); }
                     catch (Exception e) { return "127.0.0.1"; }
                 }
@@ -9034,9 +9034,9 @@ public class Interpreter {
                     //
                     // wsStart(cong)      mở ổ cắm riêng (KHÔNG dùng chung cổng
                     //                    với webStart — xem chú thích ở lớp)
-                    // wsGuiTatCa(chuoi)  đẩy một chuỗi xuống mọi trang đang mở,
+                    // wsBroadcast(chuoi)  đẩy một chuỗi xuống mọi trang đang mở,
                     //                    trả về số nơi nhận được
-                    // wsSoKetNoi()       hiện có bao nhiêu trang đang nối
+                    // wsClientCount()       hiện có bao nhiêu trang đang nối
                     // wsStop()           đóng hết
                     case "wsStart": {
                         if (args.isEmpty()) {
@@ -9045,8 +9045,8 @@ public class Interpreter {
                         startWsServer((int) toDouble(args.get(0)));
                         return true;
                     }
-                    case "wsGuiTatCa": return (double) wsBroadcast(stringify(args.get(0)));
-                    case "wsSoKetNoi": return (double) wsClients.size();
+                    case "wsBroadcast": return (double) wsBroadcast(stringify(args.get(0)));
+                    case "wsClientCount": return (double) wsClients.size();
                     case "wsStop":     stopWsServer(); return null;
 
                     case "webContext": return webCtx != null ? webCtx.contextPath : webAppContext;
@@ -9110,7 +9110,7 @@ public class Interpreter {
                     case "webStatus": requireWeb("webStatus").status = (int) toDouble(args.get(0)); return null;
 
                     /*
-                     * webHienLoiChiTiet(true|false)
+                     * webShowDetailedErrors(true|false)
                      *
                      * true  — trang lỗi bày đủ file, số dòng, trích đoạn mã nguồn và
                      *         ngăn xếp gọi hàm. Đang code ở máy nhà thì để true.
@@ -9119,19 +9119,19 @@ public class Interpreter {
                      *         đường dẫn thật trên máy chủ không phải thứ để khoe.
                      * Báo cáo đầy đủ vẫn luôn được in ra nhật ký máy chủ.
                      */
-                    case "webHienLoiChiTiet": {
+                    case "webShowDetailedErrors": {
                         webShowDetailedErrors = args.isEmpty() || toBoolean(args.get(0));
                         return webShowDetailedErrors;
                     }
 
                     /*
-                     * webBaoLoi("câu báo lỗi")
+                     * webError("câu báo lỗi")
                      *
                      * Chủ động dựng trang lỗi giống hệt lúc động cơ tự nổ lỗi — dùng
                      * khi mã HQL tự phát hiện ra tình huống không đi tiếp được.
                      */
-                    case "webBaoLoi": {
-                        WebContext c = requireWeb("webBaoLoi");
+                    case "webError": {
+                        WebContext c = requireWeb("webError");
                         RuntimeException failure = new RuntimeException(stringify(args.get(0)));
                         System.err.println(ErrorReport.textReport(failure, trace().lastToken, trace().callStack, true));
                         c.status = 500;

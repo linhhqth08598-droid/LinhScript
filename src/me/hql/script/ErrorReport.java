@@ -535,7 +535,7 @@ public final class ErrorReport {
 
         sb.append("<a class=\"nut\" href=\"javascript:location.reload()\">↻ Thử lại</a>");
         sb.append("<div class=\"chan\">Báo cáo này chỉ hiện khi chạy ở máy nhà. "
-                + "Đưa trang ra Internet thì nhớ tắt bằng <code>webHienLoiChiTiet(false)</code> "
+                + "Đưa trang ra Internet thì nhớ tắt bằng <code>webShowDetailedErrors(false)</code> "
                 + "— không ai cần thấy mã nguồn của bạn.</div>");
 
         sb.append("</div></body></html>");

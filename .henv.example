@@ -12,9 +12,9 @@
 # ---- Email (Gmail cần "Mật khẩu ứng dụng" 16 ký tự) ----
 MAIL_EMAIL=ten-hop-thu@gmail.com
 MAIL_PASSWORD=xxxx xxxx xxxx xxxx
-MAIL_NAME="GearZone Support"
+MAIL_NAME="MyShop Support"
 MAIL_HOST=smtp.gmail.com
 MAIL_PORT=465
-MAIL_BRAND=GEARZONE
+MAIL_BRAND=MYSHOP
 MAIL_SLOGAN="Chuyên linh kiện PC & Phụ kiện Gaming"
 MAIL_SUPPORT=ho-tro@gmail.com

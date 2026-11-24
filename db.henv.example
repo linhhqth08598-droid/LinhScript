@@ -19,7 +19,7 @@ db.ssl=auto                 # auto (mặc định: bật khi host là máy chủ
 # db.url=postgresql://user:matkhau@ep-xxxx.neon.tech/namedb?sslmode=require
 # db.url=mysql://user:matkhau@host.aivencloud.com:12345/namedb
 # db.url=sqlserver://user:matkhau@ten.database.windows.net:1433/namedb
-# db.url=jdbc:sqlserver://127.0.0.1:1433;databaseName=GearZone;encrypt=false
+# db.url=jdbc:sqlserver://127.0.0.1:1433;databaseName=MyShop;encrypt=false
 
 db.pool.max=10              # số kết nối tối đa trong bể
 db.pool.min=2               # số kết nối giữ sẵn

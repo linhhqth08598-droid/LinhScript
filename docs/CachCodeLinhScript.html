@@ -571,10 +571,10 @@ func doGet() {
     printWeb("""
         &lt;!doctype html&gt;
         &lt;html lang="vi"&gt;
-        &lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;title&gt;Báo cáo kho&lt;/title&gt;
+        &lt;head&gt;&lt;meta charset="utf-8"&gt;&lt;title&gt;Báo cáo&lt;/title&gt;
     """);
     printWeb("&lt;link rel='stylesheet' href='" + webContext() + "/style.css'&gt;");
-    printWeb("&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Báo cáo kho hàng&lt;/h1&gt;");
+    printWeb("&lt;/head&gt;&lt;body&gt;&lt;h1&gt;Báo cáo sản phẩm&lt;/h1&gt;");
 
     var sp = new SanPham("Laptop", 1200, 5);
     printWeb("&lt;p&gt;" + htmlEscape(sp.@ten) + " — " + sp.@thanhTien()
@@ -625,8 +625,8 @@ webRoute("/api/chitiet", "apiChiTiet");</code></pre>
 
 <h3>Gán servlet vào URL tuỳ ý</h3>
 <p>Nếu không thích quy ước tên file, dùng <code>webServlet()</code>:</p>
-<pre><code>webServlet("/bao-cao-kho", "BaoCaoServlet.hql");
-// Giờ mở /MyApp/bao-cao-kho cũng chạy đúng file đó</code></pre>
+<pre><code>webServlet("/bao-cao", "BaoCaoServlet.hql");
+// Giờ mở /MyApp/bao-cao cũng chạy đúng file đó</code></pre>
 </section>
 
 <!-- ═══════════════ 9 ═══════════════ -->
@@ -805,7 +805,7 @@ if (mau == null) { mau = "sang"; }</code></pre>
 use hql.database;
 
 func doGet() {
-    printWeb("&lt;h1&gt;Báo cáo kho hàng&lt;/h1&gt;");
+    printWeb("&lt;h1&gt;Báo cáo sản phẩm&lt;/h1&gt;");
 
     var ok = connect("localhost", 1433, "DemoDB", "sa", "123");
 
@@ -856,7 +856,7 @@ rồi nhúng vào.</p>
 &lt;head&gt;
     &lt;meta charset="utf-8"&gt;
     &lt;meta name="viewport" content="width=device-width, initial-scale=1"&gt;
-    &lt;title&gt;Quản Lý Kho&lt;/title&gt;
+    &lt;title&gt;My App&lt;/title&gt;
     &lt;link rel="stylesheet" href="&lt;%= webContext() %&gt;/style.css"&gt;
 &lt;/head&gt;
 &lt;body&gt;

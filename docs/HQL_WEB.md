@@ -108,7 +108,7 @@ func doGet() {
     printWeb("""
         <!doctype html>
         <html><body>
-        <h1>Báo cáo kho</h1>
+        <h1>Báo cáo</h1>
     """);
 
     if (connect("localhost", 1433, "DemoDB", "sa", "123")) {

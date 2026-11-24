@@ -21,8 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * ┌─ CÚ PHÁP ─────────────────────────────────────────────────────────────┐
  * │  # dòng chú thích                      (cũng nhận ; ở đầu dòng)        │
  * │  DB_HOST=127.0.0.1                     giá trị trần                    │
- * │  DB_NAME = "GearZone"                  nháy kép: hiểu \n \t \" \\      │
- * │  MAIL_NAME='GEAR ZONE'                 nháy đơn: giữ nguyên từng chữ   │
+ * │  DB_NAME = "MyShop"                  nháy kép: hiểu \n \t \" \\      │
+ * │  MAIL_NAME='MY SHOP'                 nháy đơn: giữ nguyên từng chữ   │
  * │  export DB_PORT=1433                   chữ export ở đầu được bỏ qua    │
  * │  DB_URL=jdbc:sqlserver://${DB_HOST}:${DB_PORT}   nối biến               │
  * │  DB_USER=${DB_USER_MAC_DINH:-sa}       giá trị dự phòng                 │
