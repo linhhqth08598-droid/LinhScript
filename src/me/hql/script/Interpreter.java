@@ -4327,6 +4327,7 @@ public class Interpreter {
         java.util.concurrent.CountDownLatch closedLatch = new java.util.concurrent.CountDownLatch(1);
         Process fallbackProcess;   // khác null nghĩa là đang lùi về Edge
         boolean inTray;          // đã thu về khay: bấm X chỉ ẩn, không thoát
+        Process helperProcess;   // Process LinhScriptApp.exe (WebView2 helper)
     }
 
     private final java.util.Map<Integer, AppWindow> appWindows = new java.util.HashMap<>();
@@ -4337,6 +4338,17 @@ public class Interpreter {
     private AppWindow openChromiumWindow(String url, String titleText, int windowWidth, int windowHeight, String iconPath) throws Exception {
         AppWindow cs = new AppWindow();
         try {
+            if (System.getProperty("org.graalvm.nativeimage.imagecode") != null) {
+                String helperExe = findWebView2Helper();
+                if (helperExe == null) {
+                    System.err.println("[HQL.APP] Khong tim thay LinhScriptApp.exe");
+                    cs.closedLatch.countDown();
+                    return cs;
+                }
+                ProcessBuilder pb = new ProcessBuilder(helperExe, url, titleText, String.valueOf(windowWidth), String.valueOf(windowHeight));
+                cs.helperProcess = pb.start();
+                return cs;
+            }
             java.io.File cefHomeDir = new java.io.File("hql_app_cef");
             cefHomeDir.mkdirs();
             java.io.File sessionDir = new java.io.File("hql_app_cef/session_"
@@ -11421,5 +11433,32 @@ public class Interpreter {
             catch (Exception e) { throw new RuntimeException(e); }
         });
         return res.get();
+    }
+    /** Tim helper LinhScriptApp.exe: file ben ngoai hoac giai nen tu resource trong .exe. */
+    private String findWebView2Helper() {
+        try {
+            java.io.File selfDir = new java.io.File(".");
+            try { java.io.File s = new java.io.File(Interpreter.class.getProtectionDomain().getCodeSource().getLocation().toURI()); selfDir = s.isFile() ? s.getParentFile() : s; } catch (Throwable ig) {}
+            java.io.File local = new java.io.File(selfDir, "LinhScriptApp.exe");
+            if (local.isFile()) return local.getAbsolutePath();
+            return extractHelperFromResource();
+        } catch (Throwable t) { System.err.println("[HQL.APP] findWebView2Helper loi: " + t.getMessage()); return null; }
+    }
+    /** Giai nen LinhScriptApp.exe tu resource ra %TEMP% lan dau. */
+    private String extractHelperFromResource() {
+        try {
+            java.io.InputStream in = Interpreter.class.getResourceAsStream("/me/hql/script/res/LinhScriptApp.exe");
+            if (in == null) return null;
+            java.io.File dir = new java.io.File(System.getProperty("java.io.tmpdir"), "LinhScriptHelper");
+            dir.mkdirs();
+            java.io.File out = new java.io.File(dir, "LinhScriptApp.exe");
+            if (!out.isFile() || out.length() < 1000000L) {
+                java.io.FileOutputStream fo = new java.io.FileOutputStream(out);
+                byte[] buf = new byte[65536]; int n;
+                while ((n = in.read(buf)) > 0) fo.write(buf, 0, n);
+                fo.close(); in.close();
+            }
+            return out.getAbsolutePath();
+        } catch (Throwable t) { System.err.println("[HQL.APP] extractHelper loi: " + t.getMessage()); return null; }
     }
 }

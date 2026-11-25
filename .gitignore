@@ -1,15 +1,46 @@
+# Build outputs
 out/*
-.claude/*
-hql/*
+native/
+native-config/
+native-config-agent/
+src/me/hql/script/res/
+
+# IDE
 .idea/*
-lib/
+*.iml
+
+# Secrets
 .henv
-db.henv
 .henv.local
 .henv.*.local
+db.henv
+!*.henv.example
+
+# Local-only files
+.claude/*
+hql/*
+lib/
 web/*
 build_exe.bat
 hello.hql
-run_agent.ps1
 hello_world.hql
+run_agent.ps1
 VNChecker
+
+# Backups
+*.bak
+*.BAK
+*.BAK_HP
+*.FIXBAK
+*.SAFE_BAK
+*.bak2
+*.bak3
+
+# Logs
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# OS noise
+.DS_Store
+Thumbs.db
